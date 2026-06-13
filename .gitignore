@@ -13,6 +13,7 @@ env/
 # Generated artifacts
 output/*.stl
 output/*.off
+output/*.png
 *.log
 
 # Claude local settings (machine-specific)

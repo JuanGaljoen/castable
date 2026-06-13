@@ -1,0 +1,21 @@
+{
+  "ticket": "RNG-1",
+  "spec": "docs/specs/RNG-1-openscad-parametric-solitaire-ring-template.md",
+  "phase": "feature",
+  "status": "passed",
+  "reflected": true,
+  "acceptance_criteria": [
+    {"description": "AC1: four modules shank/gallery/prongs/seat union into one solid", "met": true},
+    {"description": "AC2: 7 params wired + overridable via -D", "met": true},
+    {"description": "AC3: min wall 0.8mm enforced by construction", "met": true},
+    {"description": "AC4: min prong tip 0.7mm enforced by construction", "met": true},
+    {"description": "AC5: prong_count snaps to 4 + warns for non {4,6}", "met": true},
+    {"description": "AC6: oversized stone renders valid + warns", "met": true},
+    {"description": "AC7: reusable trimesh validator (watertight, 0 non-manifold, 1 body)", "met": true},
+    {"description": "AC8: parameter-sweep test renders matrix + validates all", "met": true},
+    {"description": "AC9: render time + STL size budget, pinned $fn", "met": true},
+    {"description": "AC10: golden default ring renders + validates", "met": true},
+    {"description": "AC11: clamp/snap warnings on stderr, asserted", "met": true},
+    {"description": "AC12: sane parameter ranges recorded", "met": true}
+  ]
+}
