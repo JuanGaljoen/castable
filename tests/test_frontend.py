@@ -180,19 +180,115 @@ def test_every_input_has_label_for(body):
         ), f"no <label for={key}>"
 
 
-# ---- AC8: no JS framework / CDN bundle; only app.js ------------------------
+# ---- AC8/AC10: no JS framework / CDN bundle; only local first-party + vendor
 def test_no_js_framework(body):
+    """All script srcs must be first-party (app.js / viewer.js) or locally
+    vendored three; the inline import map must point only at /static/ URLs.
+
+    Rewritten for RNG-4: app.js is no longer the *only* script src — viewer.js
+    (ES module) and the vendored three files are also referenced. The rule is
+    no framework/CDN, all local. Tolerant of attribute ordering.
+    """
+    forbidden = ("react", "vue", "angular", "svelte", "cdn", "unpkg", "jsdelivr")
+
     srcs = re.findall(
         r'<script\b[^>]*\bsrc\s*=\s*"([^"]*)"', body, re.IGNORECASE
     )
-    forbidden = ("react", "vue", "angular", "svelte", "cdn", "unpkg", "jsdelivr")
+    assert srcs, "no <script src> at all (expected at least app.js + viewer.js)"
     for src in srcs:
         low = src.lower()
         assert not any(tok in low for tok in forbidden), (
             f"forbidden framework/CDN script src: {src}"
         )
-    # the only script src should be app.js
-    assert srcs, "no <script src> at all (expected app.js)"
-    assert all("app.js" in s for s in srcs), (
-        f"unexpected non-app.js script src(s): {srcs}"
+        allowed = (
+            low.endswith("app.js")
+            or low.endswith("viewer.js")
+            or "/static/vendor/three/" in low
+        )
+        assert allowed, (
+            f"unexpected script src (not app.js/viewer.js/vendored three): {src}"
+        )
+
+    # The inline import map must reference only local /static/ URLs.
+    im = re.search(
+        r'<script\b[^>]*type\s*=\s*"importmap"[^>]*>(.*?)</script>',
+        body,
+        re.IGNORECASE | re.DOTALL,
     )
+    assert im, "no inline <script type=importmap> found"
+    import_urls = re.findall(r'"([^"]*)"\s*:\s*"([^"]*)"', im.group(1))
+    mapped = [target for _, target in import_urls if "/" in target or "." in target]
+    assert mapped, "import map declares no target URLs"
+    for url in mapped:
+        low = url.lower()
+        assert low.startswith("/static/"), (
+            f"import map target must be /static/-local: {url}"
+        )
+        assert not any(
+            tok in low for tok in ("cdn", "unpkg", "jsdelivr", "http")
+        ), f"forbidden CDN/remote import map target: {url}"
+
+
+# ---- RNG-4 AC4/AC1/AC9 shell: viewer markup --------------------------------
+def test_viewer_structure(body):
+    """The #viewer region must expose the canvas, wireframe toggle, and message
+    placeholder the viewer JS drives — with their accessibility attributes."""
+    canvas = re.search(
+        r'<canvas\b[^>]*id\s*=\s*"viewer-canvas"[^>]*>', body, re.IGNORECASE
+    )
+    assert canvas, "no <canvas id=viewer-canvas>"
+    assert re.search(r"aria-label\s*=", canvas.group(0), re.IGNORECASE), (
+        "#viewer-canvas must carry an aria-label"
+    )
+
+    toggle = re.search(
+        r'<button\b[^>]*id\s*=\s*"wireframe-toggle"[^>]*>', body, re.IGNORECASE
+    )
+    assert toggle, "no <button id=wireframe-toggle>"
+    assert re.search(r"aria-pressed\s*=", toggle.group(0), re.IGNORECASE), (
+        "#wireframe-toggle must carry aria-pressed"
+    )
+
+    assert 'id="viewer-message"' in body, "missing element id=viewer-message"
+
+
+# ---- RNG-4 AC1 wiring: viewer ES module referenced -------------------------
+def test_viewer_module_script(body):
+    module_scripts = re.findall(
+        r'<script\b[^>]*type\s*=\s*"module"[^>]*>', body, re.IGNORECASE
+    )
+    assert any("viewer.js" in tag for tag in module_scripts), (
+        "no <script type=module> referencing viewer.js"
+    )
+
+
+# ---- RNG-4 AC10 static: import map maps three specifiers to local vendor ----
+def test_import_map_specifiers(body):
+    im = re.search(
+        r'<script\b[^>]*type\s*=\s*"importmap"[^>]*>(.*?)</script>',
+        body,
+        re.IGNORECASE | re.DOTALL,
+    )
+    assert im, "no inline <script type=importmap> found"
+    block = im.group(1)
+    assert re.search(
+        r'"three"\s*:\s*"/static/vendor/three/three\.module\.js"',
+        block,
+    ), '"three" must map to /static/vendor/three/three.module.js'
+    assert re.search(
+        r'"three/addons/"\s*:\s*"/static/vendor/three/addons/"',
+        block,
+    ), '"three/addons/" must map to /static/vendor/three/addons/'
+
+
+# ---- RNG-4 AC10 static: vendored three files are actually served -----------
+def test_vendored_three_served(client):
+    for path in (
+        "/static/vendor/three/three.module.js",
+        "/static/vendor/three/addons/controls/OrbitControls.js",
+        "/static/vendor/three/addons/loaders/STLLoader.js",
+    ):
+        resp = client.get(path)
+        assert resp.status_code == 200, (
+            f"vendored three file not served (got {resp.status_code}): {path}"
+        )
