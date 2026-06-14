@@ -1,0 +1,193 @@
+/* RNG-3 — Ring parameter form + viewer shell styles. WCAG 2.1 AA. */
+
+:root {
+  --bg: #f4f5f7;
+  --panel-bg: #ffffff;
+  --text: #1a1d21;        /* ~15:1 on white */
+  --muted: #4a4f57;       /* ~8:1 on white  */
+  --border: #b7bcc4;
+  --accent: #1d4ed8;      /* ~6.4:1 on white */
+  --accent-text: #ffffff;
+  --error: #b00020;       /* ~6.3:1 on white */
+  --error-bg: #fdeaea;
+  --focus: #0b3d91;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.5;
+}
+
+[hidden] { display: none !important; }
+
+.page-header {
+  padding: 1.5rem 1.5rem 0.5rem;
+}
+
+.page-header h1 { margin: 0 0 0.25rem; font-size: 1.6rem; }
+.subtitle { margin: 0; color: var(--muted); }
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 480px) 1fr;
+  gap: 1.5rem;
+  align-items: start;
+  padding: 1.5rem;
+}
+
+@media (max-width: 720px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.25rem;
+}
+
+.panel h2 { margin-top: 0; font-size: 1.2rem; }
+
+fieldset {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 0 0 1rem;
+  padding: 1rem;
+}
+
+legend {
+  font-weight: 600;
+  padding: 0 0.4rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0.9rem;
+}
+
+.field label {
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+
+.field input,
+.field select {
+  font: inherit;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text);
+}
+
+.hint {
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.field input.field-error,
+.field select.field-error {
+  border-color: var(--error);
+  border-width: 2px;
+}
+
+.actions {
+  margin-top: 0.5rem;
+}
+
+.download-actions {
+  margin-top: 1rem;
+}
+
+button,
+.button-link {
+  display: inline-block;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.6rem 1.1rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: var(--accent);
+  color: var(--accent-text);
+  text-decoration: none;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.button-link {
+  background: #0f7b3f; /* ~4.6:1 on white text */
+}
+
+/* Visible focus indicator, >=2px, for all interactive controls. */
+input:focus-visible,
+select:focus-visible,
+button:focus-visible,
+.button-link:focus-visible,
+#error:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.status {
+  margin: 0.75rem 0 0;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* Error region: colour PLUS a non-colour signal (leading "⚠ Error:" + border). */
+.error {
+  margin-top: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border: 2px solid var(--error);
+  border-radius: 6px;
+  background: var(--error-bg);
+  color: var(--error);
+}
+
+.error-message {
+  margin: 0;
+  font-weight: 600;
+}
+
+.error-message::before {
+  content: "⚠ Error: ";
+  font-weight: 700;
+}
+
+#stderr-details {
+  margin-top: 0.6rem;
+  color: var(--text);
+}
+
+#stderr-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 240px;
+  overflow: auto;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.viewer-panel {
+  min-height: 320px;
+}
+
+.viewer-placeholder {
+  color: var(--muted);
+}

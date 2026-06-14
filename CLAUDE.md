@@ -110,8 +110,9 @@ Build the parametric `.scad` template. Acceptance criteria:
 - Geometry updates correctly when any parameter changes
 - Exports clean STL with zero non-manifold edges
 
-## Jira Ticket Lifecycle (automatic)
-- When starting /plan-feature or /build-feature: move the ticket to "In Progress" in Jira
-- When running /ship and PR is created: move the ticket to "In Review" in Jira
-- When PR is merged or build is complete and shipped: move the ticket to "Done" in Jira
-- Always use the Jira MCP to update ticket status at each transition
+## Jira Ticket Lifecycle (orchestrator-run, Stop-verified)
+- When starting /plan-feature or /build-feature: move the ticket to "In Progress" in Jira, then set `jira_in_progress: true` in `.claude/logs/build_session.json`.
+- When running /ship and PR is created: move the ticket to "In Review" in Jira.
+- When PR is merged or build is complete and shipped: move the ticket to "Done" in Jira.
+- Always use the Jira MCP to update ticket status at each transition.
+- Enforcement: the Stop hook's `check_jira_transition` soft-warns (stderr `[JIRA]`) when a build_session.json has a `ticket` but no `jira_in_progress` flag. The hook only *verifies* — it cannot perform the transition (Jira is network/auth/MCP; merge -> Done is an external GitHub event). The doing stays with the orchestrator via MCP; the flag is the receipt. Same pattern as `reflection_persisted`.
