@@ -109,3 +109,9 @@ Build the parametric `.scad` template. Acceptance criteria:
 - All modules union into a single watertight manifold
 - Geometry updates correctly when any parameter changes
 - Exports clean STL with zero non-manifold edges
+
+## Jira Ticket Lifecycle (automatic)
+- When starting /plan-feature or /build-feature: move the ticket to "In Progress" in Jira
+- When running /ship and PR is created: move the ticket to "In Review" in Jira
+- When PR is merged or build is complete and shipped: move the ticket to "Done" in Jira
+- Always use the Jira MCP to update ticket status at each transition
