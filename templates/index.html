@@ -6,6 +6,8 @@
   <title>Ring CAD — Parametric Solitaire Ring Generator</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
   <script defer src="{{ url_for('static', filename='app.js') }}"></script>
+  <script type="importmap">{ "imports": { "three": "/static/vendor/three/three.module.js", "three/addons/": "/static/vendor/three/addons/" } }</script>
+  <script type="module" src="{{ url_for('static', filename='viewer.js') }}"></script>
 </head>
 <body>
   <header class="page-header">
@@ -99,10 +101,11 @@
 
     <section id="viewer" class="panel viewer-panel" aria-labelledby="viewer-heading">
       <h2 id="viewer-heading">3D preview</h2>
-      <p class="viewer-placeholder">
-        Interactive 3D preview arrives in RNG-4. For now, generate a ring and
-        download the STL to inspect it.
-      </p>
+      <canvas id="viewer-canvas" aria-label="3D preview of the generated ring" hidden></canvas>
+      <p id="viewer-message" class="viewer-placeholder">Generate a ring to see an interactive 3D preview here.</p>
+      <div class="viewer-actions">
+        <button type="button" id="wireframe-toggle" aria-pressed="false" disabled>Wireframe</button>
+      </div>
     </section>
   </main>
 </body>

@@ -75,6 +75,7 @@ function showSuccess(blob) {
   downloadBtn.hidden = false;
   statusEl.textContent = "Done — download ready.";
   downloadBtn.focus();
+  document.dispatchEvent(new CustomEvent("ring:generated", { detail: { blob } }));
 }
 
 function flagField(fieldKey) {
