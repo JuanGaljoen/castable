@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from flask import Flask, Response, jsonify, request
+from flask import Flask, Response, jsonify, render_template, request
 
 from ringcad.params import ValidationError, validate_params
 from ringcad.render import openscad_available, render_scad
@@ -31,7 +31,15 @@ def _validation_response(error: str, detail: str = "", field=None):
 
 
 def create_app() -> Flask:
-    app = Flask(__name__)
+    app = Flask(
+        __name__,
+        template_folder="../templates",
+        static_folder="../static",
+    )
+
+    @app.get("/")
+    def index():
+        return render_template("index.html")
 
     @app.get("/health")
     def health():

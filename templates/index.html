@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ring CAD — Parametric Solitaire Ring Generator</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  <script defer src="{{ url_for('static', filename='app.js') }}"></script>
+</head>
+<body>
+  <header class="page-header">
+    <h1>Solitaire Ring Generator</h1>
+    <p class="subtitle">Enter ring parameters and generate a casting-ready STL.</p>
+  </header>
+
+  <main class="layout">
+    <section class="panel form-panel" aria-labelledby="form-heading">
+      <h2 id="form-heading">Ring parameters</h2>
+      <form id="ring-form" novalidate-hint="native validation enabled">
+        <fieldset>
+          <legend>Dimensions (mm)</legend>
+
+          <div class="field">
+            <label for="inner_diameter">Inner diameter</label>
+            <input type="number" id="inner_diameter" name="inner_diameter"
+                   value="16.5" min="14" max="23" step="0.1" required
+                   inputmode="decimal" aria-describedby="inner_diameter-hint" />
+            <span class="hint" id="inner_diameter-hint">Finger size, 14–23&nbsp;mm</span>
+          </div>
+
+          <div class="field">
+            <label for="band_width">Band width</label>
+            <input type="number" id="band_width" name="band_width"
+                   value="2.2" min="1.6" max="6" step="0.1" required
+                   inputmode="decimal" aria-describedby="band_width-hint" />
+            <span class="hint" id="band_width-hint">Shank width, 1.6–6&nbsp;mm</span>
+          </div>
+
+          <div class="field">
+            <label for="band_thickness">Band thickness</label>
+            <input type="number" id="band_thickness" name="band_thickness"
+                   value="1.9" min="0.8" max="4" step="0.1" required
+                   inputmode="decimal" aria-describedby="band_thickness-hint" />
+            <span class="hint" id="band_thickness-hint">Shank thickness, min 0.8&nbsp;mm (casting floor)</span>
+          </div>
+
+          <div class="field">
+            <label for="stone_diameter">Stone diameter</label>
+            <input type="number" id="stone_diameter" name="stone_diameter"
+                   value="6.5" min="2" max="10" step="0.1" required
+                   inputmode="decimal" aria-describedby="stone_diameter-hint" />
+            <span class="hint" id="stone_diameter-hint">Stone seat sizing, 2–10&nbsp;mm</span>
+          </div>
+
+          <div class="field">
+            <label for="stone_height">Stone height</label>
+            <input type="number" id="stone_height" name="stone_height"
+                   value="4" min="2" max="6" step="0.1" required
+                   inputmode="decimal" aria-describedby="stone_height-hint" />
+            <span class="hint" id="stone_height-hint">Stone height, 2–6&nbsp;mm</span>
+          </div>
+
+          <div class="field">
+            <label for="setting_height">Setting height</label>
+            <input type="number" id="setting_height" name="setting_height"
+                   value="6" min="3" max="8" step="0.1" required
+                   inputmode="decimal" aria-describedby="setting_height-hint" />
+            <span class="hint" id="setting_height-hint">Gallery/setting height, 3–8&nbsp;mm</span>
+          </div>
+
+          <div class="field">
+            <label for="prong_count">Prong count</label>
+            <select id="prong_count" name="prong_count">
+              <option value="4">4</option>
+              <option value="6" selected>6</option>
+            </select>
+          </div>
+        </fieldset>
+
+        <div class="actions">
+          <button id="generate-btn" type="submit">Generate</button>
+        </div>
+
+        <p id="status" class="status" aria-live="polite" role="status"></p>
+
+        <div id="error" class="error" role="alert" aria-live="assertive" tabindex="-1" hidden>
+          <p class="error-message" id="error-message"></p>
+          <details id="stderr-details" hidden>
+            <summary>OpenSCAD output</summary>
+            <pre id="stderr-text"></pre>
+          </details>
+        </div>
+
+        <div class="actions download-actions">
+          <a id="download-btn" class="button-link" download="ring.stl" hidden>Download STL</a>
+        </div>
+      </form>
+    </section>
+
+    <section id="viewer" class="panel viewer-panel" aria-labelledby="viewer-heading">
+      <h2 id="viewer-heading">3D preview</h2>
+      <p class="viewer-placeholder">
+        Interactive 3D preview arrives in RNG-4. For now, generate a ring and
+        download the STL to inspect it.
+      </p>
+    </section>
+  </main>
+</body>
+</html>
