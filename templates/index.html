@@ -3,6 +3,20 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>
+    /* Apply the saved/preferred theme before paint to avoid a flash. */
+    (function () {
+      try {
+        var t = localStorage.getItem("ring-theme");
+        if (t !== "light" && t !== "dark") {
+          t = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        }
+        document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {
+        document.documentElement.setAttribute("data-theme", "dark");
+      }
+    })();
+  </script>
   <title>Ring CAD — Parametric Solitaire Ring Generator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -15,8 +29,11 @@
 </head>
 <body>
   <header class="page-header">
-    <h1>Solitaire Ring Generator</h1>
-    <p class="subtitle">Parametric fine-jewelry CAD &middot; casting-ready STL</p>
+    <div class="header-text">
+      <h1>Solitaire Ring Generator</h1>
+      <p class="subtitle">Parametric fine-jewelry CAD &middot; casting-ready STL</p>
+    </div>
+    <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Switch colour theme"></button>
   </header>
 
   <main class="layout">
@@ -131,5 +148,26 @@
       </div>
     </section>
   </main>
+
+  <script>
+    /* Theme toggle: flips data-theme, persists, keeps the label accurate. */
+    (function () {
+      var btn = document.getElementById("theme-toggle");
+      if (!btn) return;
+      var root = document.documentElement;
+      function label() {
+        var light = root.getAttribute("data-theme") === "light";
+        btn.setAttribute("aria-label", light ? "Switch to dark theme" : "Switch to light theme");
+        btn.setAttribute("aria-pressed", String(light));
+      }
+      label();
+      btn.addEventListener("click", function () {
+        var next = root.getAttribute("data-theme") === "light" ? "dark" : "light";
+        root.setAttribute("data-theme", next);
+        try { localStorage.setItem("ring-theme", next); } catch (e) {}
+        label();
+      });
+    })();
+  </script>
 </body>
 </html>
