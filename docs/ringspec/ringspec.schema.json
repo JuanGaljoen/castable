@@ -1,0 +1,275 @@
+{
+  "$defs": {
+    "FieldConfidence": {
+      "additionalProperties": false,
+      "description": "Per-field vision confidence (0..1). RNG-12 populates; None until then.",
+      "properties": {
+        "inner_diameter": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Inner Diameter"
+        },
+        "band_width": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Band Width"
+        },
+        "band_thickness": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Band Thickness"
+        },
+        "stone_diameter": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stone Diameter"
+        },
+        "stone_height": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stone Height"
+        },
+        "prong_count": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prong Count"
+        },
+        "setting_height": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Setting Height"
+        }
+      },
+      "title": "FieldConfidence",
+      "type": "object"
+    },
+    "Motif": {
+      "additionalProperties": false,
+      "description": "Decorative element placeholder (empty list is valid for a solitaire).",
+      "properties": {
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "position": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Position"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "Motif",
+      "type": "object"
+    },
+    "Setting": {
+      "additionalProperties": false,
+      "description": "Prong/gallery group. prong_count is a strict 4-or-6 literal.",
+      "properties": {
+        "prong_count": {
+          "enum": [
+            4,
+            6
+          ],
+          "title": "Prong Count",
+          "type": "integer"
+        },
+        "setting_height": {
+          "exclusiveMinimum": 0,
+          "maximum": 20,
+          "title": "Setting Height",
+          "type": "number"
+        }
+      },
+      "required": [
+        "prong_count",
+        "setting_height"
+      ],
+      "title": "Setting",
+      "type": "object"
+    },
+    "Shank": {
+      "additionalProperties": false,
+      "description": "Band geometry. shank_taper is the SCAD 8th shaping param (default 1.7).",
+      "properties": {
+        "inner_diameter": {
+          "exclusiveMinimum": 0,
+          "maximum": 40,
+          "title": "Inner Diameter",
+          "type": "number"
+        },
+        "band_width": {
+          "exclusiveMinimum": 0,
+          "maximum": 12,
+          "title": "Band Width",
+          "type": "number"
+        },
+        "band_thickness": {
+          "exclusiveMinimum": 0,
+          "maximum": 8,
+          "title": "Band Thickness",
+          "type": "number"
+        },
+        "shank_taper": {
+          "default": 1.7,
+          "maximum": 3.0,
+          "minimum": 1.0,
+          "title": "Shank Taper",
+          "type": "number"
+        }
+      },
+      "required": [
+        "inner_diameter",
+        "band_width",
+        "band_thickness"
+      ],
+      "title": "Shank",
+      "type": "object"
+    },
+    "Stones": {
+      "additionalProperties": false,
+      "description": "Centre-stone sizing for the seat module.",
+      "properties": {
+        "stone_diameter": {
+          "exclusiveMinimum": 0,
+          "maximum": 24,
+          "title": "Stone Diameter",
+          "type": "number"
+        },
+        "stone_height": {
+          "exclusiveMinimum": 0,
+          "maximum": 12,
+          "title": "Stone Height",
+          "type": "number"
+        }
+      },
+      "required": [
+        "stone_diameter",
+        "stone_height"
+      ],
+      "title": "Stones",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Versioned envelope. archetype is the v1 discriminator (solitaire only).\n\nv1 uses a single model + Literal discriminator; the true discriminated\nunion (oneOf) is deferred to RNG-16 when more archetypes land.",
+  "properties": {
+    "version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Version",
+      "type": "string"
+    },
+    "archetype": {
+      "const": "solitaire",
+      "default": "solitaire",
+      "title": "Archetype",
+      "type": "string"
+    },
+    "shank": {
+      "$ref": "#/$defs/Shank"
+    },
+    "setting": {
+      "$ref": "#/$defs/Setting"
+    },
+    "stones": {
+      "$ref": "#/$defs/Stones"
+    },
+    "motifs": {
+      "items": {
+        "$ref": "#/$defs/Motif"
+      },
+      "title": "Motifs",
+      "type": "array"
+    },
+    "confidence": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FieldConfidence"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "shank",
+    "setting",
+    "stones"
+  ],
+  "title": "RingSpec",
+  "type": "object"
+}
