@@ -11,15 +11,20 @@ they do not replace it.
 """
 from __future__ import annotations
 
-from build123d import Plane
+from build123d import Location, Plane
 
 from ringcad.mesh_validator import MIN_PRONG_TIP_MM, MIN_WALL_MM
 from ringcad.ringspec import RingSpec, Violation
 
 
 def _section_sizes(solid, plane: Plane) -> list:
-    """Bounding-box sizes of every face of `solid` cut by `plane`."""
-    return [f.bounding_box().size for f in solid.intersect(plane).faces()]
+    """Bounding-box sizes of every face of `solid` cut by `plane`.
+
+    When `plane` misses the solid's bounds, `intersect` returns None; a check
+    must measure nothing (return []) rather than crash on `.faces()`.
+    """
+    section = solid.intersect(plane)
+    return [f.bounding_box().size for f in section.faces()] if section else []
 
 
 def _min_nonzero(size) -> float | None:
@@ -83,6 +88,63 @@ def check_prong_setting(solid, spec: RingSpec, clamps: dict) -> list[Violation]:
             code="min_prong_tip",
             field="setting.prong_count",
             message=f"Prong-tip feature {tip:.3f}mm is below the "
+            f"{MIN_PRONG_TIP_MM}mm minimum prong-tip diameter.",
+            limit_mm=MIN_PRONG_TIP_MM,
+            actual_mm=tip,
+        )]
+    return []
+
+
+def check_accent_seat(
+    solid, accent_r: float, height: float, loc: Location
+) -> list[Violation]:
+    """Accent-seat collar wall via an XZ section in the LOCAL frame.
+
+    Undo the caller's rigid `loc` (`loc.inverse() * solid`) so the check reads
+    placement-corrected geometry, then section the collar tube in the canonical
+    XZ plane. Placement-invariant by construction.
+    """
+    local = loc.inverse() * solid
+    sizes = [_min_nonzero(s) for s in _section_sizes(local, Plane.XZ)]
+    sizes = [s for s in sizes if s is not None]
+    if not sizes:
+        return []
+    wall = min(sizes)
+    if wall < MIN_WALL_MM:
+        return [Violation(
+            code="min_wall",
+            field="halo.halo_stone_height",
+            message=f"Accent-seat collar wall {wall:.3f}mm is below the "
+            f"{MIN_WALL_MM}mm minimum wall thickness for lost-wax casting.",
+            limit_mm=MIN_WALL_MM,
+            actual_mm=wall,
+        )]
+    return []
+
+
+def check_accent_prong(
+    solid, accent_r: float, height: float, loc: Location
+) -> list[Violation]:
+    """Accent-prong tip feature via a section just below the tip, LOCAL frame.
+
+    Undo `loc`, then section perpendicular to local +Z at `0.2*height` below the
+    functional tip (the full-diameter shaft top at z=height, NOT the rounded dome
+    apex at bb.max.Z) and read the smallest tip cross-section. Placement-invariant
+    by construction.
+    """
+    local = loc.inverse() * solid
+    bb = local.bounding_box()
+    plane = Plane.XY.offset(bb.min.Z + 0.8 * height)
+    sizes = [_min_nonzero(s) for s in _section_sizes(local, plane)]
+    sizes = [s for s in sizes if s is not None]
+    if not sizes:
+        return []
+    tip = min(sizes)
+    if tip < MIN_PRONG_TIP_MM:
+        return [Violation(
+            code="min_prong_tip",
+            field="halo.halo_stone_diameter",
+            message=f"Accent-prong tip {tip:.3f}mm is below the "
             f"{MIN_PRONG_TIP_MM}mm minimum prong-tip diameter.",
             limit_mm=MIN_PRONG_TIP_MM,
             actual_mm=tip,
