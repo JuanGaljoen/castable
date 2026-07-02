@@ -15,10 +15,13 @@ from .adapters import (
 from .castability import Violation, is_castable, validate_castability
 from .models import (
     FieldConfidence,
+    Halo,
+    HaloSpec,
     Motif,
     RingSpec,
     Setting,
     Shank,
+    SolitaireSpec,
     SPEC_VERSION,
     Stones,
     spec_errors,
@@ -27,6 +30,9 @@ from .models import (
 
 __all__ = [
     "RingSpec",
+    "SolitaireSpec",
+    "HaloSpec",
+    "Halo",
     "Shank",
     "Setting",
     "Stones",

@@ -16,12 +16,17 @@ from pydantic import BaseModel
 
 from ringcad.mesh_validator import MIN_PRONG_TIP_MM, MIN_WALL_MM
 
-from .models import RingSpec
+from .models import HaloSpec, RingSpec
 
 # Fraction of the inter-prong seat arc that becomes prong wire. The prong-tip
 # diameter is a coarse proxy (plan Risk #2, "fuzzy") pending an RNG-15 pin
 # against the SCAD/build123d geometry; do not treat it as exact.
 _PRONG_WIRE_FRACTION = 0.25
+
+# Fraction of an accent stone's smaller dimension that becomes retaining-bead
+# wire. Coarse proxy (plan Risk #4, "fuzzy") — direction-only, not exact; CP2
+# will pin it against real halo geometry. Monotonic in accent size.
+_ACCENT_TIP_FRACTION = 0.5
 
 
 class Violation(BaseModel):
@@ -104,9 +109,78 @@ def _geometric(spec: RingSpec) -> list[Violation]:
     return out
 
 
+def _halo_wall(spec: RingSpec) -> list[Violation]:
+    """Halo inter-stone gap below MIN_WALL_MM (metal wall between accents)."""
+    if not isinstance(spec, HaloSpec):
+        return []
+    gap = spec.halo.halo_gap
+    if gap < MIN_WALL_MM:
+        return [
+            Violation(
+                code="halo_min_wall",
+                field="halo.halo_gap",
+                message=f"Halo gap {gap}mm leaves a wall below the {MIN_WALL_MM}mm "
+                "minimum between accent stones.",
+                limit_mm=MIN_WALL_MM,
+                actual_mm=gap,
+            )
+        ]
+    return []
+
+
+def _halo_accent_tip(spec: RingSpec) -> list[Violation]:
+    """Derived accent retaining-bead diameter below MIN_PRONG_TIP_MM (proxy)."""
+    if not isinstance(spec, HaloSpec):
+        return []
+    smaller = min(spec.halo.halo_stone_diameter, spec.halo.halo_stone_height)
+    tip = smaller * _ACCENT_TIP_FRACTION
+    if tip < MIN_PRONG_TIP_MM:
+        return [
+            Violation(
+                code="halo_min_accent_tip",
+                field="halo.halo_stone_diameter",
+                message=f"Derived accent retaining diameter {tip:.3f}mm is below "
+                f"the {MIN_PRONG_TIP_MM}mm minimum for this accent size.",
+                limit_mm=MIN_PRONG_TIP_MM,
+                actual_mm=tip,
+            )
+        ]
+    return []
+
+
+def _halo_overcrowding(spec: RingSpec) -> list[Violation]:
+    """Accents packed tighter than their own diameter around the halo ring."""
+    if not isinstance(spec, HaloSpec):
+        return []
+    halo = spec.halo
+    radius = (
+        spec.stones.stone_diameter / 2 + halo.halo_gap + halo.halo_stone_diameter / 2
+    )
+    arc = 2 * math.pi * radius / halo.halo_stone_count
+    if arc < halo.halo_stone_diameter:
+        return [
+            Violation(
+                code="halo_overcrowding",
+                field="halo.halo_stone_count",
+                message=f"{halo.halo_stone_count} accents leave {arc:.3f}mm of arc "
+                f"each, below the {halo.halo_stone_diameter}mm accent diameter.",
+                limit_mm=halo.halo_stone_diameter,
+                actual_mm=arc,
+            )
+        ]
+    return []
+
+
 def validate_castability(spec: RingSpec) -> list[Violation]:
     """Run the full lost-wax gate; [] means the spec is castable."""
-    return _min_wall(spec) + _min_prong_tip(spec) + _geometric(spec)
+    return (
+        _min_wall(spec)
+        + _min_prong_tip(spec)
+        + _geometric(spec)
+        + _halo_wall(spec)
+        + _halo_accent_tip(spec)
+        + _halo_overcrowding(spec)
+    )
 
 
 def is_castable(spec: RingSpec) -> bool:

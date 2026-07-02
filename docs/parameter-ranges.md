@@ -20,6 +20,17 @@ shank, US6).
 |----------------|---------|-----------|-------|
 | `shank_taper`  | 1.7     | 1.0 - 2.0 | cross-section scale at the head shoulder vs the base; 1.0 = no taper |
 
+## Halo accent (RNG-9, HaloSpec only)
+The accent-stone ring encircling the centre stone. Ranges are structural sanity
+caps; casting floors are enforced in `validate_castability`, not the UI.
+
+| Parameter             | Default | Sane range | Castability floor / note |
+|-----------------------|---------|------------|--------------------------|
+| `halo_stone_diameter` | 1.3 mm  | 0.9 - 2.5 mm | floor keeps the derived accent retaining tip >= 0.7 mm (MIN_PRONG_TIP) |
+| `halo_stone_count`    | 14      | 8 - 24     | overcrowding check: per-accent arc must exceed the accent diameter |
+| `halo_gap`            | 0.5 mm  | 0.3 - 1.5 mm | guards the 0.8 mm (MIN_WALL) metal wall between accents |
+| `halo_stone_height`   | 1.2 mm  | 0.8 - 3.0 mm | feeds the accent-tip proxy alongside diameter |
+
 ## Casting invariants (always hold, any input)
 - Min wall thickness **0.8 mm** (band, seat ring, claw wires).
 - Min prong tip diameter **0.7 mm**.

@@ -10,9 +10,15 @@ RNG-13 so RNG-15 consumes RingSpec directly.
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    TypeAdapter,
+    ValidationError,
+)
 
 SPEC_VERSION = "1.0"
 
@@ -72,12 +78,8 @@ class FieldConfidence(BaseModel):
     setting_height: float | None = Field(default=None, ge=0, le=1)
 
 
-class RingSpec(BaseModel):
-    """Versioned envelope. archetype is the v1 discriminator (solitaire only).
-
-    v1 uses a single model + Literal discriminator; the true discriminated
-    union (oneOf) is deferred to RNG-16 when more archetypes land.
-    """
+class SolitaireSpec(BaseModel):
+    """Solitaire archetype: one centre stone in a prong setting on a shank."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -90,21 +92,77 @@ class RingSpec(BaseModel):
     confidence: FieldConfidence | None = None
 
 
-def validate_spec(data: object) -> RingSpec:
-    """Validate arbitrary input into a RingSpec, raising ValidationError."""
-    return RingSpec.model_validate(data)
+class Halo(BaseModel):
+    """Accent-stone ring encircling the centre stone (RNG-9)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    halo_stone_diameter: float = Field(default=1.3, ge=0.9, le=2.5)
+    halo_stone_count: int = Field(default=14, ge=8, le=24)
+    halo_gap: float = Field(default=0.5, ge=0.3, le=1.5)
+    halo_stone_height: float = Field(default=1.2, ge=0.8, le=3.0)
+
+
+class HaloSpec(BaseModel):
+    """Halo archetype: a solitaire centre plus a ring of accent stones."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    version: Literal["1.0"] = "1.0"
+    archetype: Literal["halo"] = "halo"
+    shank: Shank
+    setting: Setting
+    stones: Stones
+    halo: Halo
+    motifs: list[Motif] = Field(default_factory=list)
+    confidence: FieldConfidence | None = None
+
+
+ARCHETYPE_TAGS = {"solitaire", "halo"}
+
+# The versioned contract is a discriminated (tagged) union over `archetype`.
+# `RingSpec` is an Annotated alias — a type hint, NOT an instantiable class;
+# construct a concrete member (SolitaireSpec/HaloSpec) or route dict/JSON input
+# through validate_spec (which uses the adapter below).
+RingSpec = Annotated[
+    Union[SolitaireSpec, HaloSpec], Field(discriminator="archetype")
+]
+_RING_SPEC_ADAPTER = TypeAdapter(RingSpec)
+
+
+def validate_spec(data: object) -> SolitaireSpec | HaloSpec:
+    """Validate input into the concrete archetype member, raising on failure.
+
+    Back-compat: an archetype-less dict defaults to "solitaire" (the union
+    rejects a missing tag with union_tag_not_found), without mutating caller
+    input.
+    """
+    if isinstance(data, dict) and "archetype" not in data:
+        data = {**data, "archetype": "solitaire"}
+    return _RING_SPEC_ADAPTER.validate_python(data)
 
 
 def spec_errors(exc: ValidationError) -> list[dict]:
     """Flatten a ValidationError into JSON-serializable field-level errors.
 
-    Each entry is {"field", "reason", "type"} where `field` is the dotted loc
-    path ("" for a top-level/body error). Used by RNG-15 to surface 400s.
+    Each entry is {"field", "reason", "type"}. The leading archetype tag is
+    stripped from the loc path; an invalid/missing tag names "archetype"; a
+    None/empty body names "" ("" == top-level). Disambiguation is on error
+    TYPE, not loc, so a tag error never collides with a body error.
     """
     out: list[dict] = []
     for err in exc.errors():
-        field = ".".join(str(part) for part in err["loc"])
+        etype = str(err["type"])
+        loc = err["loc"]
+        if etype in ("union_tag_invalid", "union_tag_not_found"):
+            field = "archetype"
+        elif not loc:
+            field = ""
+        elif loc[0] in ARCHETYPE_TAGS:
+            field = ".".join(str(part) for part in loc[1:])
+        else:
+            field = ".".join(str(part) for part in loc)
         out.append(
-            {"field": field, "reason": str(err["msg"]), "type": str(err["type"])}
+            {"field": field, "reason": str(err["msg"]), "type": etype}
         )
     return out

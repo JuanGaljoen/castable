@@ -106,6 +106,98 @@
       "title": "FieldConfidence",
       "type": "object"
     },
+    "Halo": {
+      "additionalProperties": false,
+      "description": "Accent-stone ring encircling the centre stone (RNG-9).",
+      "properties": {
+        "halo_stone_diameter": {
+          "default": 1.3,
+          "maximum": 2.5,
+          "minimum": 0.9,
+          "title": "Halo Stone Diameter",
+          "type": "number"
+        },
+        "halo_stone_count": {
+          "default": 14,
+          "maximum": 24,
+          "minimum": 8,
+          "title": "Halo Stone Count",
+          "type": "integer"
+        },
+        "halo_gap": {
+          "default": 0.5,
+          "maximum": 1.5,
+          "minimum": 0.3,
+          "title": "Halo Gap",
+          "type": "number"
+        },
+        "halo_stone_height": {
+          "default": 1.2,
+          "maximum": 3.0,
+          "minimum": 0.8,
+          "title": "Halo Stone Height",
+          "type": "number"
+        }
+      },
+      "title": "Halo",
+      "type": "object"
+    },
+    "HaloSpec": {
+      "additionalProperties": false,
+      "description": "Halo archetype: a solitaire centre plus a ring of accent stones.",
+      "properties": {
+        "version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Version",
+          "type": "string"
+        },
+        "archetype": {
+          "const": "halo",
+          "default": "halo",
+          "title": "Archetype",
+          "type": "string"
+        },
+        "shank": {
+          "$ref": "#/$defs/Shank"
+        },
+        "setting": {
+          "$ref": "#/$defs/Setting"
+        },
+        "stones": {
+          "$ref": "#/$defs/Stones"
+        },
+        "halo": {
+          "$ref": "#/$defs/Halo"
+        },
+        "motifs": {
+          "items": {
+            "$ref": "#/$defs/Motif"
+          },
+          "title": "Motifs",
+          "type": "array"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FieldConfidence"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "shank",
+        "setting",
+        "stones",
+        "halo"
+      ],
+      "title": "HaloSpec",
+      "type": "object"
+    },
     "Motif": {
       "additionalProperties": false,
       "description": "Decorative element placeholder (empty list is valid for a solitaire).",
@@ -197,6 +289,58 @@
       "title": "Shank",
       "type": "object"
     },
+    "SolitaireSpec": {
+      "additionalProperties": false,
+      "description": "Solitaire archetype: one centre stone in a prong setting on a shank.",
+      "properties": {
+        "version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Version",
+          "type": "string"
+        },
+        "archetype": {
+          "const": "solitaire",
+          "default": "solitaire",
+          "title": "Archetype",
+          "type": "string"
+        },
+        "shank": {
+          "$ref": "#/$defs/Shank"
+        },
+        "setting": {
+          "$ref": "#/$defs/Setting"
+        },
+        "stones": {
+          "$ref": "#/$defs/Stones"
+        },
+        "motifs": {
+          "items": {
+            "$ref": "#/$defs/Motif"
+          },
+          "title": "Motifs",
+          "type": "array"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FieldConfidence"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "shank",
+        "setting",
+        "stones"
+      ],
+      "title": "SolitaireSpec",
+      "type": "object"
+    },
     "Stones": {
       "additionalProperties": false,
       "description": "Centre-stone sizing for the seat module.",
@@ -222,54 +366,19 @@
       "type": "object"
     }
   },
-  "additionalProperties": false,
-  "description": "Versioned envelope. archetype is the v1 discriminator (solitaire only).\n\nv1 uses a single model + Literal discriminator; the true discriminated\nunion (oneOf) is deferred to RNG-16 when more archetypes land.",
-  "properties": {
-    "version": {
-      "const": "1.0",
-      "default": "1.0",
-      "title": "Version",
-      "type": "string"
+  "discriminator": {
+    "mapping": {
+      "halo": "#/$defs/HaloSpec",
+      "solitaire": "#/$defs/SolitaireSpec"
     },
-    "archetype": {
-      "const": "solitaire",
-      "default": "solitaire",
-      "title": "Archetype",
-      "type": "string"
-    },
-    "shank": {
-      "$ref": "#/$defs/Shank"
-    },
-    "setting": {
-      "$ref": "#/$defs/Setting"
-    },
-    "stones": {
-      "$ref": "#/$defs/Stones"
-    },
-    "motifs": {
-      "items": {
-        "$ref": "#/$defs/Motif"
-      },
-      "title": "Motifs",
-      "type": "array"
-    },
-    "confidence": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/FieldConfidence"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null
-    }
+    "propertyName": "archetype"
   },
-  "required": [
-    "shank",
-    "setting",
-    "stones"
-  ],
-  "title": "RingSpec",
-  "type": "object"
+  "oneOf": [
+    {
+      "$ref": "#/$defs/SolitaireSpec"
+    },
+    {
+      "$ref": "#/$defs/HaloSpec"
+    }
+  ]
 }
