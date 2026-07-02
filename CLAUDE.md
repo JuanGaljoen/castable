@@ -130,6 +130,15 @@ Workspace pipeline commands (see `~/projects/personal/.claude/CLAUDE.md`):
 - No JS frameworks; vanilla only.
 - Casting constraints (above) are non-negotiable.
 - Never force push.
+- **Checkpoint archetype builds at module seams.** Build each archetype in
+  stages that follow the module-composition boundary — reusable primitive ->
+  composition -> API/UI wire-up — and commit at each seam. Every checkpoint
+  commit must be trustworthy on its own: tests green, no half-written module.
+  A rate-limit interruption or aborted session must always leave the tree at a
+  resumable commit, never mid-module. Prefer many small trustworthy commits
+  over one large one. Extract genuinely reusable primitives (accent settings,
+  pave beads) as their own unit; do not split a single archetype into
+  contract/geometry/UI "tickets" — that is phase-gating dressed up as scope.
 
 ## Tickets (Jira project: RNG)
 
