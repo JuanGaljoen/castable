@@ -8,31 +8,46 @@ on the spec *before* any geometry runs.
 - **Package:** `ringcad/ringspec/`
 - **Kernel:** Pydantic v2 models (matches `ringcad/classify.py`)
 - **Generated schema:** [`ringspec.schema.json`](./ringspec.schema.json)
-- **Worked example:** [`examples/solitaire.json`](./examples/solitaire.json)
+- **Worked examples:** [`examples/solitaire.json`](./examples/solitaire.json),
+  [`examples/halo.json`](./examples/halo.json)
 
 ## Envelope
 
-`RingSpec` is a versioned envelope over four element groups. Unknown/extra
-fields are rejected everywhere (`extra="forbid"`).
+`RingSpec` is a **discriminated (tagged) union** over `archetype` —
+`SolitaireSpec | HaloSpec` (RNG-9). `RingSpec` itself is an `Annotated` type
+alias, NOT an instantiable class: construct a concrete member
+(`SolitaireSpec(...)`/`HaloSpec(...)`) or route dict/JSON input through
+`validate_spec`, which returns the concrete member. Each member is a versioned
+envelope over its element groups; unknown/extra fields are rejected everywhere
+(`extra="forbid"`).
+
+`SolitaireSpec` (four groups):
 
 | Field        | Type                       | Default        | Notes |
 |--------------|----------------------------|----------------|-------|
 | `version`    | `Literal["1.0"]`           | `"1.0"`        | Schema version. |
-| `archetype`  | `Literal["solitaire"]`     | `"solitaire"`  | **Discriminator** (see below). |
+| `archetype`  | `Literal["solitaire"]`     | `"solitaire"`  | **Discriminator**. |
 | `shank`      | `Shank`                    | required       | Band geometry. |
 | `setting`    | `Setting`                  | required       | Prong / gallery. |
 | `stones`     | `Stones`                   | required       | Centre-stone sizing. |
 | `motifs`     | `list[Motif]`              | `[]`           | Empty is valid for a solitaire. |
 | `confidence` | `FieldConfidence \| null`  | `null`         | Per-field vision confidence; populated by RNG-12. |
 
+`HaloSpec` mirrors `SolitaireSpec` (same `shank`/`setting`/`stones`/`motifs`/
+`confidence`) with `archetype: Literal["halo"]` and one added required group,
+`halo: Halo` (see below).
+
 ### Archetype discriminator
 
-v1 **defines and validates the `solitaire` archetype only**. `archetype` is a
-`Literal["solitaire"]`, so any other value (e.g. `"halo"`) is rejected at schema
-validation with a literal error. Future archetypes (halo/trilogy, RNG-16) are
-added as new discriminator values — additive, no breaking v2. v1 uses a single
-model + Literal discriminator; the true discriminated union (JSON Schema
-`oneOf`) is deferred to RNG-16.
+`archetype` is the union tag. `validate_spec` routes each value to its concrete
+member; an **archetype-less dict defaults to `"solitaire"`** (back-compat — the
+raw union otherwise rejects a missing tag with `union_tag_not_found`). An
+unknown value (e.g. `"cluster"`) is rejected with `union_tag_invalid`, surfaced
+by `spec_errors` as `field == "archetype"`. Future archetypes (trilogy/side-
+stone) are added as new union members — additive, no breaking v2.
+
+The element groups map deliberately onto the build123d modules; `halo` will map
+onto a per-accent setting module in the RNG-9 geometry slice.
 
 The element groups map deliberately onto the build123d modules proven in the
 RNG-13 spike: `shank → shank()`, `setting → prong_setting()`,
@@ -71,6 +86,18 @@ snap-to-nearest is a vision-layer concern, not the contract's.
 |------------------|---------|---------|--------------|
 | `stone_diameter` | `float` | required| `> 0`, `<= 24` |
 | `stone_height`   | `float` | required| `> 0`, `<= 12` |
+
+### `Halo` (RNG-9, HaloSpec only)
+
+The ring of accent stones encircling the centre stone. Bounds are structural
+sanity caps; casting floors are enforced in castability validation.
+
+| Field                 | Type    | Default | Bound              |
+|-----------------------|---------|---------|--------------------|
+| `halo_stone_diameter` | `float` | `1.3`   | `>= 0.9`, `<= 2.5` |
+| `halo_stone_count`    | `int`   | `14`    | `>= 8`, `<= 24`    |
+| `halo_gap`            | `float` | `0.5`   | `>= 0.3`, `<= 1.5` |
+| `halo_stone_height`   | `float` | `1.2`   | `>= 0.8`, `<= 3.0` |
 
 ### `Motif`
 
@@ -116,6 +143,9 @@ Casting constants are **single-sourced** from
 | `min_prong_tip`      | Derived prong-tip diameter `< MIN_PRONG_TIP_MM`. The tip diameter is a **coarse proxy** (`π · stone_diameter / prong_count · wire_fraction`) — plan Risk #2, "fuzzy"; pin against the SCAD/build123d geometry in RNG-15. |
 | `stone_exceeds_bore` | `stone_diameter >= inner_diameter` (stone wider than the finger bore). |
 | `stone_exceeds_head` | `stone_height >= setting_height` (stone taller than the head). |
+| `halo_min_wall`      | (HaloSpec) `halo_gap < MIN_WALL_MM` — the metal wall between accents. `limit_mm == MIN_WALL_MM`. |
+| `halo_min_accent_tip`| (HaloSpec) Derived accent retaining diameter `< MIN_PRONG_TIP_MM`. **Coarse proxy** (`min(halo_stone_diameter, halo_stone_height) · accent_fraction`) — plan Risk #4, "fuzzy"; CP2 pins it against real halo geometry. `limit_mm == MIN_PRONG_TIP_MM`. |
+| `halo_overcrowding`  | (HaloSpec) Per-accent arc `2π·R / halo_stone_count < halo_stone_diameter`, where `R = stone_diameter/2 + halo_gap + halo_stone_diameter/2`. |
 
 ## Round-trip with the legacy 7-param dict (AC1)
 
@@ -123,8 +153,8 @@ Casting constants are **single-sourced** from
 flat 7-key dict (`ringcad/params.py`) additively — `/generate-ring` keeps using
 params until the RNG-15 cutover.
 
-- `from_params(p) -> RingSpec`: maps the 7 keys into groups; `shank_taper` is
-  restored to its default (`DEFAULT_SHANK_TAPER = 1.7`).
+- `from_params(p) -> SolitaireSpec`: maps the 7 keys into groups; `shank_taper`
+  is restored to its default (`DEFAULT_SHANK_TAPER = 1.7`).
 - `to_params(spec) -> dict`: flattens back to the canonical `PARAM_KEYS` order,
   **dropping** `shank_taper`; `prong_count` is returned as an `int`.
 
@@ -151,6 +181,9 @@ Canonical key order (`PARAM_KEYS`): `inner_diameter`, `band_width`,
 The committed `ringspec.schema.json` is generated from the model. Regenerate
 after any model change:
 
+`RingSpec` is now a union alias, so the schema comes from a `TypeAdapter`
+(`model_json_schema` no longer exists on the alias):
+
 ```bash
-python -c "import json,ringcad.ringspec as r;print(json.dumps(r.RingSpec.model_json_schema(),indent=2))" > docs/ringspec/ringspec.schema.json
+python -c "import json; from pydantic import TypeAdapter; from ringcad.ringspec.models import RingSpec; print(json.dumps(TypeAdapter(RingSpec).json_schema(), indent=2))" > docs/ringspec/ringspec.schema.json
 ```

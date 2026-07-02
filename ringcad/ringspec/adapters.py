@@ -9,7 +9,7 @@ restores its default, so the 7-key dict stays clean.
 """
 from __future__ import annotations
 
-from .models import RingSpec, Setting, Shank, Stones
+from .models import RingSpec, Setting, Shank, SolitaireSpec, Stones
 
 # Canonical 7-key order the round-trip preserves (matches params.PARAM_TYPES).
 PARAM_KEYS = (
@@ -25,9 +25,9 @@ PARAM_KEYS = (
 DEFAULT_SHANK_TAPER = 1.7
 
 
-def from_params(p: dict) -> RingSpec:
-    """Map a flat 7-key params dict into a RingSpec (shank_taper defaulted)."""
-    return RingSpec(
+def from_params(p: dict) -> SolitaireSpec:
+    """Map a flat 7-key params dict into a SolitaireSpec (shank_taper defaulted)."""
+    return SolitaireSpec(
         shank=Shank(
             inner_diameter=p["inner_diameter"],
             band_width=p["band_width"],

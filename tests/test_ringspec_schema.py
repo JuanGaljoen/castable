@@ -13,9 +13,15 @@ import json
 import os
 
 import pytest
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
-from ringcad.ringspec import RingSpec, spec_errors, validate_spec
+from ringcad.ringspec import (
+    HaloSpec,
+    RingSpec,
+    SolitaireSpec,
+    spec_errors,
+    validate_spec,
+)
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXAMPLE_PATH = os.path.join(
@@ -65,7 +71,7 @@ MALFORMED_CASES = [
         _mutate(setting={**GOOD_SPEC["setting"], "prong_count": True}),
         "setting.prong_count",
     ),
-    ("unsupported_archetype", _mutate(archetype="halo"), "archetype"),
+    ("unsupported_archetype", _mutate(archetype="cluster"), "archetype"),
     ("extra_top_level_field", _mutate(foo=1), "foo"),
     ("missing_required_group", {k: v for k, v in GOOD_SPEC.items() if k != "stones"}, "stones"),
 ]
@@ -114,16 +120,18 @@ def test_spec_errors_are_json_serializable(spec):
 
 def test_valid_spec_passes_validate_spec():
     spec = validate_spec(GOOD_SPEC)
-    assert isinstance(spec, RingSpec)
+    assert isinstance(spec, SolitaireSpec)
 
 
 # --- AC4: generated JSON Schema + committed example --------------------------
 def test_model_json_schema_exposes_top_level_groups():
-    schema = RingSpec.model_json_schema()
+    schema = TypeAdapter(RingSpec).json_schema()
     assert isinstance(schema, dict)
-    props = schema.get("properties", {})
-    for key in ("version", "archetype", "shank", "setting", "stones"):
-        assert key in props, f"'{key}' missing from schema properties"
+    assert "oneOf" in schema
+    assert "discriminator" in schema
+    defs = schema.get("$defs", {})
+    assert "SolitaireSpec" in defs
+    assert "HaloSpec" in defs
 
 
 def test_committed_example_exists_and_validates():
@@ -131,4 +139,4 @@ def test_committed_example_exists_and_validates():
     with open(EXAMPLE_PATH) as fh:
         data = json.load(fh)
     spec = validate_spec(data)
-    assert isinstance(spec, RingSpec)
+    assert isinstance(spec, SolitaireSpec)
