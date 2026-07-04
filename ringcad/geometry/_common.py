@@ -111,3 +111,7 @@ def body_solid(v1, r1, v2, r2):
 # Re-export casting constants under the spike's local names for porting clarity.
 MIN_WALL = MIN_WALL_MM
 MIN_PRONG_TIP = MIN_PRONG_TIP_MM
+
+# Volumetric overlap for accent-primitive fuses: >> OCCT Precision::Confusion
+# (clean single watertight B-rep body) yet << MIN_WALL (no castability impact).
+ACCENT_FUSE_EPS = 0.05

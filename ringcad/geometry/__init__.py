@@ -5,6 +5,8 @@ Decomposed module library — `shank`, `prong_setting`, `seat` — composed by
 RNG-13 spike so OpenSCAD parity holds; casting constants come from
 `ringcad.mesh_validator`.
 """
+from .accent_prong import accent_prong
+from .accent_seat import accent_seat
 from .bezel import bezel
 from .export import to_step_bytes, to_stl_bytes
 from .module import (
@@ -30,6 +32,8 @@ __all__ = [
     "prong_setting",
     "seat",
     "bezel",
+    "accent_seat",
+    "accent_prong",
     "to_stl_bytes",
     "to_step_bytes",
     "MODULES",
