@@ -16,6 +16,10 @@ from build123d import Location, Plane
 from ringcad.mesh_validator import MIN_PRONG_TIP_MM, MIN_WALL_MM
 from ringcad.ringspec import RingSpec, Violation
 
+from ._common import MIN_WALL, placement
+from .gallery import RAIL_MINOR
+from .halo import RAIL_OVERLAP
+
 
 def _section_sizes(solid, plane: Plane) -> list:
     """Bounding-box sizes of every face of `solid` cut by `plane`.
@@ -148,6 +152,54 @@ def check_accent_prong(
             f"{MIN_PRONG_TIP_MM}mm minimum prong-tip diameter.",
             limit_mm=MIN_PRONG_TIP_MM,
             actual_mm=tip,
+        )]
+    return []
+
+
+def check_gallery(solid, spec: RingSpec, clamps: dict) -> list[Violation]:
+    """Gallery rail radial wall via a diametral XZ section, LOCAL frame.
+
+    The halo module's `_check`. Reconstruct the local +Z frame by undoing the
+    derived halo placement (`placement(clamps).inverse() * solid`), section the
+    fused halo in the canonical XZ plane, and keep only the rail-tube
+    cross-sections (bbox center at radius ~= R AND z ~= rail_z, both re-derived
+    from the spec). Excludes the hub (near axis), bridges (mid radius), accent
+    seats (higher z) and prong shafts (start above rail_z). Placement-invariant.
+    """
+    if getattr(spec, "archetype", None) != "halo" or getattr(
+        spec, "halo", None
+    ) is None:
+        return []
+    local = placement(clamps).inverse() * solid
+    accent_r = spec.halo.halo_stone_diameter / 2
+    ring_r = clamps["stone_r"] + spec.halo.halo_gap + accent_r
+    depth = max(0.5 * spec.halo.halo_stone_height, MIN_WALL)
+    rail_top_z = clamps["ring_z"] - depth + RAIL_OVERLAP
+    rail_z = rail_top_z - RAIL_MINOR
+
+    section = local.intersect(Plane.XZ)
+    if section is None:
+        return []
+    walls: list[float] = []
+    for f in section.faces():
+        bb = f.bounding_box()
+        cx = (bb.min.X + bb.max.X) / 2
+        cz = (bb.min.Z + bb.max.Z) / 2
+        if abs(abs(cx) - ring_r) < RAIL_MINOR and abs(cz - rail_z) < RAIL_MINOR:
+            w = _min_nonzero(bb.size)
+            if w is not None:
+                walls.append(w)
+    if not walls:
+        return []
+    wall = min(walls)
+    if wall < MIN_WALL_MM:
+        return [Violation(
+            code="min_wall",
+            field="setting.setting_height",
+            message=f"Gallery rail wall {wall:.3f}mm is below the "
+            f"{MIN_WALL_MM}mm minimum wall thickness for lost-wax casting.",
+            limit_mm=MIN_WALL_MM,
+            actual_mm=wall,
         )]
     return []
 

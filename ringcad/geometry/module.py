@@ -19,6 +19,7 @@ from ringcad.ringspec import RingSpec, Violation
 from . import _castability as _ck
 from ._common import clamps
 from .bezel import bezel
+from .halo import halo, halo_parts
 from .prong_setting import prong_setting
 from .seat import seat
 from .shank import shank
@@ -32,19 +33,33 @@ class Module(Protocol):
 
     def build(self, spec: RingSpec, clamps: dict): ...
 
+    def parts(self, spec: RingSpec, clamps: dict) -> list: ...
+
     def check(self, solid, spec: RingSpec, clamps: dict) -> list[Violation]: ...
 
 
 @dataclass(frozen=True)
 class SimpleModule:
-    """Adapts free build/check callables to the Module interface."""
+    """Adapts free build/check callables to the Module interface.
+
+    An optional `_parts` callable yields the module's leaf solids UN-fused so
+    `compose` can flat-fuse them in one general fuse (robust for heavy modules
+    like `halo`; see `halo_parts`). Modules without it contribute one leaf:
+    their fused `build` result.
+    """
 
     name: str
     _build: Callable
     _check: Callable
+    _parts: Callable | None = None
 
     def build(self, spec: RingSpec, clamps: dict):
         return self._build(spec, clamps)
+
+    def parts(self, spec: RingSpec, clamps: dict) -> list:
+        if self._parts is not None:
+            return self._parts(spec, clamps)
+        return [self._build(spec, clamps)]
 
     def check(self, solid, spec: RingSpec, clamps: dict) -> list[Violation]:
         return self._check(solid, spec, clamps)
@@ -87,30 +102,46 @@ MODULES: dict[str, Module] = {
         _build=lambda spec, c: bezel(spec, c),
         _check=_ck.check_bezel,
     ),
+    "halo": SimpleModule(
+        name="halo",
+        _build=lambda spec, c: halo(spec, c),
+        _check=_ck.check_gallery,
+        _parts=lambda spec, c: halo_parts(spec, c),
+    ),
 }
 
 ARCHETYPES: dict[str, list[str]] = {
     "solitaire": ["shank", "seat", "prong_setting"],
+    "halo": ["shank", "seat", "prong_setting", "halo"],
 }
 
 
 def compose(spec: RingSpec, archetype: str | None = None):
-    """Build + fuse an archetype's modules into one build123d solid."""
+    """Build + fuse an archetype's modules into one build123d solid.
+
+    Fuses every module's LEAF solids in a single general fuse (`leaves[0].fuse(
+    *leaves[1:])`). Simple modules contribute one leaf (their fused build);
+    heavy modules like `halo` contribute many via `parts`. A single general
+    fuse over the flat leaf set is robust where pairwise-fusing pre-fused
+    compounds is not (RNG-17 risk #1). Solitaire is unchanged: its three modules
+    each yield one leaf, so the fuse is identical to before.
+    """
     name = archetype or spec.archetype
     if name not in ARCHETYPES:
         raise UnknownArchetypeError(f"unknown archetype {name!r}")
     c = clamps(spec)
-    solids = []
+    leaves = []
     for mod_name in ARCHETYPES[name]:
         module = MODULES.get(mod_name)
         if module is None:
             raise UnregisteredModuleError(
                 f"archetype {name!r} names unregistered module {mod_name!r}"
             )
-        solid = module.build(spec, c)
-        if solid is None or solid.volume <= 0:
+        parts = module.parts(spec, c)
+        if (not parts or any(p is None for p in parts)
+                or sum(p.volume for p in parts) <= 0):
             raise DegenerateModuleError(
                 f"module {mod_name!r} produced a degenerate solid"
             )
-        solids.append(solid)
-    return solids[0].fuse(*solids[1:])
+        leaves.extend(parts)
+    return leaves[0].fuse(*leaves[1:])
