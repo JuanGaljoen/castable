@@ -118,14 +118,39 @@ class HaloSpec(BaseModel):
     confidence: FieldConfidence | None = None
 
 
-ARCHETYPE_TAGS = {"solitaire", "halo"}
+class Trilogy(BaseModel):
+    """Side-stone group flanking the centre stone (RNG-10)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    side_stone_diameter: float = Field(default=2.5, ge=0.9, le=6.0)
+    side_stone_height: float = Field(default=1.8, ge=0.8, le=4.0)
+    side_stone_gap: float = Field(default=0.6, ge=0.3, le=2.0)
+
+
+class TrilogySpec(BaseModel):
+    """Trilogy archetype: a solitaire centre plus two symmetric side stones."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    version: Literal["1.0"] = "1.0"
+    archetype: Literal["trilogy"] = "trilogy"
+    shank: Shank
+    setting: Setting
+    stones: Stones
+    trilogy: Trilogy
+    motifs: list[Motif] = Field(default_factory=list)
+    confidence: FieldConfidence | None = None
+
+
+ARCHETYPE_TAGS = {"solitaire", "halo", "trilogy"}
 
 # The versioned contract is a discriminated (tagged) union over `archetype`.
 # `RingSpec` is an Annotated alias — a type hint, NOT an instantiable class;
-# construct a concrete member (SolitaireSpec/HaloSpec) or route dict/JSON input
-# through validate_spec (which uses the adapter below).
+# construct a concrete member (SolitaireSpec/HaloSpec/TrilogySpec) or route
+# dict/JSON input through validate_spec (which uses the adapter below).
 RingSpec = Annotated[
-    Union[SolitaireSpec, HaloSpec], Field(discriminator="archetype")
+    Union[SolitaireSpec, HaloSpec, TrilogySpec], Field(discriminator="archetype")
 ]
 _RING_SPEC_ADAPTER = TypeAdapter(RingSpec)
 

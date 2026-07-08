@@ -155,12 +155,12 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 
 **Castability hardening (pay down deferred by-construction debt before detail-heavy archetypes):**
 
-- **RNG-17** Watertight by construction (eliminate auto-repair reliance) [High] - needs RNG-16, blocks RNG-9
+- **RNG-17** Watertight by construction (eliminate auto-repair reliance) [Done] - needs RNG-16, blocks RNG-9
 
 **Archetypes + vision (module compositions over RingSpec — built "the right way", no shortcuts):**
 
-- **RNG-9** Halo ring style — real per-accent settings (not a shared-collar shortcut) [Medium] - needs RNG-17
-- **RNG-10** Three-stone (Trilogy) ring style [Medium] - needs RNG-9 machinery
+- **RNG-9** Halo ring style — real per-accent settings (not a shared-collar shortcut) [Done] - needs RNG-17
+- **RNG-10** Three-stone (Trilogy) ring style [In Progress] - needs RNG-9 machinery
 - **RNG-11** Side-stone band (channel/pave) [Medium] - needs RNG-17, RNG-9
 - **RNG-12** Vision -> RingSpec population (photo populates structured spec) [High] - needs RNG-14, RNG-16; most valuable last, on the full catalog
 
@@ -170,23 +170,24 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 
 ## Current Phase
 
-**Foundation complete. Next: RNG-17 - Watertight by construction.**
+**RNG-9 (halo) complete. RNG-10 (trilogy) in progress — Checkpoint 1 of 3 done.**
 
 Done and merged: RNG-13 (spike, GO), RNG-14 (RingSpec v1), RNG-15 (kernel cutover
-to build123d), RNG-16 (module library: `Module` Protocol + `MODULES`/`ARCHETYPES`
-registry + `compose()` + `bezel` + per-module in-kernel castability self-checks).
-`/generate-ring` builds the solitaire via `compose(spec)`; full suite green (3054).
+to build123d), RNG-16 (module library), RNG-17 (watertight by construction: raw
+geometry castable by construction, not repair-reliant), RNG-9 (halo archetype —
+RingSpec discriminated union, `accent_seat`/`accent_prong` primitives, the
+reusable `gallery` primitive, `/generate-ring` + frontend wiring). Full suite
+green (3204 as of RNG-10 checkpoint 1).
 
-**Deliberate debt being paid down next:** RNG-15 and RNG-16 both deferred true
-"watertight by construction" - raw geometry still relies on the RNG-5 auto-repair
-mesh gate (QA saw ~8-12 holes filled per solitaire). We chose to build the
-archetypes "the right way" (real per-accent halo settings, real pave beads), which
-means many sub-0.7mm features fused into one body - more than conservative repair
-can be trusted to fix. So **RNG-17 makes geometry castable by construction first**
-(shell/offset, clean fuse; raw STL watertight pre-repair; `X-Mesh-Repaired: false`
-on canonical inputs), building on RNG-16's per-module self-checks.
+**RNG-10 (trilogy) in progress on branch `feat/rng-10-trilogy`:** Checkpoint 1
+(contract) done — `TrilogySpec` union member, the `_trilogy_overcrowding`
+castability check (see `docs/adr/0003` for the general lesson it prompted:
+classify a field as placement vs. wall before writing a model-level proxy for
+it). The frozen design for the remaining checkpoints — the gallery-post
+connectivity decision, the placement formula, the file list — lives in
+`specs/RNG-10.md`, not just this conversation, so a fresh session can resume
+Checkpoint 2 (the `trilogy` geometry module) directly from that spec.
 
-**Then, in order:** RNG-9 (halo, real per-accent settings) -> RNG-10 (trilogy) ->
-RNG-11 (side-stone/pave) -> RNG-12 (vision -> RingSpec dispatch, last, pointing at
-the full archetype catalog). Each archetype is a new composition of modules over
-RingSpec, not a monolithic template.
+**Then, in order:** RNG-11 (side-stone/pave) -> RNG-12 (vision -> RingSpec
+dispatch, last, pointing at the full archetype catalog). Each archetype is a
+new composition of modules over RingSpec, not a monolithic template.

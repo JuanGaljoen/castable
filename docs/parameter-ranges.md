@@ -22,14 +22,28 @@ shank, US6).
 
 ## Halo accent (RNG-9, HaloSpec only)
 The accent-stone ring encircling the centre stone. Ranges are structural sanity
-caps; casting floors are enforced in `validate_castability`, not the UI.
+caps; casting floors are enforced by construction in the `gallery`/
+`accent_seat`/`accent_prong` geometry (see docs/adr/0002), not by a model-level
+proxy.
 
 | Parameter             | Default | Sane range | Castability floor / note |
 |-----------------------|---------|------------|--------------------------|
-| `halo_stone_diameter` | 1.3 mm  | 0.9 - 2.5 mm | floor keeps the derived accent retaining tip >= 0.7 mm (MIN_PRONG_TIP) |
+| `halo_stone_diameter` | 1.3 mm  | 0.9 - 2.5 mm | accent retaining tip held >= 0.7 mm (MIN_PRONG_TIP) by construction |
 | `halo_stone_count`    | 14      | 8 - 24     | overcrowding check: per-accent arc must exceed the accent diameter |
-| `halo_gap`            | 0.5 mm  | 0.3 - 1.5 mm | guards the 0.8 mm (MIN_WALL) metal wall between accents |
-| `halo_stone_height`   | 1.2 mm  | 0.8 - 3.0 mm | feeds the accent-tip proxy alongside diameter |
+| `halo_gap`            | 0.5 mm  | 0.3 - 1.5 mm | stone-to-stone spacing; the gallery rail wall beneath is a fixed construction margin, independent of this field |
+| `halo_stone_height`   | 1.2 mm  | 0.8 - 3.0 mm | drives the accent bearing well depth |
+
+## Trilogy side stones (RNG-10, TrilogySpec only)
+Two symmetric side stones flanking the centre stone, each on its own
+`accent_seat` + `accent_prong` setting riding a gallery-post pedestal into the
+shank shoulder. Ranges are structural sanity caps; wall/tip floors are
+enforced by construction (reusing the same accent primitives as halo).
+
+| Parameter             | Default | Sane range | Castability floor / note |
+|-----------------------|---------|------------|--------------------------|
+| `side_stone_diameter` | 2.5 mm  | 0.9 - 6.0 mm | side-prong tip held >= 0.7 mm (MIN_PRONG_TIP) by construction |
+| `side_stone_height`   | 1.8 mm  | 0.8 - 4.0 mm | drives the side-seat bearing well depth |
+| `side_stone_gap`      | 0.6 mm  | 0.3 - 2.0 mm | centre-to-side spacing; `trilogy_overcrowding` guards against oversized side stones on a small shoulder colliding with the centre stone (see docs/ringspec/contract.md) |
 
 ## Casting invariants (always hold, any input)
 - Min wall thickness **0.8 mm** (band, seat ring, claw wires).
