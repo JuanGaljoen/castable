@@ -9,6 +9,8 @@ from .accent_prong import accent_prong
 from .accent_seat import accent_seat
 from .bezel import bezel
 from .export import to_step_bytes, to_stl_bytes
+from .gallery import gallery
+from .halo import halo
 from .module import (
     ARCHETYPES,
     MODULES,
@@ -32,6 +34,8 @@ __all__ = [
     "prong_setting",
     "seat",
     "bezel",
+    "gallery",
+    "halo",
     "accent_seat",
     "accent_prong",
     "to_stl_bytes",

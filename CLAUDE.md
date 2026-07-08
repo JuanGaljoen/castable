@@ -39,8 +39,12 @@ Five layers with one load-bearing artifact (RingSpec) in the middle:
 2. **RingSpec (the contract)** — versioned, typed; both sides evolve against it
    independently; carries castability validation rules.
 3. **Procedural geometry** — RingSpec → geometry via a **library of composable
-   modules** on build123d (`shank`, `prong_setting`, `seat`, `bezel`, …), each
-   parametric and each emitting castable geometry.
+   modules** on build123d (`shank`, `prong_setting`, `seat`, `bezel`,
+   `accent_seat`, `accent_prong`, `gallery`, …), each parametric and each
+   emitting castable geometry. **Connectivity standard:** elevated settings
+   (halo, trilogy, cathedral) attach via the reusable `gallery` primitive (the
+   understructure that ties a raised setting to the shank/center for a single
+   watertight manifold); pave / side-stone sets accents INTO the band instead.
 4. **Castability gate** — `shell`/thickness, manifold, min-feature checks; much
    of it now in-kernel by construction.
 5. **Export** — STEP (CAD interchange) + STL (print/preview).
@@ -109,23 +113,10 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
   toward a RingSpec (style/archetype, prong count, shank taper, features) +
   estimated dimensions.
 
-## Commands
-
-Workspace pipeline commands (see `~/projects/personal/.claude/CLAUDE.md`):
-
-- `/plan-feature`   - interactive planning, produces a spec file
-- `/build-feature`  - full TDD pipeline with review, reflect, persist
-- `/review-impl`    - standalone five-pillar code review
-- `/ship`           - branch, commit, push, PR
-- `/audit-security` - OWASP Top 10 audit
-- `/freeze`         - lock scope to specific files
-
 ## Rules
 
 - TDD: RED -> GREEN -> REFACTOR. No production code without a failing test.
 - Never rewrite working code to fix broken code; fix only the broken module.
-- Max 300 LOC per file; split if larger.
-- Zero `console.log` in committed code.
 - WCAG 2.1 AA mandatory for all UI work.
 - No JS frameworks; vanilla only.
 - Casting constraints (above) are non-negotiable.
@@ -195,10 +186,3 @@ on canonical inputs), building on RNG-16's per-module self-checks.
 RNG-11 (side-stone/pave) -> RNG-12 (vision -> RingSpec dispatch, last, pointing at
 the full archetype catalog). Each archetype is a new composition of modules over
 RingSpec, not a monolithic template.
-
-## Jira Ticket Lifecycle (orchestrator-run, Stop-verified)
-- When starting /plan-feature or /build-feature: move the ticket to "In Progress" in Jira, then set `jira_in_progress: true` in `.claude/logs/build_session.json`.
-- When running /ship and PR is created: move the ticket to "In Review" in Jira.
-- When PR is merged or build is complete and shipped: move the ticket to "Done" in Jira.
-- Always use the Jira MCP to update ticket status at each transition.
-- Enforcement: the Stop hook's `check_jira_transition` soft-warns (stderr `[JIRA]`) when a build_session.json has a `ticket` but no `jira_in_progress` flag. The hook only *verifies* — it cannot perform the transition (Jira is network/auth/MCP; merge -> Done is an external GitHub event). The doing stays with the orchestrator via MCP; the flag is the receipt. Same pattern as `reflection_persisted`.

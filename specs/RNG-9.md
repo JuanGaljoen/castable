@@ -72,10 +72,12 @@ archetype carrying fields beyond the solitaire-7.
 
 1. **Halo as a composition, not a monolith.** The halo archetype is expressed as
    an ordered list of library modules in `ARCHETYPES["halo"]` (reusing `shank`,
-   `seat`, `prong_setting` for the center; adding `accent_seat` and
-   `accent_prong` for the ring), fused by the existing `compose()`. No bespoke
-   monolithic halo builder. Verified by a test asserting `ARCHETYPES["halo"]` is
-   a composition and that `compose(halo_spec)` returns a single solid.
+   `seat`, `prong_setting` for the center; `accent_seat` and `accent_prong` for
+   the ring; and the reusable `gallery` primitive that carries the ring and ties
+   it to the center for a single manifold), fused by the existing `compose()`. No
+   bespoke monolithic halo builder. Verified by a test asserting
+   `ARCHETYPES["halo"]` is a composition and that `compose(halo_spec)` returns a
+   single solid.
 2. **RingSpec discriminated union.** `RingSpec` is a discriminated union over
    `archetype`. A halo spec validates into a `HaloSpec` carrying a `Halo` group;
    a solitaire spec still validates into `SolitaireSpec`. A halo spec missing the
@@ -121,18 +123,42 @@ half-written module), per the CLAUDE.md checkpoint-at-module-seams rule:
   modules (build + in-kernel `check`), register in `MODULES`, own tests
   (parametric range, castability floors, raw per-solid watertightness). Reusable
   by RNG-10/11.
-- **Checkpoint 3 (composition).** Add the `halo` placement module (rings the
-  accents around the center, shares common-prongs between neighbours) and
-  `ARCHETYPES["halo"]`; epsilon-overlap fuse; golden-halo raw watertight test;
-  `X-Mesh-Repaired: false`.
+- **Checkpoint 3 (gallery primitive + halo composition).** Introduce a REUSABLE
+  `gallery` primitive (the openwork understructure that carries an elevated
+  setting and ties it down to the shank/center), then add the `halo` module that
+  rings the accents around the center, seats them on the gallery, and shares
+  common-prongs between neighbours. Register `ARCHETYPES["halo"]`; epsilon-overlap
+  fuse; golden-halo raw watertight test; `X-Mesh-Repaired: false`. The gallery is
+  the CONNECTIVITY STANDARD shared across designs (see below): it is what makes
+  the halo a single watertight manifold rather than a floating ring, and RNG-10
+  (trilogy) reuses it to carry its side settings.
 - **Checkpoint 4 (wire-up).** `/generate-ring` halo dispatch (validate through
   the union, 400 naming the field on bad input) and the frontend halo fields with
   archetype-driven rendering. Browser QA.
 
 New modules follow the existing `SimpleModule` adapter pattern; placement math
-reuses `_common.clamps()`/`placement()`. Shared-prong count/geometry between
-neighbouring accents is a build-time design detail for the architect, bounded by
-the 0.7mm tip and 0.8mm wall floors.
+reuses `_common.clamps()`/`placement()`.
+
+### Connectivity standard: the reusable `gallery` (decided in CP3 planning)
+
+Connectivity is an every-archetype problem, not a halo one: a halo's beads, a
+trilogy's side settings, and a cathedral's shoulders all sit OFF the center and
+must fuse into one watertight body. Rather than a halo-specific bridge (a
+monolithic-template trap), CP3 introduces a reusable `gallery` primitive - the
+real-jewelry understructure - as the shared standard. Halo is its first customer;
+RNG-10 (trilogy) and cathedral-style archetypes reuse it. This is the same
+vocabulary-growth move as the CP2 accent primitives, and it is what lets the
+RNG-12 vision layer map a photo onto a COMPOSITION of standard primitives
+(shank + seat + prongs + accents + gallery), not bespoke per-photo geometry.
+
+**Boundary (kept honest, not speculative):** the gallery is the standard for
+ELEVATED settings (halo, trilogy, cathedral). Pave / side-stone (RNG-11) sets
+accents INTO the band itself, so it connects through the shank, not a gallery -
+a separate connection mode, named here so one primitive is not overclaimed.
+
+Shared-prong count/geometry between neighbouring accents and the exact gallery
+profile are build-time design details for the architect, bounded by the 0.7mm tip
+and 0.8mm wall floors and the raw-watertight bar.
 
 ## Halo field ranges + defaults
 
