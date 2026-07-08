@@ -12,6 +12,16 @@ const NUMBER_KEYS = [
   "setting_height",
 ];
 
+const HALO_NUMBER_KEYS = [
+  "halo_stone_diameter",
+  "halo_stone_count",
+  "halo_gap",
+  "halo_stone_height",
+];
+
+const archetypeSelect = document.getElementById("archetype");
+const haloFields = document.getElementById("halo-fields");
+
 const form = document.getElementById("ring-form");
 const generateBtn = document.getElementById("generate-btn");
 const statusEl = document.getElementById("status");
@@ -26,13 +36,59 @@ const meshStatusEl = document.getElementById("mesh-status");
 let currentBlob = null;
 let currentObjectUrl = null;
 
-function gatherParams() {
+function gatherSolitaireBody() {
   const params = {};
   for (const key of NUMBER_KEYS) {
     params[key] = Number(document.getElementById(key).value);
   }
   params.prong_count = parseInt(document.getElementById("prong_count").value, 10);
   return params;
+}
+
+// Structured RingSpec JSON (RNG-9 CP4): halo is requested as the full
+// discriminated-union shape /generate-ring's structured dispatch expects.
+function gatherHaloBody() {
+  return {
+    archetype: "halo",
+    shank: {
+      inner_diameter: Number(document.getElementById("inner_diameter").value),
+      band_width: Number(document.getElementById("band_width").value),
+      band_thickness: Number(document.getElementById("band_thickness").value),
+    },
+    setting: {
+      prong_count: parseInt(document.getElementById("prong_count").value, 10),
+      setting_height: Number(document.getElementById("setting_height").value),
+    },
+    stones: {
+      stone_diameter: Number(document.getElementById("stone_diameter").value),
+      stone_height: Number(document.getElementById("stone_height").value),
+    },
+    halo: {
+      halo_stone_diameter: Number(document.getElementById("halo_stone_diameter").value),
+      halo_stone_count: parseInt(document.getElementById("halo_stone_count").value, 10),
+      halo_gap: Number(document.getElementById("halo_gap").value),
+      halo_stone_height: Number(document.getElementById("halo_stone_height").value),
+    },
+  };
+}
+
+function gatherRequestBody() {
+  return archetypeSelect.value === "halo" ? gatherHaloBody() : gatherSolitaireBody();
+}
+
+// Toggles halo field visibility + required-ness with the archetype selector.
+function applyArchetypeVisibility() {
+  const isHalo = archetypeSelect.value === "halo";
+  haloFields.hidden = !isHalo;
+  for (const key of HALO_NUMBER_KEYS) {
+    const el = document.getElementById(key);
+    if (!el) continue;
+    if (isHalo) {
+      el.setAttribute("required", "required");
+    } else {
+      el.removeAttribute("required");
+    }
+  }
 }
 
 function setLoading(isLoading) {
@@ -43,7 +99,7 @@ function setLoading(isLoading) {
 }
 
 function clearFieldErrors() {
-  for (const key of NUMBER_KEYS.concat(["prong_count"])) {
+  for (const key of NUMBER_KEYS.concat(["prong_count"], HALO_NUMBER_KEYS)) {
     const el = document.getElementById(key);
     if (!el) continue;
     el.classList.remove("field-error");
@@ -98,7 +154,10 @@ function showSuccess(blob) {
 
 function flagField(fieldKey) {
   if (!fieldKey) return null;
-  const el = document.getElementById(fieldKey);
+  // Structured RingSpec errors name dotted paths (e.g. "shank.band_thickness",
+  // "halo.halo_gap"); the trailing segment matches the flat input id.
+  const elementId = fieldKey.includes(".") ? fieldKey.split(".").pop() : fieldKey;
+  const el = document.getElementById(elementId);
   if (!el) return null;
   el.classList.add("field-error");
   el.setAttribute("aria-invalid", "true");
@@ -186,7 +245,7 @@ async function generate(event) {
     const res = await fetch("/generate-ring", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(gatherParams()),
+      body: JSON.stringify(gatherRequestBody()),
     });
 
     if (res.ok) {
@@ -209,3 +268,5 @@ async function generate(event) {
 }
 
 form.addEventListener("submit", generate);
+archetypeSelect.addEventListener("change", applyArchetypeVisibility);
+applyArchetypeVisibility();

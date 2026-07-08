@@ -307,6 +307,61 @@ def test_mesh_status_above_download(body):
     )
 
 
+# ===========================================================================
+# RNG-9 CP4: archetype selector + halo fields (archetype-driven visibility)
+# ===========================================================================
+HALO_NUMBER_KEYS = [
+    "halo_stone_diameter",
+    "halo_stone_count",
+    "halo_gap",
+    "halo_stone_height",
+]
+HALO_DEFAULTS = {
+    "halo_stone_diameter": "1.3",
+    "halo_stone_count": "14",
+    "halo_gap": "0.5",
+    "halo_stone_height": "1.2",
+}
+
+
+def test_archetype_selector_present_solitaire_default(body):
+    block = _select_block(body, "archetype")
+    assert block, "no <select id=archetype> found"
+    assert re.search(r'name\s*=\s*"archetype"', block, re.IGNORECASE)
+    assert re.search(r'<option\b[^>]*value\s*=\s*"solitaire"', block, re.IGNORECASE)
+    assert re.search(r'<option\b[^>]*value\s*=\s*"halo"', block, re.IGNORECASE)
+    opt_solitaire = re.search(
+        r'<option\b[^>]*value\s*=\s*"solitaire"[^>]*>', block, re.IGNORECASE
+    )
+    assert opt_solitaire and "selected" in opt_solitaire.group(0).lower(), (
+        "option value=solitaire must be selected by default"
+    )
+
+
+def test_halo_fields_present_with_defaults_and_hidden_by_default(body):
+    for key in HALO_NUMBER_KEYS:
+        assert f'name="{key}"' in body, f"missing control name={key}"
+    for key, default in HALO_DEFAULTS.items():
+        assert _input_tag_with(body, name=key, value=default), (
+            f"input name={key} missing default value={default}"
+        )
+    container = re.search(
+        r'<fieldset\b[^>]*id\s*=\s*"halo-fields"[^>]*>', body, re.IGNORECASE
+    )
+    assert container, "no <fieldset id=halo-fields>"
+    assert "hidden" in container.group(0).lower(), (
+        "#halo-fields must be hidden by default (solitaire is the default archetype)"
+    )
+
+
+def test_halo_fields_have_labels(body):
+    for key in HALO_NUMBER_KEYS:
+        assert f'id="{key}"' in body, f"control id={key} missing"
+        assert re.search(
+            rf'<label\b[^>]*for\s*=\s*"{re.escape(key)}"', body, re.IGNORECASE
+        ), f"no <label for={key}>"
+
+
 # ---- RNG-4 AC10 static: vendored three files are actually served -----------
 def test_vendored_three_served(client):
     for path in (

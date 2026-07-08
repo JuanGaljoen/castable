@@ -8,11 +8,18 @@ from __future__ import annotations
 
 from flask import Flask, Response, jsonify, render_template, request
 
+from pydantic import ValidationError as PydanticValidationError
+
 from ringcad.classify import classify_available, classify_ring
-from ringcad.geometry import build_solitaire, to_step_bytes, to_stl_bytes
+from ringcad.geometry import build_solitaire, compose, to_step_bytes, to_stl_bytes
 from ringcad.mesh_validator import validate_and_repair
 from ringcad.params import ValidationError, validate_params
-from ringcad.ringspec import from_params, validate_castability
+from ringcad.ringspec import (
+    from_params,
+    spec_errors,
+    validate_castability,
+    validate_spec,
+)
 
 _SUPPORTED_FORMATS = ("stl", "step")
 
@@ -52,12 +59,23 @@ def create_app() -> Flask:
                 "Invalid request body", "expected a JSON object"
             )
 
-        try:
-            params = validate_params(body)
-        except ValidationError as exc:
-            return _validation_response(exc.error, exc.detail, exc.field)
+        structured = isinstance(body, dict) and "archetype" in body
 
-        spec = from_params(params)
+        if structured:
+            try:
+                spec = validate_spec(body)
+            except PydanticValidationError as exc:
+                errors = spec_errors(exc)
+                first = errors[0] if errors else {"field": None, "reason": ""}
+                return _validation_response(
+                    "Invalid request body", first["reason"], first["field"]
+                )
+        else:
+            try:
+                params = validate_params(body)
+            except ValidationError as exc:
+                return _validation_response(exc.error, exc.detail, exc.field)
+            spec = from_params(params)
 
         violations = validate_castability(spec)
         if violations:
@@ -83,7 +101,7 @@ def create_app() -> Flask:
             )
 
         try:
-            solid = build_solitaire(spec)
+            solid = compose(spec) if structured else build_solitaire(spec)
         except Exception as exc:  # noqa: BLE001 — surface any kernel failure as 400
             return (
                 jsonify(

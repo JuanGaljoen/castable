@@ -286,3 +286,126 @@ def test_real_default_ring_is_watertight_without_repair(client):
     assert resp.status_code == 200, resp.data
     assert resp.headers["X-Mesh-Valid"] == "true"
     assert resp.headers["X-Mesh-Repaired"] == "false"
+
+
+# ===========================================================================
+# RNG-9 CP4: structured RingSpec dispatch (halo archetype) — a body carrying
+# `archetype` routes through validate_spec -> the union -> compose(); a flat
+# body (no `archetype`) keeps the legacy from_params -> build_solitaire path.
+# ===========================================================================
+VALID_HALO_BODY = {
+    "version": "1.0",
+    "archetype": "halo",
+    "shank": {"inner_diameter": 16.5, "band_width": 2.2, "band_thickness": 1.9},
+    "setting": {"prong_count": 6, "setting_height": 6},
+    "stones": {"stone_diameter": 6.5, "stone_height": 4},
+    "halo": {
+        "halo_stone_diameter": 1.3,
+        "halo_stone_count": 14,
+        "halo_gap": 0.5,
+        "halo_stone_height": 1.2,
+    },
+}
+
+
+def _spy_compose(monkeypatch):
+    """Patch the structured-path generator seam (ringcad.app.compose) with a spy
+    that records the RingSpec it was handed and returns a tiny STL."""
+    calls = {}
+
+    def fake_compose(spec):
+        calls["spec"] = spec
+        return _Sentinel()
+
+    monkeypatch.setattr("ringcad.app.compose", fake_compose)
+    monkeypatch.setattr(
+        "ringcad.app.to_stl_bytes", lambda solid: b"solid x\nendsolid x\n"
+    )
+    return calls
+
+
+def test_structured_halo_spec_routes_through_compose(client, monkeypatch):
+    calls = _spy_compose(monkeypatch)
+    resp = client.post("/generate-ring", json=VALID_HALO_BODY)
+    assert resp.status_code == 200, resp.data
+    spec = calls["spec"]
+    assert spec.archetype == "halo"
+    assert spec.halo.halo_stone_count == 14
+
+
+def test_structured_solitaire_spec_routes_through_compose(client, monkeypatch):
+    calls = _spy_compose(monkeypatch)
+    body = {k: v for k, v in VALID_HALO_BODY.items() if k != "halo"}
+    body["archetype"] = "solitaire"
+    resp = client.post("/generate-ring", json=body)
+    assert resp.status_code == 200, resp.data
+    assert calls["spec"].archetype == "solitaire"
+
+
+def test_flat_body_still_uses_legacy_build_solitaire(client, monkeypatch):
+    """A body with no `archetype` must NOT hit compose — the legacy seam owns it."""
+    calls = _spy(monkeypatch)
+
+    def explode(spec):  # compose must never be called on the flat path
+        raise AssertionError("flat body routed through compose")
+
+    monkeypatch.setattr("ringcad.app.compose", explode)
+    resp = client.post("/generate-ring", json=VALID_BODY)
+    assert resp.status_code == 200
+    assert calls["spec"].archetype == "solitaire"
+
+
+def test_structured_halo_out_of_range_returns_400_naming_field(client):
+    body = {
+        **VALID_HALO_BODY,
+        "halo": {**VALID_HALO_BODY["halo"], "halo_stone_count": 3},
+    }
+    resp = client.post("/generate-ring", json=body)
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data["field"] and "halo_stone_count" in data["field"]
+
+
+def test_structured_halo_missing_group_returns_400_naming_halo(client):
+    body = {k: v for k, v in VALID_HALO_BODY.items() if k != "halo"}
+    resp = client.post("/generate-ring", json=body)
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data["field"] is not None and "halo" in data["field"]
+
+
+def test_unknown_archetype_returns_400_naming_archetype(client):
+    body = {**VALID_HALO_BODY, "archetype": "trilogy"}
+    resp = client.post("/generate-ring", json=body)
+    assert resp.status_code == 400
+    assert resp.get_json()["field"] == "archetype"
+
+
+def test_structured_halo_non_castable_returns_400(client):
+    body = {
+        **VALID_HALO_BODY,
+        "shank": {**VALID_HALO_BODY["shank"], "band_thickness": 0.6},
+    }
+    resp = client.post("/generate-ring", json=body)
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "Not castable"
+
+
+def test_structured_halo_format_step(client, monkeypatch):
+    monkeypatch.setattr("ringcad.app.compose", lambda spec: _Sentinel())
+    monkeypatch.setattr(
+        "ringcad.app.to_step_bytes", lambda solid: b"ISO-10303 fake"
+    )
+    resp = client.post("/generate-ring?format=step", json=VALID_HALO_BODY)
+    assert resp.status_code == 200
+    assert resp.headers["Content-Type"] == "model/step"
+
+
+# ---- AC6: the real golden halo is watertight WITHOUT repair (slower) --------
+def test_real_golden_halo_endpoint_watertight_no_repair(client):
+    resp = client.post("/generate-ring", json=VALID_HALO_BODY)
+    assert resp.status_code == 200, resp.data
+    assert resp.headers["X-Mesh-Valid"] == "true"
+    assert resp.headers["X-Mesh-Repaired"] == "false"
+    mesh = trimesh.load(io.BytesIO(resp.data), file_type="stl", force="mesh")
+    assert mesh.is_watertight
