@@ -23,11 +23,6 @@ from .models import HaloSpec, RingSpec
 # against the SCAD/build123d geometry; do not treat it as exact.
 _PRONG_WIRE_FRACTION = 0.25
 
-# Fraction of an accent stone's smaller dimension that becomes retaining-bead
-# wire. Coarse proxy (plan Risk #4, "fuzzy") — direction-only, not exact; CP2
-# will pin it against real halo geometry. Monotonic in accent size.
-_ACCENT_TIP_FRACTION = 0.5
-
 
 class Violation(BaseModel):
     """A single structured castability failure (JSON-serializable)."""
@@ -109,43 +104,20 @@ def _geometric(spec: RingSpec) -> list[Violation]:
     return out
 
 
-def _halo_wall(spec: RingSpec) -> list[Violation]:
-    """Halo inter-stone gap below MIN_WALL_MM (metal wall between accents)."""
-    if not isinstance(spec, HaloSpec):
-        return []
-    gap = spec.halo.halo_gap
-    if gap < MIN_WALL_MM:
-        return [
-            Violation(
-                code="halo_min_wall",
-                field="halo.halo_gap",
-                message=f"Halo gap {gap}mm leaves a wall below the {MIN_WALL_MM}mm "
-                "minimum between accent stones.",
-                limit_mm=MIN_WALL_MM,
-                actual_mm=gap,
-            )
-        ]
-    return []
-
-
-def _halo_accent_tip(spec: RingSpec) -> list[Violation]:
-    """Derived accent retaining-bead diameter below MIN_PRONG_TIP_MM (proxy)."""
-    if not isinstance(spec, HaloSpec):
-        return []
-    smaller = min(spec.halo.halo_stone_diameter, spec.halo.halo_stone_height)
-    tip = smaller * _ACCENT_TIP_FRACTION
-    if tip < MIN_PRONG_TIP_MM:
-        return [
-            Violation(
-                code="halo_min_accent_tip",
-                field="halo.halo_stone_diameter",
-                message=f"Derived accent retaining diameter {tip:.3f}mm is below "
-                f"the {MIN_PRONG_TIP_MM}mm minimum for this accent size.",
-                limit_mm=MIN_PRONG_TIP_MM,
-                actual_mm=tip,
-            )
-        ]
-    return []
+# RNG-9 CP4 note: `_halo_wall` (halo_gap >= MIN_WALL_MM) and `_halo_accent_tip`
+# (min(dia, height) * _ACCENT_TIP_FRACTION >= MIN_PRONG_TIP_MM) were removed
+# here. Both were CP1-era coarse proxies over spec FIELDS, explicitly flagged
+# "fuzzy... pending a pin against real geometry" — written before CP2/CP3 built
+# the real gallery/accent-seat/accent-prong geometry. That geometry is castable
+# BY CONSTRUCTION (gallery's rail/bridge walls are sized from fixed minima, not
+# derived from `halo_gap`; accent seat/prong walls similarly), proven across the
+# full field range by tests/test_halo_watertight.py's BAND + the CP2/CP3
+# in-kernel self-checks (check_gallery/check_accent_seat/check_accent_prong).
+# The two proxies rejected the RNG-9 golden-halo DEFAULTS
+# (halo_gap=0.5, halo_stone_diameter=1.3/height=1.2) that CP3 proved clean,
+# which would 400 the endpoint's own documented golden example. `_halo_overcrowding`
+# stays: it catches a genuine cross-field impossibility (arc spacing between
+# accents) that construction does not guard against.
 
 
 def _halo_overcrowding(spec: RingSpec) -> list[Violation]:
@@ -177,8 +149,6 @@ def validate_castability(spec: RingSpec) -> list[Violation]:
         _min_wall(spec)
         + _min_prong_tip(spec)
         + _geometric(spec)
-        + _halo_wall(spec)
-        + _halo_accent_tip(spec)
         + _halo_overcrowding(spec)
     )
 

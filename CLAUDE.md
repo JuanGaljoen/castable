@@ -103,11 +103,15 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 
 ## API Endpoints
 
-- `POST /generate-ring` - accepts the 7 solitaire params as JSON (validated +
-  adapted through RingSpec), returns binary STL on success with `X-Mesh-*` headers;
-  `?format=step` returns STEP (`model/step`). Castability violations and malformed
-  input return a 400 JSON error naming the field. Geometry built in-process via
-  build123d.
+- `POST /generate-ring` - accepts either a structured RingSpec JSON body
+  (`archetype` + its groups, e.g. `shank`/`setting`/`stones`/`halo` for the
+  halo archetype -> `validate_spec` -> `compose(spec)`) or, for back-compat,
+  the flat 7 solitaire params with no `archetype` key (-> `from_params` ->
+  `build_solitaire`). New archetypes are requested structured, per RNG-9;
+  solitaire keeps both. Returns binary STL on success with `X-Mesh-*` headers;
+  `?format=step` returns STEP (`model/step`). Castability violations and
+  malformed input return a 400 JSON error naming the field. Geometry built
+  in-process via build123d.
 - `GET /health` - returns `{"status": "ok"}`.
 - `POST /classify-ring` - accepts an image, returns Claude vision estimates
   toward a RingSpec (style/archetype, prong count, shank taper, features) +
