@@ -23,6 +23,7 @@ from .halo import halo, halo_parts
 from .prong_setting import prong_setting
 from .seat import seat
 from .shank import shank
+from .trilogy import trilogy, trilogy_parts
 
 
 @runtime_checkable
@@ -108,11 +109,18 @@ MODULES: dict[str, Module] = {
         _check=_ck.check_gallery,
         _parts=lambda spec, c: halo_parts(spec, c),
     ),
+    "trilogy": SimpleModule(
+        name="trilogy",
+        _build=lambda spec, c: trilogy(spec, c),
+        _check=_ck.check_trilogy,
+        _parts=lambda spec, c: trilogy_parts(spec, c),
+    ),
 }
 
 ARCHETYPES: dict[str, list[str]] = {
     "solitaire": ["shank", "seat", "prong_setting"],
     "halo": ["shank", "seat", "prong_setting", "halo"],
+    "trilogy": ["shank", "seat", "prong_setting", "trilogy"],
 }
 
 

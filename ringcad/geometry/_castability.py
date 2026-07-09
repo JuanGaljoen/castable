@@ -17,8 +17,11 @@ from ringcad.mesh_validator import MIN_PRONG_TIP_MM, MIN_WALL_MM
 from ringcad.ringspec import RingSpec, Violation
 
 from ._common import MIN_WALL, placement
+from .accent_prong import accent_prong
+from .accent_seat import accent_seat
 from .gallery import RAIL_MINOR
 from .halo import RAIL_OVERLAP
+from .trilogy import _side_locs
 
 
 def _section_sizes(solid, plane: Plane) -> list:
@@ -202,6 +205,38 @@ def check_gallery(solid, spec: RingSpec, clamps: dict) -> list[Violation]:
             actual_mm=wall,
         )]
     return []
+
+
+def check_trilogy(solid, spec: RingSpec, clamps: dict) -> list[Violation]:
+    """Both side settings' accent floors, LOCAL frame per side (RNG-10 CP2).
+
+    The trilogy module's `_check`. Reuses `check_accent_seat`/
+    `check_accent_prong` over both sides at the shared `trilogy._side_locs`
+    positions -- the same real construction `trilogy._side_parts` uses, so
+    build and check can never drift apart. Unlike `check_gallery` (which
+    sections the fused compound directly, filtering by absolute position),
+    the accent checks derive their probe plane from the SOLID's OWN bounding
+    box, which is only meaningful for an isolated leaf -- against the fused
+    multi-accent `solid` it would read the whole compound's extent instead of
+    one prong's. So each accent is rebuilt in isolation at its real location
+    before checking; this is the same deterministic geometry `trilogy()`
+    fuses, just probed pre-fuse.
+    """
+    if getattr(spec, "archetype", None) != "trilogy" or getattr(
+        spec, "trilogy", None
+    ) is None:
+        return []
+    side_r = spec.trilogy.side_stone_diameter / 2
+    height = spec.trilogy.side_stone_height
+    violations: list[Violation] = []
+    for sign in (-1.0, 1.0):
+        seat_loc, prong_locs = _side_locs(spec, clamps, sign)
+        seat_solid = accent_seat(side_r, height, seat_loc)
+        violations += check_accent_seat(seat_solid, side_r, height, seat_loc)
+        for prong_loc in prong_locs:
+            prong_solid = accent_prong(side_r, height, prong_loc)
+            violations += check_accent_prong(prong_solid, side_r, height, prong_loc)
+    return violations
 
 
 def check_bezel(solid, spec: RingSpec, clamps: dict) -> list[Violation]:
