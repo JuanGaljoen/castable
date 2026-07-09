@@ -1,15 +1,27 @@
 # RNG-10: Three-stone (Trilogy) ring style (parametric, castable)
 
 **Type:** feature
-**Status:** In progress — Checkpoint 1 of 3 done
+**Status:** In progress — Checkpoint 2 of 3 done
 **Depends on:** RNG-9 (accent_seat, accent_prong, gallery primitives). Done.
 **Blocks (soft):** RNG-11 (pave/channel) may reuse the trilogy placement pattern
 for a small fixed accent count; not a hard dependency.
 
-> Status note (2026-07-08): Checkpoint 1 (contract) is committed on branch
-> `feat/rng-10-trilogy`. This spec captures the frozen Understand/Design
-> decisions for a fresh session to resume Checkpoint 2 without re-deriving
-> them. Jira RNG-10 stays In Progress until Checkpoint 3 lands.
+> Status note (2026-07-09): Checkpoint 2 (composition) is committed on branch
+> `feat/rng-10-trilogy` (`ringcad/geometry/trilogy.py`, `check_trilogy`,
+> `MODULES["trilogy"]`/`ARCHETYPES["trilogy"]`, `tests/test_trilogy.py` — 20
+> tests, golden + curated band raw-watertight, side floors held). Full suite:
+> 3224 passed (was 3204 at CP1). One CP2 deviation from the original plan
+> worth flagging for CP3 debugging: `check_trilogy` does NOT hand
+> `check_accent_seat`/`check_accent_prong` the fused `solid` argument directly
+> — those checks derive their probe plane from the solid's own bounding box,
+> which only means "this one accent's extent" when the solid IS that isolated
+> accent; against the fused multi-accent trilogy body it read the whole
+> compound's extent instead (caught by `test_trilogy_side_floors_hold`, a
+> spurious `min_prong_tip` violation at 0.083mm). Fix: `check_trilogy` rebuilds
+> each isolated leaf at its real `_side_locs` location and checks that,
+> instead of slicing the passed-in fused solid — same real geometry
+> `trilogy()` fuses, just probed pre-fuse. Remaining: Checkpoint 3 (wire-up —
+> frontend fields, backend/frontend tests, CLAUDE.md note).
 
 ## Problem
 
