@@ -9,17 +9,18 @@ on the spec *before* any geometry runs.
 - **Kernel:** Pydantic v2 models (matches `ringcad/classify.py`)
 - **Generated schema:** [`ringspec.schema.json`](./ringspec.schema.json)
 - **Worked examples:** [`examples/solitaire.json`](./examples/solitaire.json),
-  [`examples/halo.json`](./examples/halo.json)
+  [`examples/halo.json`](./examples/halo.json),
+  [`examples/trilogy.json`](./examples/trilogy.json)
 
 ## Envelope
 
 `RingSpec` is a **discriminated (tagged) union** over `archetype` —
-`SolitaireSpec | HaloSpec` (RNG-9). `RingSpec` itself is an `Annotated` type
-alias, NOT an instantiable class: construct a concrete member
-(`SolitaireSpec(...)`/`HaloSpec(...)`) or route dict/JSON input through
-`validate_spec`, which returns the concrete member. Each member is a versioned
-envelope over its element groups; unknown/extra fields are rejected everywhere
-(`extra="forbid"`).
+`SolitaireSpec | HaloSpec | TrilogySpec` (RNG-9, RNG-10). `RingSpec` itself is
+an `Annotated` type alias, NOT an instantiable class: construct a concrete
+member (`SolitaireSpec(...)`/`HaloSpec(...)`/`TrilogySpec(...)`) or route
+dict/JSON input through `validate_spec`, which returns the concrete member.
+Each member is a versioned envelope over its element groups; unknown/extra
+fields are rejected everywhere (`extra="forbid"`).
 
 `SolitaireSpec` (four groups):
 
@@ -37,14 +38,18 @@ envelope over its element groups; unknown/extra fields are rejected everywhere
 `confidence`) with `archetype: Literal["halo"]` and one added required group,
 `halo: Halo` (see below).
 
+`TrilogySpec` likewise mirrors `SolitaireSpec` with `archetype:
+Literal["trilogy"]` and one added required group, `trilogy: Trilogy` (see
+below).
+
 ### Archetype discriminator
 
 `archetype` is the union tag. `validate_spec` routes each value to its concrete
 member; an **archetype-less dict defaults to `"solitaire"`** (back-compat — the
 raw union otherwise rejects a missing tag with `union_tag_not_found`). An
 unknown value (e.g. `"cluster"`) is rejected with `union_tag_invalid`, surfaced
-by `spec_errors` as `field == "archetype"`. Future archetypes (trilogy/side-
-stone) are added as new union members — additive, no breaking v2.
+by `spec_errors` as `field == "archetype"`. Future archetypes (side-stone) are
+added as new union members — additive, no breaking v2.
 
 The element groups map deliberately onto the build123d modules; `halo` will map
 onto a per-accent setting module in the RNG-9 geometry slice.
@@ -99,6 +104,18 @@ sanity caps; casting floors are enforced in castability validation.
 | `halo_gap`            | `float` | `0.5`   | `>= 0.3`, `<= 1.5` |
 | `halo_stone_height`   | `float` | `1.2`   | `>= 0.8`, `<= 3.0` |
 
+### `Trilogy` (RNG-10, TrilogySpec only)
+
+Two symmetric side stones flanking the centre stone. Bounds are structural
+sanity caps; casting floors are enforced in the reused `accent_seat`/
+`accent_prong` geometry, by construction.
+
+| Field                 | Type    | Default | Bound              |
+|-----------------------|---------|---------|--------------------|
+| `side_stone_diameter` | `float` | `2.5`   | `>= 0.9`, `<= 6.0` |
+| `side_stone_height`   | `float` | `1.8`   | `>= 0.8`, `<= 4.0` |
+| `side_stone_gap`      | `float` | `0.6`   | `>= 0.3`, `<= 2.0` |
+
 ### `Motif`
 
 | Field      | Type            | Default | Notes |
@@ -143,9 +160,21 @@ Casting constants are **single-sourced** from
 | `min_prong_tip`      | Derived prong-tip diameter `< MIN_PRONG_TIP_MM`. The tip diameter is a **coarse proxy** (`π · stone_diameter / prong_count · wire_fraction`) — plan Risk #2, "fuzzy"; pin against the SCAD/build123d geometry in RNG-15. |
 | `stone_exceeds_bore` | `stone_diameter >= inner_diameter` (stone wider than the finger bore). |
 | `stone_exceeds_head` | `stone_height >= setting_height` (stone taller than the head). |
-| `halo_min_wall`      | (HaloSpec) `halo_gap < MIN_WALL_MM` — the metal wall between accents. `limit_mm == MIN_WALL_MM`. |
-| `halo_min_accent_tip`| (HaloSpec) Derived accent retaining diameter `< MIN_PRONG_TIP_MM`. **Coarse proxy** (`min(halo_stone_diameter, halo_stone_height) · accent_fraction`) — plan Risk #4, "fuzzy"; CP2 pins it against real halo geometry. `limit_mm == MIN_PRONG_TIP_MM`. |
 | `halo_overcrowding`  | (HaloSpec) Per-accent arc `2π·R / halo_stone_count < halo_stone_diameter`, where `R = stone_diameter/2 + halo_gap + halo_stone_diameter/2`. |
+| `trilogy_overcrowding` | (TrilogySpec) The side stone's chord (straight-line) distance from the centre stone, `2·head_r·sin(φ/2)` where `φ = (stone_r + side_stone_gap + side_r) / head_r`, is less than `stone_r + side_r` — the two girdles would overlap. |
+
+**Retired (docs/adr/0002):** `halo_min_wall` (`halo_gap < MIN_WALL_MM`) and
+`halo_min_accent_tip` (a derived-diameter proxy) were CP1-era placeholders,
+explicitly flagged "fuzzy... pending a pin against real geometry." CP2/CP3
+built that real geometry — the `gallery`/`accent_seat`/`accent_prong`
+primitives are castable *by construction*, independent of `halo_gap` — so both
+proxies were removed once they started rejecting the halo's own castable
+golden defaults. `trilogy_overcrowding` is deliberately **not** shaped the same
+way (a `side_stone_gap < MIN_WALL_MM` check would repeat that exact mistake,
+since the trilogy post's wall is likewise a fixed construction margin); it
+checks a real placement-geometry fact instead, the same class as
+`halo_overcrowding`. See docs/adr/0003 for the general rule this generalizes
+to (classify a field as placement vs. wall before writing a proxy for it).
 
 ## Round-trip with the legacy 7-param dict (AC1)
 

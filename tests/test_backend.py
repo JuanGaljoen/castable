@@ -375,7 +375,7 @@ def test_structured_halo_missing_group_returns_400_naming_halo(client):
 
 
 def test_unknown_archetype_returns_400_naming_archetype(client):
-    body = {**VALID_HALO_BODY, "archetype": "trilogy"}
+    body = {**VALID_HALO_BODY, "archetype": "cluster"}
     resp = client.post("/generate-ring", json=body)
     assert resp.status_code == 400
     assert resp.get_json()["field"] == "archetype"

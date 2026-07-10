@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 from ringcad.mesh_validator import MIN_PRONG_TIP_MM, MIN_WALL_MM
 
-from .models import HaloSpec, RingSpec
+from .models import HaloSpec, RingSpec, TrilogySpec
 
 # Fraction of the inter-prong seat arc that becomes prong wire. The prong-tip
 # diameter is a coarse proxy (plan Risk #2, "fuzzy") pending an RNG-15 pin
@@ -143,6 +143,45 @@ def _halo_overcrowding(spec: RingSpec) -> list[Violation]:
     return []
 
 
+def _trilogy_overcrowding(spec: RingSpec) -> list[Violation]:
+    """Side stone placed close enough to collide with the centre stone.
+
+    Not a wall-thickness proxy (docs/adr/0003): `side_stone_gap` is a
+    PLACEMENT field, not a wall field — the side setting's post wall (CP2) is
+    a fixed construction margin, independent of it, exactly like the gallery
+    rail wall was independent of `halo_gap` (docs/adr/0002). This checks a
+    genuine geometric fact instead — the side stone's angular placement is
+    derived from an ARC-LENGTH approximation of the gap, but the two stones'
+    actual separation is the CHORD (straight-line) distance, which is always
+    <= that arc. At large offsets the two diverge enough that the girdles can
+    overlap even though `side_stone_gap` is positive.
+    """
+    if not isinstance(spec, TrilogySpec):
+        return []
+    trilogy = spec.trilogy
+    shank = spec.shank
+    stone_r = spec.stones.stone_diameter / 2
+    side_r = trilogy.side_stone_diameter / 2
+    head_r = shank.inner_diameter / 2 + shank.band_thickness * shank.shank_taper
+    arc = stone_r + trilogy.side_stone_gap + side_r
+    phi = arc / head_r
+    chord = 2 * head_r * math.sin(phi / 2)
+    min_clearance = stone_r + side_r
+    if chord < min_clearance:
+        return [
+            Violation(
+                code="trilogy_overcrowding",
+                field="trilogy.side_stone_gap",
+                message=f"Side stone placement leaves {chord:.3f}mm of clearance "
+                f"to the centre stone, below the {min_clearance:.3f}mm needed "
+                "for the two stones' girdles not to overlap.",
+                limit_mm=min_clearance,
+                actual_mm=chord,
+            )
+        ]
+    return []
+
+
 def validate_castability(spec: RingSpec) -> list[Violation]:
     """Run the full lost-wax gate; [] means the spec is castable."""
     return (
@@ -150,6 +189,7 @@ def validate_castability(spec: RingSpec) -> list[Violation]:
         + _min_prong_tip(spec)
         + _geometric(spec)
         + _halo_overcrowding(spec)
+        + _trilogy_overcrowding(spec)
     )
 
 

@@ -364,12 +364,98 @@
       ],
       "title": "Stones",
       "type": "object"
+    },
+    "Trilogy": {
+      "additionalProperties": false,
+      "description": "Side-stone group flanking the centre stone (RNG-10).",
+      "properties": {
+        "side_stone_diameter": {
+          "default": 2.5,
+          "maximum": 6.0,
+          "minimum": 0.9,
+          "title": "Side Stone Diameter",
+          "type": "number"
+        },
+        "side_stone_height": {
+          "default": 1.8,
+          "maximum": 4.0,
+          "minimum": 0.8,
+          "title": "Side Stone Height",
+          "type": "number"
+        },
+        "side_stone_gap": {
+          "default": 0.6,
+          "maximum": 2.0,
+          "minimum": 0.3,
+          "title": "Side Stone Gap",
+          "type": "number"
+        }
+      },
+      "title": "Trilogy",
+      "type": "object"
+    },
+    "TrilogySpec": {
+      "additionalProperties": false,
+      "description": "Trilogy archetype: a solitaire centre plus two symmetric side stones.",
+      "properties": {
+        "version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Version",
+          "type": "string"
+        },
+        "archetype": {
+          "const": "trilogy",
+          "default": "trilogy",
+          "title": "Archetype",
+          "type": "string"
+        },
+        "shank": {
+          "$ref": "#/$defs/Shank"
+        },
+        "setting": {
+          "$ref": "#/$defs/Setting"
+        },
+        "stones": {
+          "$ref": "#/$defs/Stones"
+        },
+        "trilogy": {
+          "$ref": "#/$defs/Trilogy"
+        },
+        "motifs": {
+          "items": {
+            "$ref": "#/$defs/Motif"
+          },
+          "title": "Motifs",
+          "type": "array"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FieldConfidence"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "shank",
+        "setting",
+        "stones",
+        "trilogy"
+      ],
+      "title": "TrilogySpec",
+      "type": "object"
     }
   },
   "discriminator": {
     "mapping": {
       "halo": "#/$defs/HaloSpec",
-      "solitaire": "#/$defs/SolitaireSpec"
+      "solitaire": "#/$defs/SolitaireSpec",
+      "trilogy": "#/$defs/TrilogySpec"
     },
     "propertyName": "archetype"
   },
@@ -379,6 +465,9 @@
     },
     {
       "$ref": "#/$defs/HaloSpec"
+    },
+    {
+      "$ref": "#/$defs/TrilogySpec"
     }
   ]
 }

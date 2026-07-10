@@ -24,6 +24,8 @@ from .models import (
     SolitaireSpec,
     SPEC_VERSION,
     Stones,
+    Trilogy,
+    TrilogySpec,
     spec_errors,
     validate_spec,
 )
@@ -33,6 +35,8 @@ __all__ = [
     "SolitaireSpec",
     "HaloSpec",
     "Halo",
+    "TrilogySpec",
+    "Trilogy",
     "Shank",
     "Setting",
     "Stones",
