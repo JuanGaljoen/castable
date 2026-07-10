@@ -26,6 +26,7 @@ from .prong_setting import prong_setting
 from .seat import seat
 from .shank import shank
 from .solitaire import build_solitaire
+from .trilogy import trilogy
 
 __all__ = [
     "build_solitaire",
@@ -36,6 +37,7 @@ __all__ = [
     "bezel",
     "gallery",
     "halo",
+    "trilogy",
     "accent_seat",
     "accent_prong",
     "to_stl_bytes",
