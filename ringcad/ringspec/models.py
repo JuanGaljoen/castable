@@ -143,14 +143,49 @@ class TrilogySpec(BaseModel):
     confidence: FieldConfidence | None = None
 
 
-ARCHETYPE_TAGS = {"solitaire", "halo", "trilogy"}
+class SideStone(BaseModel):
+    """Channel-set accent row down each shoulder of the shank (RNG-11).
+
+    `retention` is a Literal["channel"] in v1 — pave is a future value; a
+    "pave" spec is a clean schema rejection today, not a shipped-but-broken
+    option (specs/RNG-11.md Decision 5).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    accent_stone_diameter: float = Field(default=1.5, ge=0.9, le=2.5)
+    accent_stone_height: float = Field(default=1.2, ge=0.8, le=3.0)
+    accent_count_per_side: int = Field(default=3, ge=1, le=8)
+    accent_gap: float = Field(default=0.3, ge=0.2, le=1.0)
+    retention: Literal["channel"] = "channel"
+
+
+class SideStoneSpec(BaseModel):
+    """Side-stone archetype: a solitaire centre plus a channel-set accent row
+    down each shoulder."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    version: Literal["1.0"] = "1.0"
+    archetype: Literal["side_stone"] = "side_stone"
+    shank: Shank
+    setting: Setting
+    stones: Stones
+    side_stone: SideStone
+    motifs: list[Motif] = Field(default_factory=list)
+    confidence: FieldConfidence | None = None
+
+
+ARCHETYPE_TAGS = {"solitaire", "halo", "trilogy", "side_stone"}
 
 # The versioned contract is a discriminated (tagged) union over `archetype`.
 # `RingSpec` is an Annotated alias — a type hint, NOT an instantiable class;
-# construct a concrete member (SolitaireSpec/HaloSpec/TrilogySpec) or route
-# dict/JSON input through validate_spec (which uses the adapter below).
+# construct a concrete member (SolitaireSpec/HaloSpec/TrilogySpec/
+# SideStoneSpec) or route dict/JSON input through validate_spec (which uses
+# the adapter below).
 RingSpec = Annotated[
-    Union[SolitaireSpec, HaloSpec, TrilogySpec], Field(discriminator="archetype")
+    Union[SolitaireSpec, HaloSpec, TrilogySpec, SideStoneSpec],
+    Field(discriminator="archetype"),
 ]
 _RING_SPEC_ADAPTER = TypeAdapter(RingSpec)
 

@@ -1,0 +1,27 @@
+{
+  "version": "1.0",
+  "archetype": "side_stone",
+  "shank": {
+    "inner_diameter": 16.5,
+    "band_width": 2.2,
+    "band_thickness": 1.9,
+    "shank_taper": 1.7
+  },
+  "setting": {
+    "prong_count": 6,
+    "setting_height": 6.0
+  },
+  "stones": {
+    "stone_diameter": 6.5,
+    "stone_height": 4.0
+  },
+  "side_stone": {
+    "accent_stone_diameter": 1.5,
+    "accent_stone_height": 1.2,
+    "accent_count_per_side": 3,
+    "accent_gap": 0.3,
+    "retention": "channel"
+  },
+  "motifs": [],
+  "confidence": null
+}

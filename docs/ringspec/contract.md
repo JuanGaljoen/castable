@@ -10,17 +10,19 @@ on the spec *before* any geometry runs.
 - **Generated schema:** [`ringspec.schema.json`](./ringspec.schema.json)
 - **Worked examples:** [`examples/solitaire.json`](./examples/solitaire.json),
   [`examples/halo.json`](./examples/halo.json),
-  [`examples/trilogy.json`](./examples/trilogy.json)
+  [`examples/trilogy.json`](./examples/trilogy.json),
+  [`examples/side_stone.json`](./examples/side_stone.json)
 
 ## Envelope
 
 `RingSpec` is a **discriminated (tagged) union** over `archetype` —
-`SolitaireSpec | HaloSpec | TrilogySpec` (RNG-9, RNG-10). `RingSpec` itself is
-an `Annotated` type alias, NOT an instantiable class: construct a concrete
-member (`SolitaireSpec(...)`/`HaloSpec(...)`/`TrilogySpec(...)`) or route
-dict/JSON input through `validate_spec`, which returns the concrete member.
-Each member is a versioned envelope over its element groups; unknown/extra
-fields are rejected everywhere (`extra="forbid"`).
+`SolitaireSpec | HaloSpec | TrilogySpec | SideStoneSpec` (RNG-9, RNG-10,
+RNG-11). `RingSpec` itself is an `Annotated` type alias, NOT an instantiable
+class: construct a concrete member (`SolitaireSpec(...)`/`HaloSpec(...)`/
+`TrilogySpec(...)`/`SideStoneSpec(...)`) or route dict/JSON input through
+`validate_spec`, which returns the concrete member. Each member is a
+versioned envelope over its element groups; unknown/extra fields are
+rejected everywhere (`extra="forbid"`).
 
 `SolitaireSpec` (four groups):
 
@@ -42,14 +44,18 @@ fields are rejected everywhere (`extra="forbid"`).
 Literal["trilogy"]` and one added required group, `trilogy: Trilogy` (see
 below).
 
+`SideStoneSpec` likewise mirrors `SolitaireSpec` with `archetype:
+Literal["side_stone"]` and one added required group,
+`side_stone: SideStone` (see below).
+
 ### Archetype discriminator
 
 `archetype` is the union tag. `validate_spec` routes each value to its concrete
 member; an **archetype-less dict defaults to `"solitaire"`** (back-compat — the
 raw union otherwise rejects a missing tag with `union_tag_not_found`). An
 unknown value (e.g. `"cluster"`) is rejected with `union_tag_invalid`, surfaced
-by `spec_errors` as `field == "archetype"`. Future archetypes (side-stone) are
-added as new union members — additive, no breaking v2.
+by `spec_errors` as `field == "archetype"`. Future archetypes are added as new
+union members — additive, no breaking v2.
 
 The element groups map deliberately onto the build123d modules; `halo` will map
 onto a per-accent setting module in the RNG-9 geometry slice.
@@ -116,6 +122,23 @@ sanity caps; casting floors are enforced in the reused `accent_seat`/
 | `side_stone_height`   | `float` | `1.8`   | `>= 0.8`, `<= 4.0` |
 | `side_stone_gap`      | `float` | `0.6`   | `>= 0.3`, `<= 2.0` |
 
+### `SideStone` (RNG-11, SideStoneSpec only)
+
+A channel-set accent row down each shoulder of the shank, symmetric about the
+centre stone. Bounds are structural sanity caps; wall floors are enforced in
+the channel-wall geometry, by construction. `retention` is a
+`Literal["channel"]` in v1 — a `"pave"` value is a clean schema rejection
+today, not a shipped-but-broken option (widening the literal to add `"pave"`
+later is purely additive).
+
+| Field                    | Type              | Default   | Bound              |
+|--------------------------|-------------------|-----------|--------------------|
+| `accent_stone_diameter`  | `float`           | `1.5`     | `>= 0.9`, `<= 2.5` |
+| `accent_stone_height`    | `float`           | `1.2`     | `>= 0.8`, `<= 3.0` |
+| `accent_count_per_side`  | `int`             | `3`       | `>= 1`, `<= 8`     |
+| `accent_gap`             | `float`           | `0.3`     | `>= 0.2`, `<= 1.0` |
+| `retention`              | `Literal["channel"]` | `"channel"` | exactly `"channel"` |
+
 ### `Motif`
 
 | Field      | Type            | Default | Notes |
@@ -162,6 +185,7 @@ Casting constants are **single-sourced** from
 | `stone_exceeds_head` | `stone_height >= setting_height` (stone taller than the head). |
 | `halo_overcrowding`  | (HaloSpec) Per-accent arc `2π·R / halo_stone_count < halo_stone_diameter`, where `R = stone_diameter/2 + halo_gap + halo_stone_diameter/2`. |
 | `trilogy_overcrowding` | (TrilogySpec) The side stone's chord (straight-line) distance from the centre stone, `2·head_r·sin(φ/2)` where `φ = (stone_r + side_stone_gap + side_r) / head_r`, is less than `stone_r + side_r` — the two girdles would overlap. |
+| `side_stone_overcrowding` | (SideStoneSpec) Two checks, first violation wins: (a) the row's required arc `(accent_count_per_side - 1) · (accent_stone_diameter + accent_gap)` exceeds the arc budget between a 10° and 110° angular offset from the head (`band_outer_r · radians(100°)`), flagging `accent_count_per_side`; else (b) adjacent accents' chord distance `2·band_outer_r·sin(dφ/2)` is less than `accent_stone_diameter`, flagging `accent_gap` — the same arc-vs-chord divergence as `trilogy_overcrowding`. |
 
 **Retired (docs/adr/0002):** `halo_min_wall` (`halo_gap < MIN_WALL_MM`) and
 `halo_min_accent_tip` (a derived-diameter proxy) were CP1-era placeholders,
