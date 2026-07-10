@@ -12,15 +12,31 @@ const NUMBER_KEYS = [
   "setting_height",
 ];
 
-const HALO_NUMBER_KEYS = [
-  "halo_stone_diameter",
-  "halo_stone_count",
-  "halo_gap",
-  "halo_stone_height",
-];
+// Non-solitaire archetypes, each a structured RingSpec group. Keyed by the
+// `archetype` value; `group` is the spec key, `fieldset` the toggled <fieldset>
+// id, `numberKeys`/`intKeys` the group's inputs (ints parsed with parseInt).
+// A registry, not an if-chain, so a new archetype is one entry (RNG-10 CP3).
+const ARCHETYPES = {
+  halo: {
+    group: "halo",
+    fieldset: "halo-fields",
+    numberKeys: ["halo_stone_diameter", "halo_gap", "halo_stone_height"],
+    intKeys: ["halo_stone_count"],
+  },
+  trilogy: {
+    group: "trilogy",
+    fieldset: "trilogy-fields",
+    numberKeys: ["side_stone_diameter", "side_stone_height", "side_stone_gap"],
+    intKeys: [],
+  },
+};
+
+// Every archetype-group field id (for required-toggling and error clearing).
+const ARCHETYPE_FIELD_KEYS = Object.values(ARCHETYPES).flatMap(
+  (cfg) => cfg.numberKeys.concat(cfg.intKeys)
+);
 
 const archetypeSelect = document.getElementById("archetype");
-const haloFields = document.getElementById("halo-fields");
 
 const form = document.getElementById("ring-form");
 const generateBtn = document.getElementById("generate-btn");
@@ -45,11 +61,20 @@ function gatherSolitaireBody() {
   return params;
 }
 
-// Structured RingSpec JSON (RNG-9 CP4): halo is requested as the full
-// discriminated-union shape /generate-ring's structured dispatch expects.
-function gatherHaloBody() {
+// Structured RingSpec JSON (RNG-9 CP4): a non-solitaire archetype is requested
+// as the full discriminated-union shape /generate-ring's structured dispatch
+// expects — shared shank/setting/stones plus the archetype's own group.
+function gatherStructuredBody(name) {
+  const cfg = ARCHETYPES[name];
+  const group = {};
+  for (const key of cfg.numberKeys) {
+    group[key] = Number(document.getElementById(key).value);
+  }
+  for (const key of cfg.intKeys) {
+    group[key] = parseInt(document.getElementById(key).value, 10);
+  }
   return {
-    archetype: "halo",
+    archetype: name,
     shank: {
       inner_diameter: Number(document.getElementById("inner_diameter").value),
       band_width: Number(document.getElementById("band_width").value),
@@ -63,30 +88,33 @@ function gatherHaloBody() {
       stone_diameter: Number(document.getElementById("stone_diameter").value),
       stone_height: Number(document.getElementById("stone_height").value),
     },
-    halo: {
-      halo_stone_diameter: Number(document.getElementById("halo_stone_diameter").value),
-      halo_stone_count: parseInt(document.getElementById("halo_stone_count").value, 10),
-      halo_gap: Number(document.getElementById("halo_gap").value),
-      halo_stone_height: Number(document.getElementById("halo_stone_height").value),
-    },
+    [cfg.group]: group,
   };
 }
 
 function gatherRequestBody() {
-  return archetypeSelect.value === "halo" ? gatherHaloBody() : gatherSolitaireBody();
+  return ARCHETYPES[archetypeSelect.value]
+    ? gatherStructuredBody(archetypeSelect.value)
+    : gatherSolitaireBody();
 }
 
-// Toggles halo field visibility + required-ness with the archetype selector.
+// Toggles each archetype's fieldset visibility + required-ness with the
+// selector: the active archetype's group is shown and required, all others
+// hidden and optional (so a hidden group never blocks native validation).
 function applyArchetypeVisibility() {
-  const isHalo = archetypeSelect.value === "halo";
-  haloFields.hidden = !isHalo;
-  for (const key of HALO_NUMBER_KEYS) {
-    const el = document.getElementById(key);
-    if (!el) continue;
-    if (isHalo) {
-      el.setAttribute("required", "required");
-    } else {
-      el.removeAttribute("required");
+  const active = archetypeSelect.value;
+  for (const [name, cfg] of Object.entries(ARCHETYPES)) {
+    const isActive = name === active;
+    const fieldset = document.getElementById(cfg.fieldset);
+    if (fieldset) fieldset.hidden = !isActive;
+    for (const key of cfg.numberKeys.concat(cfg.intKeys)) {
+      const el = document.getElementById(key);
+      if (!el) continue;
+      if (isActive) {
+        el.setAttribute("required", "required");
+      } else {
+        el.removeAttribute("required");
+      }
     }
   }
 }
@@ -99,7 +127,7 @@ function setLoading(isLoading) {
 }
 
 function clearFieldErrors() {
-  for (const key of NUMBER_KEYS.concat(["prong_count"], HALO_NUMBER_KEYS)) {
+  for (const key of NUMBER_KEYS.concat(["prong_count"], ARCHETYPE_FIELD_KEYS)) {
     const el = document.getElementById(key);
     if (!el) continue;
     el.classList.remove("field-error");

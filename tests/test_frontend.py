@@ -362,6 +362,53 @@ def test_halo_fields_have_labels(body):
         ), f"no <label for={key}>"
 
 
+# ===========================================================================
+# RNG-10 CP3: trilogy option + trilogy fields (archetype-driven visibility)
+# ===========================================================================
+TRILOGY_NUMBER_KEYS = [
+    "side_stone_diameter",
+    "side_stone_height",
+    "side_stone_gap",
+]
+TRILOGY_DEFAULTS = {
+    "side_stone_diameter": "2.5",
+    "side_stone_height": "1.8",
+    "side_stone_gap": "0.6",
+}
+
+
+def test_trilogy_option_present(body):
+    block = _select_block(body, "archetype")
+    assert block, "no <select id=archetype> found"
+    assert re.search(r'<option\b[^>]*value\s*=\s*"trilogy"', block, re.IGNORECASE), (
+        "no <option value=trilogy> in the archetype selector"
+    )
+
+
+def test_trilogy_fields_present_with_defaults_and_hidden_by_default(body):
+    for key in TRILOGY_NUMBER_KEYS:
+        assert f'name="{key}"' in body, f"missing control name={key}"
+    for key, default in TRILOGY_DEFAULTS.items():
+        assert _input_tag_with(body, name=key, value=default), (
+            f"input name={key} missing default value={default}"
+        )
+    container = re.search(
+        r'<fieldset\b[^>]*id\s*=\s*"trilogy-fields"[^>]*>', body, re.IGNORECASE
+    )
+    assert container, "no <fieldset id=trilogy-fields>"
+    assert "hidden" in container.group(0).lower(), (
+        "#trilogy-fields must be hidden by default (solitaire is the default)"
+    )
+
+
+def test_trilogy_fields_have_labels(body):
+    for key in TRILOGY_NUMBER_KEYS:
+        assert f'id="{key}"' in body, f"control id={key} missing"
+        assert re.search(
+            rf'<label\b[^>]*for\s*=\s*"{re.escape(key)}"', body, re.IGNORECASE
+        ), f"no <label for={key}>"
+
+
 # ---- RNG-4 AC10 static: vendored three files are actually served -----------
 def test_vendored_three_served(client):
     for path in (
