@@ -45,6 +45,21 @@ enforced by construction (reusing the same accent primitives as halo).
 | `side_stone_height`   | 1.8 mm  | 0.8 - 4.0 mm | drives the side-seat bearing well depth |
 | `side_stone_gap`      | 0.6 mm  | 0.3 - 2.0 mm | centre-to-side spacing; `trilogy_overcrowding` guards against oversized side stones on a small shoulder colliding with the centre stone (see docs/ringspec/contract.md) |
 
+## Side-stone band (RNG-11, SideStoneSpec only)
+A channel-set accent row down each shoulder of the shank, symmetric about the
+centre stone, stopping before the ring base. Ranges are structural sanity
+caps; wall floors are enforced by construction in the channel-wall geometry
+(CP2), not by a model-level proxy. `retention` is `Literal["channel"]` in v1 —
+pave is a future value.
+
+| Parameter                | Default | Sane range | Castability floor / note |
+|---------------------------|---------|------------|--------------------------|
+| `accent_stone_diameter`   | 1.5 mm  | 0.9 - 2.5 mm | channel wall thickness is a fixed construction margin, independent of this field |
+| `accent_stone_height`     | 1.2 mm  | 0.8 - 3.0 mm | drives the accent bearing well depth |
+| `accent_count_per_side`   | 3       | 1 - 8      | `side_stone_overcrowding` guards against the row overrunning the shoulder span before the ring base |
+| `accent_gap`               | 0.3 mm  | 0.2 - 1.0 mm | edge-to-edge spacing along the shoulder; `side_stone_overcrowding` guards adjacent accents' true chord clearance (see docs/ringspec/contract.md) |
+| `retention`                | channel | `channel`  | `Literal["channel"]`; pave is a future value |
+
 ## Casting invariants (always hold, any input)
 - Min wall thickness **0.8 mm** (band, seat ring, claw wires).
 - Min prong tip diameter **0.7 mm**.

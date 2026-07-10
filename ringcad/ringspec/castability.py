@@ -16,7 +16,15 @@ from pydantic import BaseModel
 
 from ringcad.mesh_validator import MIN_PRONG_TIP_MM, MIN_WALL_MM
 
-from .models import HaloSpec, RingSpec, TrilogySpec
+from .models import HaloSpec, RingSpec, SideStoneSpec, TrilogySpec
+
+# Side-stone row: angular clearance off the centre head (A_START) and the
+# angular limit before the ring base (A_MAX) — mirrored by the actual
+# placement math in ringcad/geometry/side_stone.py (CP2). The 100 degree
+# budget between them leaves >= 70 degrees clear of the base on each side, so
+# the ring stays resizable.
+_SIDE_STONE_A_START_DEG = 10.0
+_SIDE_STONE_A_MAX_DEG = 110.0
 
 # Fraction of the inter-prong seat arc that becomes prong wire. The prong-tip
 # diameter is a coarse proxy (plan Risk #2, "fuzzy") pending an RNG-15 pin
@@ -182,6 +190,67 @@ def _trilogy_overcrowding(spec: RingSpec) -> list[Violation]:
     return []
 
 
+def _side_stone_overcrowding(spec: RingSpec) -> list[Violation]:
+    """Accent row overruns the shoulder span, or adjacent accents collide.
+
+    Not a wall-thickness proxy (docs/adr/0003): the channel-wall thickness
+    (CP2) is a fixed construction margin, independent of `accent_gap`,
+    exactly like the trilogy post / gallery rail are independent of their own
+    gap fields. Checks two real placement facts instead:
+
+      (a) the row must fit between A_START (clears the centre head) and
+          A_MAX (stays off the ring base) — compared in arc-length mm so the
+          Violation stays unit-consistent with every other check here, not in
+          degrees. Flags `accent_count_per_side`.
+      (b) adjacent accents' true CHORD (straight-line) distance at the band's
+          outer radius must clear their combined diameter — the same
+          arc-vs-chord divergence `_trilogy_overcrowding` guards against.
+          Flags `accent_gap`.
+
+    Returns on the first violation found, (a) then (b), matching the shape of
+    `_halo_overcrowding`/`_trilogy_overcrowding`.
+    """
+    if not isinstance(spec, SideStoneSpec):
+        return []
+    ss = spec.side_stone
+    shank = spec.shank
+    band_outer_r = shank.inner_diameter / 2 + shank.band_thickness
+    step = ss.accent_stone_diameter + ss.accent_gap
+    dphi = math.degrees(step / band_outer_r)
+
+    budget_deg = _SIDE_STONE_A_MAX_DEG - _SIDE_STONE_A_START_DEG
+    budget_arc = band_outer_r * math.radians(budget_deg)
+    required_arc = (ss.accent_count_per_side - 1) * step
+    if required_arc > budget_arc:
+        return [
+            Violation(
+                code="side_stone_overcrowding",
+                field="side_stone.accent_count_per_side",
+                message=f"{ss.accent_count_per_side} accents per side need "
+                f"{required_arc:.3f}mm of shoulder arc, above the "
+                f"{budget_arc:.3f}mm available before the ring base.",
+                limit_mm=budget_arc,
+                actual_mm=required_arc,
+            )
+        ]
+
+    chord = 2 * band_outer_r * math.sin(math.radians(dphi) / 2)
+    min_clearance = ss.accent_stone_diameter
+    if chord < min_clearance:
+        return [
+            Violation(
+                code="side_stone_overcrowding",
+                field="side_stone.accent_gap",
+                message=f"Adjacent accents leave {chord:.3f}mm of clearance, "
+                f"below the {min_clearance:.3f}mm needed for their girdles "
+                "not to overlap.",
+                limit_mm=min_clearance,
+                actual_mm=chord,
+            )
+        ]
+    return []
+
+
 def validate_castability(spec: RingSpec) -> list[Violation]:
     """Run the full lost-wax gate; [] means the spec is castable."""
     return (
@@ -190,6 +259,7 @@ def validate_castability(spec: RingSpec) -> list[Violation]:
         + _geometric(spec)
         + _halo_overcrowding(spec)
         + _trilogy_overcrowding(spec)
+        + _side_stone_overcrowding(spec)
     )
 
 

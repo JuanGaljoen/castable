@@ -289,6 +289,104 @@
       "title": "Shank",
       "type": "object"
     },
+    "SideStone": {
+      "additionalProperties": false,
+      "description": "Channel-set accent row down each shoulder of the shank (RNG-11).\n\n`retention` is a Literal[\"channel\"] in v1 \u2014 pave is a future value; a\n\"pave\" spec is a clean schema rejection today, not a shipped-but-broken\noption (specs/RNG-11.md Decision 5).",
+      "properties": {
+        "accent_stone_diameter": {
+          "default": 1.5,
+          "maximum": 2.5,
+          "minimum": 0.9,
+          "title": "Accent Stone Diameter",
+          "type": "number"
+        },
+        "accent_stone_height": {
+          "default": 1.2,
+          "maximum": 3.0,
+          "minimum": 0.8,
+          "title": "Accent Stone Height",
+          "type": "number"
+        },
+        "accent_count_per_side": {
+          "default": 3,
+          "maximum": 8,
+          "minimum": 1,
+          "title": "Accent Count Per Side",
+          "type": "integer"
+        },
+        "accent_gap": {
+          "default": 0.3,
+          "maximum": 1.0,
+          "minimum": 0.2,
+          "title": "Accent Gap",
+          "type": "number"
+        },
+        "retention": {
+          "const": "channel",
+          "default": "channel",
+          "title": "Retention",
+          "type": "string"
+        }
+      },
+      "title": "SideStone",
+      "type": "object"
+    },
+    "SideStoneSpec": {
+      "additionalProperties": false,
+      "description": "Side-stone archetype: a solitaire centre plus a channel-set accent row\ndown each shoulder.",
+      "properties": {
+        "version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Version",
+          "type": "string"
+        },
+        "archetype": {
+          "const": "side_stone",
+          "default": "side_stone",
+          "title": "Archetype",
+          "type": "string"
+        },
+        "shank": {
+          "$ref": "#/$defs/Shank"
+        },
+        "setting": {
+          "$ref": "#/$defs/Setting"
+        },
+        "stones": {
+          "$ref": "#/$defs/Stones"
+        },
+        "side_stone": {
+          "$ref": "#/$defs/SideStone"
+        },
+        "motifs": {
+          "items": {
+            "$ref": "#/$defs/Motif"
+          },
+          "title": "Motifs",
+          "type": "array"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FieldConfidence"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "shank",
+        "setting",
+        "stones",
+        "side_stone"
+      ],
+      "title": "SideStoneSpec",
+      "type": "object"
+    },
     "SolitaireSpec": {
       "additionalProperties": false,
       "description": "Solitaire archetype: one centre stone in a prong setting on a shank.",
@@ -454,6 +552,7 @@
   "discriminator": {
     "mapping": {
       "halo": "#/$defs/HaloSpec",
+      "side_stone": "#/$defs/SideStoneSpec",
       "solitaire": "#/$defs/SolitaireSpec",
       "trilogy": "#/$defs/TrilogySpec"
     },
@@ -468,6 +567,9 @@
     },
     {
       "$ref": "#/$defs/TrilogySpec"
+    },
+    {
+      "$ref": "#/$defs/SideStoneSpec"
     }
   ]
 }
