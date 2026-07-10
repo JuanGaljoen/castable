@@ -120,7 +120,7 @@ manifold.
 ## Checkpoints
 
 - [x] **CP1 — contract:** SideStone + SideStoneSpec, _side_stone_overcrowding, docs/schema, tests
-- [ ] **CP2 — composition:** side_stone.py (seats + channel walls), check_side_stone, registration, watertight tests
+- [x] **CP2 — composition:** side_stone.py (seats + channel walls), check_side_stone, registration, watertight tests
 - [ ] **CP3 — wire-up:** frontend fields + retention control, backend/frontend tests, CLAUDE.md
 
 ## Approach

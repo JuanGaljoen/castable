@@ -11,7 +11,7 @@ they do not replace it.
 """
 from __future__ import annotations
 
-from build123d import Location, Plane
+from build123d import Location, Plane, Rot
 
 from ringcad.mesh_validator import MIN_PRONG_TIP_MM, MIN_WALL_MM
 from ringcad.ringspec import RingSpec, Violation
@@ -21,6 +21,7 @@ from .accent_prong import accent_prong
 from .accent_seat import accent_seat
 from .gallery import RAIL_MINOR
 from .halo import RAIL_OVERLAP
+from .side_stone import _accent_angles, _accent_loc, _wall, _wall_span
 from .trilogy import _side_locs
 
 
@@ -236,6 +237,69 @@ def check_trilogy(solid, spec: RingSpec, clamps: dict) -> list[Violation]:
         for prong_loc in prong_locs:
             prong_solid = accent_prong(side_r, height, prong_loc)
             violations += check_accent_prong(prong_solid, side_r, height, prong_loc)
+    return violations
+
+
+def _check_wall(wall_solid, lo_deg: float) -> list[Violation]:
+    """Channel-wall rail tube thickness via the wall's own flush starting
+    cross-section.
+
+    A partial-angle `Torus` (`side_stone._wall`) sweeps from ring-angle 0, so
+    its tube's minor circle at the START of the sweep lies flush in a plane
+    through the Z-axis -- undo the wall's own `Rot(0, 0, lo_deg)` placement to
+    bring that flush cross-section back onto the canonical `Plane.XZ`, the
+    same axis-aligned convention every other check here uses. (A section at
+    an arbitrary rotated angle would still cut a true circle, but measuring
+    it via a GLOBAL-axis bounding box under-reads its diameter, since the
+    circle is tilted relative to X/Y/Z.)
+    """
+    local = Rot(0, 0, -lo_deg) * wall_solid
+    sizes = [_min_nonzero(s) for s in _section_sizes(local, Plane.XZ)]
+    sizes = [s for s in sizes if s is not None]
+    if not sizes:
+        return []
+    wall = min(sizes)
+    if wall < MIN_WALL_MM:
+        return [Violation(
+            code="min_wall",
+            field="side_stone.accent_stone_diameter",
+            message=f"Channel-wall rail {wall:.3f}mm is below the "
+            f"{MIN_WALL_MM}mm minimum wall thickness for lost-wax casting.",
+            limit_mm=MIN_WALL_MM,
+            actual_mm=wall,
+        )]
+    return []
+
+
+def check_side_stone(solid, spec: RingSpec, clamps: dict) -> list[Violation]:
+    """Both shoulders' accent-seat floors + channel-wall floors (RNG-11 CP2).
+
+    The side_stone module's `_check`. Mirrors `check_trilogy`: each accent
+    seat is rebuilt in isolation at its real `side_stone._accent_loc` before
+    `check_accent_seat` (the solid's own bbox is only meaningful for an
+    isolated leaf, not the fused multi-accent compound), and each channel-wall
+    rail is rebuilt at its real span before `_check_wall`. Uses the same
+    `side_stone` construction helpers `side_stone_parts` uses, so build and
+    check can never drift apart.
+    """
+    if getattr(spec, "archetype", None) != "side_stone" or getattr(
+        spec, "side_stone", None
+    ) is None:
+        return []
+    ss = spec.side_stone
+    accent_r = ss.accent_stone_diameter / 2
+    height = ss.accent_stone_height
+    violations: list[Violation] = []
+    for sign in (-1.0, 1.0):
+        for angle in _accent_angles(spec, clamps, sign):
+            loc = _accent_loc(clamps, angle)
+            seat_solid = accent_seat(accent_r, height, loc)
+            violations += check_accent_seat(seat_solid, accent_r, height, loc)
+        lo, hi = _wall_span(spec, clamps, sign)
+        z = clamps["bw"] / 2
+        for wz in (z, -z):
+            wall_solid = _wall(clamps, lo, hi, wz)
+            violations += _check_wall(wall_solid, lo)
     return violations
 
 

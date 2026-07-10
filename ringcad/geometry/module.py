@@ -23,6 +23,7 @@ from .halo import halo, halo_parts
 from .prong_setting import prong_setting
 from .seat import seat
 from .shank import shank
+from .side_stone import side_stone, side_stone_parts
 from .trilogy import trilogy, trilogy_parts
 
 
@@ -115,12 +116,19 @@ MODULES: dict[str, Module] = {
         _check=_ck.check_trilogy,
         _parts=lambda spec, c: trilogy_parts(spec, c),
     ),
+    "side_stone": SimpleModule(
+        name="side_stone",
+        _build=lambda spec, c: side_stone(spec, c),
+        _check=_ck.check_side_stone,
+        _parts=lambda spec, c: side_stone_parts(spec, c),
+    ),
 }
 
 ARCHETYPES: dict[str, list[str]] = {
     "solitaire": ["shank", "seat", "prong_setting"],
     "halo": ["shank", "seat", "prong_setting", "halo"],
     "trilogy": ["shank", "seat", "prong_setting", "trilogy"],
+    "side_stone": ["shank", "seat", "prong_setting", "side_stone"],
 }
 
 
