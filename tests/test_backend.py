@@ -409,3 +409,85 @@ def test_real_golden_halo_endpoint_watertight_no_repair(client):
     assert resp.headers["X-Mesh-Repaired"] == "false"
     mesh = trimesh.load(io.BytesIO(resp.data), file_type="stl", force="mesh")
     assert mesh.is_watertight
+
+
+# ===========================================================================
+# RNG-10 CP3: structured RingSpec dispatch (trilogy archetype). The endpoint
+# needs NO change — the structured path (RNG-9 CP4) is archetype-generic and
+# CP2 registered the trilogy module; these confirm AC6 for trilogy.
+# ===========================================================================
+VALID_TRILOGY_BODY = {
+    "version": "1.0",
+    "archetype": "trilogy",
+    "shank": {"inner_diameter": 16.5, "band_width": 2.2, "band_thickness": 1.9},
+    "setting": {"prong_count": 6, "setting_height": 6},
+    "stones": {"stone_diameter": 6.5, "stone_height": 4},
+    "trilogy": {
+        "side_stone_diameter": 2.5,
+        "side_stone_height": 1.8,
+        "side_stone_gap": 0.6,
+    },
+}
+
+
+def test_structured_trilogy_spec_routes_through_compose(client, monkeypatch):
+    calls = _spy_compose(monkeypatch)
+    resp = client.post("/generate-ring", json=VALID_TRILOGY_BODY)
+    assert resp.status_code == 200, resp.data
+    spec = calls["spec"]
+    assert spec.archetype == "trilogy"
+    assert spec.trilogy.side_stone_diameter == 2.5
+
+
+def test_structured_trilogy_out_of_range_returns_400_naming_field(client):
+    body = {
+        **VALID_TRILOGY_BODY,
+        "trilogy": {**VALID_TRILOGY_BODY["trilogy"], "side_stone_diameter": 9.0},
+    }
+    resp = client.post("/generate-ring", json=body)
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data["field"] and "side_stone_diameter" in data["field"]
+
+
+def test_structured_trilogy_missing_group_returns_400_naming_trilogy(client):
+    body = {k: v for k, v in VALID_TRILOGY_BODY.items() if k != "trilogy"}
+    resp = client.post("/generate-ring", json=body)
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data["field"] is not None and "trilogy" in data["field"]
+
+
+def test_structured_trilogy_non_castable_returns_400(client):
+    # An oversized side stone crammed onto a tiny shank collides (overcrowding).
+    body = {
+        **VALID_TRILOGY_BODY,
+        "shank": {"inner_diameter": 3.5, "band_width": 2.2, "band_thickness": 0.8,
+                  "shank_taper": 1.0},
+        "stones": {"stone_diameter": 3.0, "stone_height": 2.0},
+        "trilogy": {"side_stone_diameter": 6.0, "side_stone_height": 1.8,
+                    "side_stone_gap": 0.3},
+    }
+    resp = client.post("/generate-ring", json=body)
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "Not castable"
+
+
+def test_structured_trilogy_format_step(client, monkeypatch):
+    monkeypatch.setattr("ringcad.app.compose", lambda spec: _Sentinel())
+    monkeypatch.setattr(
+        "ringcad.app.to_step_bytes", lambda solid: b"ISO-10303 fake"
+    )
+    resp = client.post("/generate-ring?format=step", json=VALID_TRILOGY_BODY)
+    assert resp.status_code == 200
+    assert resp.headers["Content-Type"] == "model/step"
+
+
+# ---- AC5/AC6: the real golden trilogy is watertight WITHOUT repair (slower) --
+def test_real_golden_trilogy_endpoint_watertight_no_repair(client):
+    resp = client.post("/generate-ring", json=VALID_TRILOGY_BODY)
+    assert resp.status_code == 200, resp.data
+    assert resp.headers["X-Mesh-Valid"] == "true"
+    assert resp.headers["X-Mesh-Repaired"] == "false"
+    mesh = trimesh.load(io.BytesIO(resp.data), file_type="stl", force="mesh")
+    assert mesh.is_watertight

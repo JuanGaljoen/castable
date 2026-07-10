@@ -105,10 +105,10 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 
 - `POST /generate-ring` - accepts either a structured RingSpec JSON body
   (`archetype` + its groups, e.g. `shank`/`setting`/`stones`/`halo` for the
-  halo archetype -> `validate_spec` -> `compose(spec)`) or, for back-compat,
-  the flat 7 solitaire params with no `archetype` key (-> `from_params` ->
-  `build_solitaire`). New archetypes are requested structured, per RNG-9;
-  solitaire keeps both. Returns binary STL on success with `X-Mesh-*` headers;
+  halo archetype, or `.../trilogy` for the trilogy archetype -> `validate_spec`
+  -> `compose(spec)`) or, for back-compat, the flat 7 solitaire params with no
+  `archetype` key (-> `from_params` -> `build_solitaire`). New archetypes are
+  requested structured, per RNG-9; solitaire keeps both. Returns binary STL on success with `X-Mesh-*` headers;
   `?format=step` returns STEP (`model/step`). Castability violations and
   malformed input return a 400 JSON error naming the field. Geometry built
   in-process via build123d.
@@ -160,7 +160,7 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 **Archetypes + vision (module compositions over RingSpec — built "the right way", no shortcuts):**
 
 - **RNG-9** Halo ring style — real per-accent settings (not a shared-collar shortcut) [Done] - needs RNG-17
-- **RNG-10** Three-stone (Trilogy) ring style [In Progress] - needs RNG-9 machinery
+- **RNG-10** Three-stone (Trilogy) ring style [Done] - needs RNG-9 machinery
 - **RNG-11** Side-stone band (channel/pave) [Medium] - needs RNG-17, RNG-9
 - **RNG-12** Vision -> RingSpec population (photo populates structured spec) [High] - needs RNG-14, RNG-16; most valuable last, on the full catalog
 
@@ -170,23 +170,25 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 
 ## Current Phase
 
-**RNG-9 (halo) complete. RNG-10 (trilogy) in progress — Checkpoint 1 of 3 done.**
+**RNG-9 (halo) complete. RNG-10 (trilogy) complete — all 3 checkpoints done.**
 
 Done and merged: RNG-13 (spike, GO), RNG-14 (RingSpec v1), RNG-15 (kernel cutover
 to build123d), RNG-16 (module library), RNG-17 (watertight by construction: raw
 geometry castable by construction, not repair-reliant), RNG-9 (halo archetype —
 RingSpec discriminated union, `accent_seat`/`accent_prong` primitives, the
-reusable `gallery` primitive, `/generate-ring` + frontend wiring). Full suite
-green (3204 as of RNG-10 checkpoint 1).
+reusable `gallery` primitive, `/generate-ring` + frontend wiring).
 
-**RNG-10 (trilogy) in progress on branch `feat/rng-10-trilogy`:** Checkpoint 1
-(contract) done — `TrilogySpec` union member, the `_trilogy_overcrowding`
-castability check (see `docs/adr/0003` for the general lesson it prompted:
-classify a field as placement vs. wall before writing a model-level proxy for
-it). The frozen design for the remaining checkpoints — the gallery-post
-connectivity decision, the placement formula, the file list — lives in
-`specs/RNG-10.md`, not just this conversation, so a fresh session can resume
-Checkpoint 2 (the `trilogy` geometry module) directly from that spec.
+**RNG-10 (trilogy) complete:** two symmetric side settings (`accent_seat` + 4
+`accent_prong` each) on a gallery-post pedestal (the gallery's hub alone — a
+single flanking stone has no ring for a rail), placed by `placement(c)` rotated
+by the derived angular offset. Checkpoint 1 (contract) — `TrilogySpec` union
+member + `_trilogy_overcrowding` (see `docs/adr/0003`: classify a field as
+placement vs. wall before writing a model-level proxy for it). Checkpoint 2
+(composition) — `ringcad/geometry/trilogy.py`, `check_trilogy`,
+`MODULES`/`ARCHETYPES["trilogy"]`. Checkpoint 3 (wire-up) — trilogy `<option>`
++ `#trilogy-fields` in the form, an archetype registry in `static/app.js` (a
+registry not an if-chain, since trilogy is the second non-solitaire archetype).
+The frozen design lives in `specs/RNG-10.md`.
 
 **Then, in order:** RNG-11 (side-stone/pave) -> RNG-12 (vision -> RingSpec
 dispatch, last, pointing at the full archetype catalog). Each archetype is a
