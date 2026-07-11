@@ -115,6 +115,23 @@ def test_golden_side_stone_single_watertight(raw_validate):
     _assert_castable(raw_validate(s), "golden side-stone compose")
 
 
+def test_side_stone_accents_are_proud_not_buried():
+    """Regression (the taper-burial bug): the composed side-stone band must have
+    MORE volume than the same ring composed as a bare solitaire -- i.e. the
+    accents + channel walls actually stand proud of the band and add material,
+    rather than sitting buried inside a tapered shank where they contribute
+    nothing (which made the STL byte-identical to a solitaire). The margin is
+    deliberately well above float noise."""
+    spec = _side_stone_spec()
+    band = compose(spec)
+    bare = compose(spec, archetype="solitaire")
+    added = band.volume - bare.volume
+    assert added > 5.0, (
+        f"side-stone accents/walls add only {added:.2f}mm^3 over a bare "
+        "solitaire -- they are buried in the band, not proud (the taper bug)"
+    )
+
+
 @pytest.mark.parametrize("a_dia,a_height,a_count,a_gap", BAND)
 def test_side_stone_band_raw_watertight(raw_validate, a_dia, a_height, a_count, a_gap):
     """Across the curated in-range side_stone band each `compose(spec)` is a

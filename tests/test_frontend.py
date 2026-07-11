@@ -409,6 +409,82 @@ def test_trilogy_fields_have_labels(body):
         ), f"no <label for={key}>"
 
 
+# ===========================================================================
+# RNG-11 CP3: side-stone option + side-stone fields + retention control
+# ===========================================================================
+SIDE_STONE_NUMBER_KEYS = [
+    "accent_stone_diameter",
+    "accent_stone_height",
+    "accent_gap",
+]
+SIDE_STONE_INT_KEYS = ["accent_count_per_side"]
+SIDE_STONE_DEFAULTS = {
+    "accent_stone_diameter": "1.5",
+    "accent_stone_height": "1.2",
+    "accent_count_per_side": "3",
+    "accent_gap": "0.3",
+}
+
+
+def test_side_stone_option_present(body):
+    block = _select_block(body, "archetype")
+    assert block, "no <select id=archetype> found"
+    assert re.search(
+        r'<option\b[^>]*value\s*=\s*"side_stone"', block, re.IGNORECASE
+    ), "no <option value=side_stone> in the archetype selector"
+
+
+def test_side_stone_fields_present_with_defaults_and_hidden_by_default(body):
+    for key in SIDE_STONE_NUMBER_KEYS + SIDE_STONE_INT_KEYS:
+        assert f'name="{key}"' in body, f"missing control name={key}"
+    for key, default in SIDE_STONE_DEFAULTS.items():
+        assert _input_tag_with(body, name=key, value=default), (
+            f"input name={key} missing default value={default}"
+        )
+    container = re.search(
+        r'<fieldset\b[^>]*id\s*=\s*"side-stone-fields"[^>]*>', body, re.IGNORECASE
+    )
+    assert container, "no <fieldset id=side-stone-fields>"
+    assert "hidden" in container.group(0).lower(), (
+        "#side-stone-fields must be hidden by default (solitaire is the default)"
+    )
+
+
+def test_side_stone_fields_have_labels(body):
+    for key in SIDE_STONE_NUMBER_KEYS + SIDE_STONE_INT_KEYS:
+        assert f'id="{key}"' in body, f"control id={key} missing"
+        assert re.search(
+            rf'<label\b[^>]*for\s*=\s*"{re.escape(key)}"', body, re.IGNORECASE
+        ), f"no <label for={key}>"
+
+
+def test_side_stone_count_is_int_bounded(body):
+    """accent_count_per_side is an integer input bounded to its 1..8 range."""
+    assert _input_tag_with(
+        body, name="accent_count_per_side", min="1", max="8", step="1"
+    ), "accent_count_per_side must be an integer input with min=1 max=8 step=1"
+
+
+def test_side_stone_retention_control_present_and_labelled(body):
+    """The retention control (v1: channel only) is a labelled <select> whose
+    single option is `channel`, inside #side-stone-fields."""
+    block = _select_block(body, "retention")
+    assert block, "no <select id=retention> found"
+    assert re.search(r'name\s*=\s*"retention"', block, re.IGNORECASE), (
+        "retention <select> must carry name=retention"
+    )
+    opt = re.search(
+        r'<option\b[^>]*value\s*=\s*"channel"[^>]*>', block, re.IGNORECASE
+    )
+    assert opt, "retention must offer <option value=channel>"
+    assert "selected" in opt.group(0).lower(), (
+        "option value=channel must be selected by default"
+    )
+    assert re.search(
+        r'<label\b[^>]*for\s*=\s*"retention"', body, re.IGNORECASE
+    ), "no <label for=retention>"
+
+
 # ---- RNG-4 AC10 static: vendored three files are actually served -----------
 def test_vendored_three_served(client):
     for path in (

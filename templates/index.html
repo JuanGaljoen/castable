@@ -65,6 +65,7 @@
               <option value="solitaire" selected>Solitaire</option>
               <option value="halo">Halo</option>
               <option value="trilogy">Trilogy</option>
+              <option value="side_stone">Side-stone</option>
             </select>
           </div>
         </fieldset>
@@ -190,6 +191,50 @@
                    value="0.6" min="0.3" max="2.0" step="0.1"
                    inputmode="decimal" aria-describedby="side_stone_gap-hint" />
             <span class="hint" id="side_stone_gap-hint">Centre-to-side spacing, 0.3–2.0&nbsp;mm</span>
+          </div>
+        </fieldset>
+
+        <fieldset id="side-stone-fields" hidden>
+          <legend>Side-stone band (mm)</legend>
+
+          <div class="field">
+            <label for="accent_stone_diameter">Accent stone diameter</label>
+            <input type="number" id="accent_stone_diameter" name="accent_stone_diameter"
+                   value="1.5" min="0.9" max="2.5" step="0.1"
+                   inputmode="decimal" aria-describedby="accent_stone_diameter-hint" />
+            <span class="hint" id="accent_stone_diameter-hint">Melee stone size, 0.9–2.5&nbsp;mm</span>
+          </div>
+
+          <div class="field">
+            <label for="accent_stone_height">Accent stone height</label>
+            <input type="number" id="accent_stone_height" name="accent_stone_height"
+                   value="1.2" min="0.8" max="3.0" step="0.1"
+                   inputmode="decimal" aria-describedby="accent_stone_height-hint" />
+            <span class="hint" id="accent_stone_height-hint">Accent bearing depth, 0.8–3.0&nbsp;mm</span>
+          </div>
+
+          <div class="field">
+            <label for="accent_count_per_side">Accents per side</label>
+            <input type="number" id="accent_count_per_side" name="accent_count_per_side"
+                   value="3" min="1" max="8" step="1"
+                   inputmode="numeric" aria-describedby="accent_count_per_side-hint" />
+            <span class="hint" id="accent_count_per_side-hint">Stones down each shoulder, 1–8</span>
+          </div>
+
+          <div class="field">
+            <label for="accent_gap">Accent gap</label>
+            <input type="number" id="accent_gap" name="accent_gap"
+                   value="0.3" min="0.2" max="1.0" step="0.1"
+                   inputmode="decimal" aria-describedby="accent_gap-hint" />
+            <span class="hint" id="accent_gap-hint">Edge-to-edge spacing along the shoulder, 0.2–1.0&nbsp;mm</span>
+          </div>
+
+          <div class="field">
+            <label for="retention">Retention</label>
+            <select id="retention" name="retention" aria-describedby="retention-hint">
+              <option value="channel" selected>Channel</option>
+            </select>
+            <span class="hint" id="retention-hint">How the accents are held; pave is coming later</span>
           </div>
         </fieldset>
 

@@ -161,7 +161,7 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 
 - **RNG-9** Halo ring style — real per-accent settings (not a shared-collar shortcut) [Done] - needs RNG-17
 - **RNG-10** Three-stone (Trilogy) ring style [Done] - needs RNG-9 machinery
-- **RNG-11** Side-stone band (channel/pave) [Medium] - needs RNG-17, RNG-9
+- **RNG-11** Side-stone band (channel/pave) [Done] - needs RNG-17, RNG-9
 - **RNG-12** Vision -> RingSpec population (photo populates structured spec) [High] - needs RNG-14, RNG-16; most valuable last, on the full catalog
 
 > Removed in the pivot: RNG-7 (cathedral shoulders, OpenSCAD-specific) and RNG-8
@@ -170,7 +170,7 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 
 ## Current Phase
 
-**RNG-9 (halo) complete. RNG-10 (trilogy) complete — all 3 checkpoints done.**
+**RNG-9 (halo), RNG-10 (trilogy), and RNG-11 (side-stone) complete.**
 
 Done and merged: RNG-13 (spike, GO), RNG-14 (RingSpec v1), RNG-15 (kernel cutover
 to build123d), RNG-16 (module library), RNG-17 (watertight by construction: raw
@@ -190,6 +190,18 @@ placement vs. wall before writing a model-level proxy for it). Checkpoint 2
 registry not an if-chain, since trilogy is the second non-solitaire archetype).
 The frozen design lives in `specs/RNG-10.md`.
 
-**Then, in order:** RNG-11 (side-stone/pave) -> RNG-12 (vision -> RingSpec
-dispatch, last, pointing at the full archetype catalog). Each archetype is a
-new composition of modules over RingSpec, not a monolithic template.
+**RNG-11 (side-stone) complete:** a symmetric channel-set accent row down each
+shoulder — `accent_seat` beads at `_accent_angles`/`_accent_loc` placements
+retained by two continuous channel-wall rails (partial `Torus` arcs), welded
+THROUGH the shank (no `gallery`, no `accent_prong`; the RNG-9 CP3 pave/side-stone
+connectivity mode). Checkpoint 1 (contract) — `SideStoneSpec` union member +
+`_side_stone_overcrowding` (`retention` is `Literal["channel"]`; pave deferred).
+Checkpoint 2 (composition) — `ringcad/geometry/side_stone.py`, `check_side_stone`,
+`MODULES`/`ARCHETYPES["side_stone"]`. Checkpoint 3 (wire-up) — side-stone
+`<option>` + `#side-stone-fields` (incl. the `retention` `<select>`), a
+`stringKeys` addition to the `static/app.js` archetype registry (for the
+retention select). The frozen design lives in `specs/RNG-11.md`.
+
+**Then:** RNG-12 (vision -> RingSpec dispatch, last, pointing at the full
+archetype catalog). Each archetype is a new composition of modules over
+RingSpec, not a monolithic template.
