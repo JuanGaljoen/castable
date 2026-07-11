@@ -121,8 +121,14 @@ RNG-14 (RingSpec discriminated union + `FieldConfidence`, already defined).
 
 ## Success criteria
 
-- [ ] Vision output maps to a **valid RingSpec** for every detected archetype;
-      returned spec passes `validate_spec` and is a valid `/generate-ring` body.
+- [x] Vision output maps to a **schema-valid RingSpec** for every detected
+      archetype; the returned spec passes `validate_spec` and is a well-formed
+      `/generate-ring` body. NOTE: schema-valid is **not** the same as castable
+      — an estimate combination (e.g. a small stone with 6 prongs) can still be
+      rejected by the casting gate. That is by design for now: the gate + its
+      field-level error are the warning, matching "Estimates only, verify before
+      generating." Guaranteeing a castable spec (auto-nudging prong_count/stone)
+      is a tracked follow-up, not RNG-12.
 - [ ] Detected-but-unsupported style falls back to a supported archetype with a
       clear note naming both the detected style and the built archetype.
 - [ ] Per-element estimates clamped to RingSpec ranges (group bounds read from
@@ -140,6 +146,17 @@ RNG-14 (RingSpec discriminated union + `FieldConfidence`, already defined).
 - [x] **CP1 — backend:** `classify.py` emits a validated RingSpec (archetype
       detection, group clamp/snap, confidence, fallback note); `/classify-ring`
       returns the new contract. Tests green (3301 passed).
-- [ ] **CP2 — frontend:** `photo.js` selects the archetype + pre-fills group
-      fields from the spec; low-confidence flagging; RNG-6 fallbacks preserved.
-      Suite green + browser QA.
+- [x] **CP2 — frontend:** `photo.js` selects the archetype + pre-fills group
+      fields from the spec; low-confidence flagging (amber marker + aria note);
+      RNG-6 fallbacks preserved. Suite green + browser QA passed (archetype
+      flip, prefill, low-confidence marker, editable fields, theme-aware).
+
+## Known follow-up (out of scope for RNG-12)
+
+The vision layer returns a *schema-valid* RingSpec, not a guaranteed *castable*
+one. A small-stone / 6-prong estimate can trip the casting gate at
+`/generate-ring`; today the gate's field-level error is the warning and the user
+adjusts. Decision (Juan, during CP2 QA): the spec **should** be castable
+eventually, but warning the user is acceptable for now. Follow-up: make
+`to_spec()` castability-aware (e.g. snap prong_count 6->4, then bump stone
+diameter, until `is_castable`, with a note) so upload->generate works first try.
