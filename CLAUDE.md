@@ -162,7 +162,12 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 - **RNG-9** Halo ring style — real per-accent settings (not a shared-collar shortcut) [Done] - needs RNG-17
 - **RNG-10** Three-stone (Trilogy) ring style [Done] - needs RNG-9 machinery
 - **RNG-11** Side-stone band (channel/pave) [Done] - needs RNG-17, RNG-9
-- **RNG-12** Vision -> RingSpec population (photo populates structured spec) [High] - needs RNG-14, RNG-16; most valuable last, on the full catalog
+- **RNG-12** Vision -> RingSpec population (photo populates structured spec) [Done] - needs RNG-14, RNG-16; most valuable last, on the full catalog
+
+**RNG-12 follow-ups (do RNG-21 first, then RNG-20):**
+
+- **RNG-21** Enable the vision layer end-to-end (configure key + verify real photos) [Medium] - relates RNG-12; turn it on with a real key, see real behaviour first
+- **RNG-20** Vision spec castable by construction (guarantee upload -> generate) [Medium] - relates RNG-12; do after RNG-21 so it solves observed castability failures, not hypothetical ones
 
 > Removed in the pivot: RNG-7 (cathedral shoulders, OpenSCAD-specific) and RNG-8
 > (style registry over OpenSCAD) were deleted — both are superseded by the
@@ -202,6 +207,21 @@ Checkpoint 2 (composition) — `ringcad/geometry/side_stone.py`, `check_side_sto
 `stringKeys` addition to the `static/app.js` archetype registry (for the
 retention select). The frozen design lives in `specs/RNG-11.md`.
 
-**Then:** RNG-12 (vision -> RingSpec dispatch, last, pointing at the full
-archetype catalog). Each archetype is a new composition of modules over
-RingSpec, not a monolithic template.
+**RNG-12 (vision -> RingSpec) complete:** an uploaded photo now populates a full,
+schema-valid RingSpec (archetype + groups + per-field confidence) and the form is
+a structured editor over it. Backend: `classify.py` `RingClassification` gains an
+`archetype` enum + `RingConfidence`; `ClassifyResult.to_spec()` assembles a
+`validate_spec`-checked spec (shared dims over defaults, `inner_diameter` never
+estimated, group dims clamped to the RingSpec field bounds read off the models,
+confidence clamped to [0,1], solitaire fallback on `ValidationError`); `to_json()`
+/ `/classify-ring` return `{ring_detected, detected_style, note, spec}`. Frontend:
+`photo.js` selects the detected archetype and pre-fills every field, flagging
+shared fields with confidence < 0.5 (amber marker + aria note). Built as two
+commits on one branch (backend, frontend), not per-checkpoint PRs. The frozen
+design lives in `specs/RNG-12.md`.
+
+**Then (do RNG-21 first, then RNG-20):** RNG-21 turns the vision layer on
+end-to-end with a real API key and verifies real photos (and fixes the `.env`
+not-auto-loaded gotcha); RNG-20 then makes the vision spec castable by
+construction so upload -> generate works first try. RNG-21 before RNG-20 so the
+castability work solves observed failures, not hypothetical ones.
