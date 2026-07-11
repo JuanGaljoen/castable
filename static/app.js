@@ -14,7 +14,8 @@ const NUMBER_KEYS = [
 
 // Non-solitaire archetypes, each a structured RingSpec group. Keyed by the
 // `archetype` value; `group` is the spec key, `fieldset` the toggled <fieldset>
-// id, `numberKeys`/`intKeys` the group's inputs (ints parsed with parseInt).
+// id, `numberKeys`/`intKeys`/`stringKeys` the group's inputs (numbers via
+// Number, ints via parseInt, strings read verbatim — e.g. a <select> value).
 // A registry, not an if-chain, so a new archetype is one entry (RNG-10 CP3).
 const ARCHETYPES = {
   halo: {
@@ -22,18 +23,27 @@ const ARCHETYPES = {
     fieldset: "halo-fields",
     numberKeys: ["halo_stone_diameter", "halo_gap", "halo_stone_height"],
     intKeys: ["halo_stone_count"],
+    stringKeys: [],
   },
   trilogy: {
     group: "trilogy",
     fieldset: "trilogy-fields",
     numberKeys: ["side_stone_diameter", "side_stone_height", "side_stone_gap"],
     intKeys: [],
+    stringKeys: [],
+  },
+  side_stone: {
+    group: "side_stone",
+    fieldset: "side-stone-fields",
+    numberKeys: ["accent_stone_diameter", "accent_stone_height", "accent_gap"],
+    intKeys: ["accent_count_per_side"],
+    stringKeys: ["retention"],
   },
 };
 
 // Every archetype-group field id (for required-toggling and error clearing).
 const ARCHETYPE_FIELD_KEYS = Object.values(ARCHETYPES).flatMap(
-  (cfg) => cfg.numberKeys.concat(cfg.intKeys)
+  (cfg) => cfg.numberKeys.concat(cfg.intKeys, cfg.stringKeys)
 );
 
 const archetypeSelect = document.getElementById("archetype");
@@ -73,6 +83,9 @@ function gatherStructuredBody(name) {
   for (const key of cfg.intKeys) {
     group[key] = parseInt(document.getElementById(key).value, 10);
   }
+  for (const key of cfg.stringKeys) {
+    group[key] = document.getElementById(key).value;
+  }
   return {
     archetype: name,
     shank: {
@@ -107,7 +120,7 @@ function applyArchetypeVisibility() {
     const isActive = name === active;
     const fieldset = document.getElementById(cfg.fieldset);
     if (fieldset) fieldset.hidden = !isActive;
-    for (const key of cfg.numberKeys.concat(cfg.intKeys)) {
+    for (const key of cfg.numberKeys.concat(cfg.intKeys, cfg.stringKeys)) {
       const el = document.getElementById(key);
       if (!el) continue;
       if (isActive) {

@@ -29,13 +29,13 @@ def _lerp(a: float, b: float, t: float) -> float:
     return a + (b - a) * t
 
 
-def _clamps(p: Mapping[str, object]) -> dict:
+def _clamps(p: Mapping[str, object], taper: float = SHANK_TAPER) -> dict:
     id_c = max(float(p["inner_diameter"]), 5.0)
     bt_c = max(float(p["band_thickness"]), MIN_WALL_MM)
     bw_c = max(float(p["band_width"]), MIN_WALL_MM)
     sd_c = max(float(p["stone_diameter"]), 1.0)
     gh_c = max(float(p["setting_height"]), MIN_WALL_MM)
-    taper = max(SHANK_TAPER, 1.0)
+    taper = max(taper, 1.0)
     inner_r = id_c / 2
     return {
         "inner_r": inner_r,
@@ -50,10 +50,21 @@ def _clamps(p: Mapping[str, object]) -> dict:
     }
 
 
+# The side-stone band is FLAT by construction (specs/RNG-11.md): channel/
+# side-stone accents are traditionally set along a straight shoulder, not up a
+# tapered shank (the taper is a solitaire feature that flares the shank to cradle
+# the centre stone). A flat band also makes the accent row's outer surface a
+# constant radius, so the seats/walls sit ON the surface instead of buried inside
+# the taper. Intrinsic to the archetype, not a user knob.
+FLAT_TAPER = 1.0
+
+
 def clamps(spec: RingSpec) -> dict:
     """Derive the casting clamps for a RingSpec (with `prong_n` resolved)."""
     p = to_params(spec)
-    c = _clamps(p)
+    taper = FLAT_TAPER if getattr(spec, "archetype", None) == "side_stone" \
+        else SHANK_TAPER
+    c = _clamps(p, taper)
     pc = int(p["prong_count"])
     c["prong_n"] = pc if pc in (4, 6) else 4
     return c

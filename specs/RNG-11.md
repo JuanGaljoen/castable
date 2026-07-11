@@ -121,7 +121,7 @@ manifold.
 
 - [x] **CP1 — contract:** SideStone + SideStoneSpec, _side_stone_overcrowding, docs/schema, tests
 - [x] **CP2 — composition:** side_stone.py (seats + channel walls), check_side_stone, registration, watertight tests
-- [ ] **CP3 — wire-up:** frontend fields + retention control, backend/frontend tests, CLAUDE.md
+- [x] **CP3 — wire-up:** frontend fields + retention control, backend/frontend tests, CLAUDE.md
 
 ## Approach
 
@@ -214,6 +214,35 @@ docs/schema; tests throughout.
 - 100% of malformed side_stone specs rejected with a named offending field.
 - Solitaire/halo/trilogy parity unaffected.
 - Full existing suite green after each checkpoint.
+
+## CP3 addendum — flat band (the taper-burial fix)
+
+Found during CP3 visual verification: selecting side-stone produced a mesh
+**byte-identical to a solitaire**. Root cause was in CP2's placement — the shared
+shank *tapers wider toward the head* (a solitaire feature that flares the shank to
+cradle the centre stone), and the accents sit exactly in that flared zone
+(ring-angles ~10–35°). CP2 placed seats/walls at the *nominal untapered* radius,
+so the true tapered surface was ~1.5mm further out and the whole accent row was
+**buried inside the band** — proud of nothing, adding zero union volume. CP2's
+tests passed because they asserted watertight + `.solids()==1` + per-leaf floors,
+but never that the composed band's volume/silhouette *exceeds* a bare solitaire.
+
+Fix (Decision 8): **the side-stone band is FLAT by construction** — channel
+accents are traditionally set along a *straight shoulder*, not up a tapered shank.
+`clamps()` forces `taper = 1.0` for the `side_stone` archetype only (`FLAT_TAPER`
+in `_common.py`); other archetypes keep `SHANK_TAPER`. A flat band also makes the
+accent row's outer surface a *constant* radius, so the constant-radius seats/walls
+sit ON the surface — the tapered-radius tracking and wall-follows-taper
+watertightness problem simply disappear. `ACCENT_EMBED` reduced to 0.1 so seat
+collars stand clearly proud while the bearing still plunges `>= MIN_WALL` inward.
+Regression guard: `test_side_stone_accents_are_proud_not_buried` asserts the
+composed band adds real volume over a bare solitaire.
+
+**Deferred to RNG-19 (aesthetic pass):** accent *prominence* — spreading the row
+further up the shoulder, beefier rails, and tuning proportions/band-top profile so
+the golden side-stone ring unmistakably reads as a channel band. CP3 ships the
+correctness fix (proud, watertight, castable, visibly not a solitaire); the polish
+is RNG-19's explicit scope.
 
 ## Design Notes + Dependencies
 

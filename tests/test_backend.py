@@ -491,3 +491,103 @@ def test_real_golden_trilogy_endpoint_watertight_no_repair(client):
     assert resp.headers["X-Mesh-Repaired"] == "false"
     mesh = trimesh.load(io.BytesIO(resp.data), file_type="stl", force="mesh")
     assert mesh.is_watertight
+
+
+# ===========================================================================
+# RNG-11 CP3: structured RingSpec dispatch (side_stone archetype). The endpoint
+# needs NO change — the structured path (RNG-9 CP4) is archetype-generic and
+# CP2 registered the side_stone module; these confirm AC6 for side_stone.
+# ===========================================================================
+VALID_SIDE_STONE_BODY = {
+    "version": "1.0",
+    "archetype": "side_stone",
+    "shank": {"inner_diameter": 16.5, "band_width": 2.2, "band_thickness": 1.9},
+    "setting": {"prong_count": 6, "setting_height": 6},
+    "stones": {"stone_diameter": 6.5, "stone_height": 4},
+    "side_stone": {
+        "accent_stone_diameter": 1.5,
+        "accent_stone_height": 1.2,
+        "accent_count_per_side": 3,
+        "accent_gap": 0.3,
+        "retention": "channel",
+    },
+}
+
+
+def test_structured_side_stone_spec_routes_through_compose(client, monkeypatch):
+    calls = _spy_compose(monkeypatch)
+    resp = client.post("/generate-ring", json=VALID_SIDE_STONE_BODY)
+    assert resp.status_code == 200, resp.data
+    spec = calls["spec"]
+    assert spec.archetype == "side_stone"
+    assert spec.side_stone.accent_count_per_side == 3
+
+
+def test_structured_side_stone_out_of_range_returns_400_naming_field(client):
+    body = {
+        **VALID_SIDE_STONE_BODY,
+        "side_stone": {
+            **VALID_SIDE_STONE_BODY["side_stone"], "accent_stone_diameter": 3.0
+        },
+    }
+    resp = client.post("/generate-ring", json=body)
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data["field"] and "accent_stone_diameter" in data["field"]
+
+
+def test_structured_side_stone_retention_pave_returns_400(client):
+    """`retention` is a Literal["channel"] in v1 — a "pave" value 400s cleanly."""
+    body = {
+        **VALID_SIDE_STONE_BODY,
+        "side_stone": {**VALID_SIDE_STONE_BODY["side_stone"], "retention": "pave"},
+    }
+    resp = client.post("/generate-ring", json=body)
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data["field"] and "retention" in data["field"]
+
+
+def test_structured_side_stone_missing_group_returns_400_naming_it(client):
+    body = {k: v for k, v in VALID_SIDE_STONE_BODY.items() if k != "side_stone"}
+    resp = client.post("/generate-ring", json=body)
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data["field"] is not None and "side_stone" in data["field"]
+
+
+def test_structured_side_stone_non_castable_returns_400(client):
+    # Too many oversized accents crammed onto the shoulder overruns the base.
+    body = {
+        **VALID_SIDE_STONE_BODY,
+        "side_stone": {
+            "accent_stone_diameter": 2.5,
+            "accent_stone_height": 1.2,
+            "accent_count_per_side": 8,
+            "accent_gap": 1.0,
+            "retention": "channel",
+        },
+    }
+    resp = client.post("/generate-ring", json=body)
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "Not castable"
+
+
+def test_structured_side_stone_format_step(client, monkeypatch):
+    monkeypatch.setattr("ringcad.app.compose", lambda spec: _Sentinel())
+    monkeypatch.setattr(
+        "ringcad.app.to_step_bytes", lambda solid: b"ISO-10303 fake"
+    )
+    resp = client.post("/generate-ring?format=step", json=VALID_SIDE_STONE_BODY)
+    assert resp.status_code == 200
+    assert resp.headers["Content-Type"] == "model/step"
+
+
+# ---- AC5: the real golden side-stone band is watertight WITHOUT repair -------
+def test_real_golden_side_stone_endpoint_watertight_no_repair(client):
+    resp = client.post("/generate-ring", json=VALID_SIDE_STONE_BODY)
+    assert resp.status_code == 200, resp.data
+    assert resp.headers["X-Mesh-Valid"] == "true"
+    assert resp.headers["X-Mesh-Repaired"] == "false"
+    mesh = trimesh.load(io.BytesIO(resp.data), file_type="stl", force="mesh")
+    assert mesh.is_watertight

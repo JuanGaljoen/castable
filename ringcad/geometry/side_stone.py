@@ -31,10 +31,12 @@ from ringcad.ringspec.castability import _SIDE_STONE_A_START_DEG as A_START_DEG
 from ._common import MIN_WALL, clamps
 from .accent_seat import accent_seat
 
-# Fixed construction margin embedding a seat's local z=0 (girdle plane) inside
-# the nominal outer band surface -- guarantees genuine volumetric overlap with
-# the (always-at-least-as-thick) true local band, independent of accent_gap.
-ACCENT_EMBED = 0.3
+# How far a seat's local z=0 (girdle plane) sits BELOW the flat band's outer
+# surface. Small: the seat's collar then stands clearly proud of the band (a
+# visible bead), while the bearing well still plunges `depth` (>= MIN_WALL)
+# radially inward for a deep volumetric weld into the band -- watertight by
+# construction, independent of accent_gap.
+ACCENT_EMBED = 0.1
 
 # Channel-wall rail tube minor radius -> wall = 2*WALL_MINOR ~= 0.9mm (> 0.8
 # floor), the same margin discipline as gallery.RAIL_MINOR.
