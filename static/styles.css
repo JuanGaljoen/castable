@@ -24,6 +24,9 @@
   --err-bg:   #231215;
   --err-line: #6e3338;
 
+  --warn:     #e8b45e;   /* low-confidence caution (amber) */
+  --warn-soft: rgba(232, 180, 94, 0.16);
+
   --ok-text:  #54c79a;   /* valid-mesh text (separate from button bg) */
   --ok-fg:    #04140d;   /* text on the download button */
   --btn-bg:   #ededf0;   /* primary button (inverts per theme) */
@@ -60,6 +63,9 @@
   --err:      #c0392b;
   --err-bg:   #fbeae8;
   --err-line: #f0c2bd;
+
+  --warn:     #8a5a00;   /* low-confidence caution (amber), ~5:1 on white */
+  --warn-soft: rgba(138, 90, 0, 0.12);
 
   --btn-bg:   #18181b;
   --btn-fg:   #ffffff;
@@ -256,6 +262,19 @@ fieldset:not(.photo-upload) legend { grid-column: 1 / -1; }
 .field select.field-error {
   border-color: var(--err);
   box-shadow: 0 0 0 3px rgba(255, 143, 143, 0.16);
+}
+
+/* Low-confidence vision estimate (RNG-12): amber caution, not an error. */
+.field input.low-confidence,
+.field select.low-confidence {
+  border-color: var(--warn);
+  box-shadow: 0 0 0 3px var(--warn-soft);
+}
+
+.field-lowconf {
+  margin-top: 0.22rem;
+  font-size: 0.7rem;
+  color: var(--warn);
 }
 
 /* ---------- Buttons ---------- */

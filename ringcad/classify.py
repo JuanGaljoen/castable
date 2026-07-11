@@ -9,10 +9,17 @@ from __future__ import annotations
 import base64
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import anthropic
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
+
+from ringcad.ringspec import (
+    Halo,
+    SideStone,
+    Trilogy,
+    validate_spec,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,28 +33,79 @@ CLAMP_BOUNDS = {
     "setting_height": (3.0, 8.0),
 }
 
+# Shared-dim defaults for fields the photo did not (or must not) estimate. They
+# match the form defaults / docs/parameter-ranges.md so an assembled spec is
+# always complete and castable. inner_diameter (finger size) is NEVER guessed
+# from a photo (RNG-6 rule) -- it stays at this default with confidence None.
+DEFAULT_INNER_DIAMETER = 16.5  # ~US6
+_SHARED_DEFAULTS = {
+    "band_width": 2.2,
+    "band_thickness": 1.9,
+    "stone_diameter": 6.5,
+    "stone_height": 4.0,
+    "setting_height": 6.0,
+    "prong_count": 6,
+}
+
+# RNG-12: which archetypes the module library can build, and each one's group
+# key + Pydantic group model (source of truth for the group field bounds). The
+# group fields are read off the model, so a new archetype needs no per-field
+# clamp table here.
+_ARCHETYPE_GROUPS = {
+    "halo": ("halo", Halo),
+    "trilogy": ("trilogy", Trilogy),
+    "side_stone": ("side_stone", SideStone),
+}
+SUPPORTED_ARCHETYPES = ("solitaire", "halo", "trilogy", "side_stone")
+
 DEFAULT_MODEL = "claude-haiku-4-5"
 DEFAULT_NOTE = "Estimates are rough; verify before generating."
 
 _SYSTEM = (
-    "You are a jewelry classifier for solitaire engagement rings. Given a "
-    "photo, identify the ring's style, shank taper, prong count, and visible "
-    "features, and estimate its dimensions in millimetres. If the image does "
-    "not clearly show a single ring, set ring_detected to false and leave all "
-    "dimension fields null. Never guess finger size or inner diameter -- there "
-    "is no field for it. All millimetre estimates are rough approximations."
+    "You are a jewelry classifier for engagement rings. Given a photo, "
+    "identify the ring and estimate its dimensions in millimetres. Set "
+    "`style` to a free-text description of what you actually see (e.g. "
+    "'cathedral pave halo'). Set `archetype` to the NEAREST of the four "
+    "supported buildable styles: solitaire (a single centre stone), halo (a "
+    "ring of small accents around the centre), trilogy (one centre plus two "
+    "flanking side stones), or side_stone (a channel row of small accents "
+    "down each shoulder). Estimate the dimensions of the chosen archetype's "
+    "group (halo_*, side_stone_* for trilogy, accent_* for side_stone); leave "
+    "the others null. Give a per-field `confidence` in [0,1] for each shared "
+    "dimension you estimate. If the image does not clearly show a single "
+    "ring, set ring_detected to false and leave dimension fields null. Never "
+    "guess finger size or inner diameter -- there is no field for it. All "
+    "millimetre estimates are rough approximations."
 )
 _USER = (
-    "Classify this ring and estimate its dimensions in millimetres. If it is "
-    "not a clear photo of a single ring, set ring_detected to false."
+    "Classify this ring: pick the nearest supported archetype, describe the "
+    "style you see, and estimate its dimensions in millimetres. If it is not "
+    "a clear photo of a single ring, set ring_detected to false."
 )
+
+
+class RingConfidence(BaseModel):
+    """Per-field vision confidence in [0,1] for the shared dimensions. Bounds
+    are intentionally omitted from the schema (structured-output constraint
+    stripping) and clamped in code. inner_diameter is absent -- never guessed."""
+
+    band_width: float | None = None
+    band_thickness: float | None = None
+    stone_diameter: float | None = None
+    stone_height: float | None = None
+    setting_height: float | None = None
+    prong_count: float | None = None
 
 
 class RingClassification(BaseModel):
-    """Structured output schema for messages.parse. No inner_diameter field."""
+    """Structured output schema for messages.parse. `style` is the free-text
+    detected style; `archetype` is the nearest supported buildable style. Group
+    dims are optional -- only the chosen archetype's are read. No inner_diameter
+    field (never guessed)."""
 
     ring_detected: bool
     style: str = ""
+    archetype: str = "solitaire"
     prong_count: int = 6
     shank_taper: str = ""
     features: list[str] = []
@@ -56,6 +114,21 @@ class RingClassification(BaseModel):
     stone_diameter: float | None = None
     stone_height: float | None = None
     setting_height: float | None = None
+    # Halo group
+    halo_stone_diameter: float | None = None
+    halo_stone_count: float | None = None
+    halo_gap: float | None = None
+    halo_stone_height: float | None = None
+    # Trilogy group
+    side_stone_diameter: float | None = None
+    side_stone_height: float | None = None
+    side_stone_gap: float | None = None
+    # Side-stone (channel) group
+    accent_stone_diameter: float | None = None
+    accent_stone_height: float | None = None
+    accent_count_per_side: float | None = None
+    accent_gap: float | None = None
+    confidence: RingConfidence | None = None
     note: str = ""
 
 
@@ -69,16 +142,65 @@ class ClassifyResult:
     prong_count: int
     features: list[str]
     estimates: dict[str, float]
+    archetype: str = "solitaire"
+    group_estimates: dict = field(default_factory=dict)
+    confidence: dict = field(default_factory=dict)
+
+    def to_spec(self) -> dict | None:
+        """Assemble a validated RingSpec (archetype + groups + confidence), or
+        None when no ring was detected. Shared dims come from `estimates` over
+        `_SHARED_DEFAULTS`; inner_diameter is never estimated. If the assembled
+        spec fails schema validation it falls back to a solitaire built from the
+        shared dims, preserving never-500."""
+        if not self.ring_detected:
+            return None
+        spec = self._assemble(self.archetype, self.group_estimates)
+        try:
+            validate_spec(spec)
+            return spec
+        except ValidationError:
+            logger.error("assembled spec failed validation; solitaire fallback",
+                         exc_info=True)
+            return self._assemble("solitaire", {})
+
+    def _assemble(self, archetype: str, group: dict) -> dict:
+        est = self.estimates
+        spec = {
+            "version": "1.0",
+            "archetype": archetype,
+            "shank": {
+                "inner_diameter": DEFAULT_INNER_DIAMETER,
+                "band_width": est.get("band_width", _SHARED_DEFAULTS["band_width"]),
+                "band_thickness": est.get(
+                    "band_thickness", _SHARED_DEFAULTS["band_thickness"]),
+            },
+            "setting": {
+                "prong_count": est.get(
+                    "prong_count", _SHARED_DEFAULTS["prong_count"]),
+                "setting_height": est.get(
+                    "setting_height", _SHARED_DEFAULTS["setting_height"]),
+            },
+            "stones": {
+                "stone_diameter": est.get(
+                    "stone_diameter", _SHARED_DEFAULTS["stone_diameter"]),
+                "stone_height": est.get(
+                    "stone_height", _SHARED_DEFAULTS["stone_height"]),
+            },
+        }
+        if self.confidence:
+            spec["confidence"] = dict(self.confidence)
+        if archetype in _ARCHETYPE_GROUPS:
+            # Always emit the group key -- an empty dict lets the schema fill
+            # every group default (each group field is optional-with-default).
+            spec[_ARCHETYPE_GROUPS[archetype][0]] = dict(group)
+        return spec
 
     def to_json(self) -> dict:
         return {
             "ring_detected": self.ring_detected,
-            "style": self.style,
-            "prong_count": self.prong_count,
-            "shank_taper": self.shank_taper,
-            "features": self.features,
-            "estimates": self.estimates,
+            "detected_style": self.style,
             "note": self.note,
+            "spec": self.to_spec(),
         }
 
 
@@ -93,6 +215,71 @@ def _clamp(key: str, value) -> float:
 
 def _snap_prong(n: int) -> int:
     return 4 if abs(n - 4) <= abs(n - 6) else 6
+
+
+def _field_bounds(model_cls, name: str) -> tuple[float | None, float | None]:
+    """Read (ge, le) from a Pydantic field's constraint metadata -- the single
+    source of truth for a group field's range."""
+    lo = hi = None
+    for meta in model_cls.model_fields[name].metadata:
+        if hasattr(meta, "ge"):
+            lo = meta.ge
+        if hasattr(meta, "le"):
+            hi = meta.le
+    return lo, hi
+
+
+def _clamp_bounds(lo, hi, value: float) -> float:
+    if lo is not None:
+        value = max(lo, value)
+    if hi is not None:
+        value = min(hi, value)
+    return value
+
+
+def _group_estimates(archetype: str, data: "RingClassification") -> dict:
+    """Clamp each group dim the model returned to its RingSpec field bounds;
+    int-typed counts are rounded and snapped to int. Fields the model left null
+    are omitted so the schema default applies."""
+    if archetype not in _ARCHETYPE_GROUPS:
+        return {}
+    _, model_cls = _ARCHETYPE_GROUPS[archetype]
+    out: dict = {}
+    for name, fld in model_cls.model_fields.items():
+        raw = getattr(data, name, None)
+        if raw is None:
+            continue
+        lo, hi = _field_bounds(model_cls, name)
+        if fld.annotation is int:
+            out[name] = int(_clamp_bounds(lo, hi, round(float(raw))))
+        else:
+            out[name] = _clamp_bounds(lo, hi, float(raw))
+    return out
+
+
+def _confidence(data: "RingConfidence | None") -> dict:
+    """Flatten a RingConfidence into a {field: value in [0,1]} dict, dropping
+    None entries. inner_diameter is never present (never estimated)."""
+    if data is None:
+        return {}
+    out: dict = {}
+    for name in RingConfidence.model_fields:
+        val = getattr(data, name, None)
+        if val is not None:
+            out[name] = max(0.0, min(1.0, float(val)))
+    return out
+
+
+def _note(archetype: str, style: str, model_note: str) -> str:
+    """When the detected free-text style doesn't name the buildable archetype,
+    say we fell back to the nearest supported style (RNG-12 decision 1)."""
+    label = archetype.replace("_", " ")
+    if style and label not in style.lower().replace("_", " "):
+        return (
+            f"Detected {style} -- building the nearest supported style "
+            f"({label}). Verify before generating."
+        )
+    return model_note or DEFAULT_NOTE
 
 
 def _empty(ok: bool, ring_detected: bool, note: str) -> ClassifyResult:
@@ -156,15 +343,22 @@ def classify_ring(image_bytes: bytes, media_type: str) -> ClassifyResult:
             if getattr(data, key) is not None
         }
         estimates["prong_count"] = _snap_prong(data.prong_count)
+        archetype = (
+            data.archetype if data.archetype in SUPPORTED_ARCHETYPES
+            else "solitaire"
+        )
         return ClassifyResult(
             ok=True,
             ring_detected=True,
             style=data.style,
             shank_taper=data.shank_taper,
-            note=data.note or DEFAULT_NOTE,
+            note=_note(archetype, data.style, data.note),
             prong_count=_snap_prong(data.prong_count),
             features=list(data.features),
             estimates=estimates,
+            archetype=archetype,
+            group_estimates=_group_estimates(archetype, data),
+            confidence=_confidence(data.confidence),
         )
     except Exception:
         logger.error("classify_ring failed", exc_info=True)
