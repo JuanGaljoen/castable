@@ -175,11 +175,126 @@ def test_classify_available_builds_no_client(monkeypatch):
     assert rec["constructed"] == 0
 
 
-# ---- to_json carries the AC response body fields ---------------------------
-def test_to_json_includes_response_fields(monkeypatch):
+# ---- to_json carries the RNG-12 response body fields -----------------------
+def test_to_json_carries_ringspec_contract(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     _install_client(monkeypatch, parsed_output=_ring())
     body = classify_ring(IMG, JPEG).to_json()
-    for key in ("ring_detected", "style", "prong_count",
-                "shank_taper", "features", "estimates", "note"):
+    for key in ("ring_detected", "detected_style", "note", "spec"):
         assert key in body
+
+
+# ===========================================================================
+# RNG-12: vision -> validated RingSpec (archetype + groups + confidence)
+# ===========================================================================
+from ringcad.ringspec import is_castable, validate_spec  # noqa: E402
+from ringcad.classify import RingConfidence  # noqa: E402
+
+
+def _halo(**overrides):
+    base = dict(archetype="halo", style="halo",
+                halo_stone_diameter=1.3, halo_stone_count=14,
+                halo_gap=0.5, halo_stone_height=1.2)
+    base.update(overrides)
+    return _ring(**base)
+
+
+# ---- AC1: detected archetype maps to a valid RingSpec ----------------------
+def test_detected_halo_builds_valid_halo_spec(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    _install_client(monkeypatch, parsed_output=_halo())
+    spec = classify_ring(IMG, JPEG).to_spec()
+    assert spec["archetype"] == "halo"
+    assert "halo" in spec
+    # returned spec is a valid RingSpec and a castable /generate-ring body
+    validated = validate_spec(spec)
+    assert is_castable(validated)
+
+
+@pytest.mark.parametrize("archetype", ["solitaire", "halo", "trilogy",
+                                       "side_stone"])
+def test_every_archetype_builds_valid_spec(monkeypatch, archetype):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    _install_client(monkeypatch,
+                    parsed_output=_ring(archetype=archetype, style=archetype))
+    spec = classify_ring(IMG, JPEG).to_spec()
+    assert spec["archetype"] == archetype
+    validate_spec(spec)  # must not raise
+
+
+# ---- AC2: group dims clamped to the RingSpec field bounds ------------------
+def test_group_dims_clamped_to_model_bounds(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    # halo_stone_count 99 -> 24 (le), halo_stone_diameter 0.1 -> 0.9 (ge)
+    _install_client(monkeypatch,
+                    parsed_output=_halo(halo_stone_count=99,
+                                        halo_stone_diameter=0.1))
+    spec = classify_ring(IMG, JPEG).to_spec()
+    assert spec["halo"]["halo_stone_count"] == 24
+    assert spec["halo"]["halo_stone_diameter"] == 0.9
+
+
+# ---- AC2: integer group counts snapped to int ------------------------------
+def test_group_count_snapped_to_int(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    _install_client(monkeypatch, parsed_output=_halo(halo_stone_count=13.6))
+    spec = classify_ring(IMG, JPEG).to_spec()
+    val = spec["halo"]["halo_stone_count"]
+    assert val == 14 and isinstance(val, int)
+
+
+# ---- AC3: per-field confidence (shared 7) surfaced -------------------------
+def test_confidence_surfaced_on_spec(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    conf = RingConfidence(band_width=0.6, stone_diameter=0.9)
+    _install_client(monkeypatch, parsed_output=_ring(confidence=conf))
+    spec = classify_ring(IMG, JPEG).to_spec()
+    assert spec["confidence"]["band_width"] == 0.6
+    assert spec["confidence"]["stone_diameter"] == 0.9
+    # inner_diameter is never estimated -> its confidence stays absent/None
+    assert spec["confidence"].get("inner_diameter") is None
+
+
+def test_confidence_clamped_to_unit_interval(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    _install_client(monkeypatch,
+                    parsed_output=_ring(confidence=RingConfidence(band_width=1.7)))
+    spec = classify_ring(IMG, JPEG).to_spec()
+    assert spec["confidence"]["band_width"] == 1.0
+
+
+# ---- AC1: unsupported detected style -> fallback note names both -----------
+def test_divergent_style_produces_fallback_note(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    _install_client(monkeypatch,
+                    parsed_output=_ring(archetype="solitaire",
+                                        style="cathedral pave"))
+    result = classify_ring(IMG, JPEG)
+    assert "cathedral pave" in result.note
+    assert "solitaire" in result.note
+
+
+def test_matching_style_keeps_plain_note(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    _install_client(monkeypatch,
+                    parsed_output=_halo(style="halo pave", note="looks good"))
+    result = classify_ring(IMG, JPEG)
+    assert "nearest supported" not in result.note
+
+
+# ---- inner_diameter never estimated: spec carries the default --------------
+def test_spec_inner_diameter_is_default_not_guessed(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    _install_client(monkeypatch, parsed_output=_ring())
+    spec = classify_ring(IMG, JPEG).to_spec()
+    assert spec["shank"]["inner_diameter"] == classify.DEFAULT_INNER_DIAMETER
+
+
+# ---- not-a-ring: spec is None ----------------------------------------------
+def test_not_a_ring_has_no_spec(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    _install_client(monkeypatch,
+                    parsed_output=RingClassification(ring_detected=False))
+    result = classify_ring(IMG, JPEG)
+    assert result.to_spec() is None
+    assert result.to_json()["spec"] is None

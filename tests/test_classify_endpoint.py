@@ -31,16 +31,15 @@ def client():
 def _classify_result(**overrides):
     """Lightweight ClassifyResult stand-in for the classify_ring seam. The
     endpoint only needs .ok, .ring_detected and .to_json(); this avoids
-    depending on ringcad.classify (which may not exist yet)."""
+    depending on ringcad.classify. RNG-12 contract: to_json() returns
+    ring_detected / detected_style / note / spec."""
     data = dict(
-        ok=True, ring_detected=True, style="solitaire", prong_count=6,
-        shank_taper="straight", features=["polished"],
-        estimates={"band_width": 2.2, "prong_count": 6}, note="rough",
+        ok=True, ring_detected=True, detected_style="solitaire", note="rough",
+        spec={"version": "1.0", "archetype": "solitaire"},
     )
     data.update(overrides)
     body = {k: data[k] for k in (
-        "ring_detected", "style", "prong_count", "shank_taper",
-        "features", "estimates", "note",
+        "ring_detected", "detected_style", "note", "spec",
     )}
     return type("FakeResult", (), {
         "ok": data["ok"],
@@ -75,17 +74,17 @@ def test_classify_no_key_returns_503(client, monkeypatch):
     assert health.get_json() == {"status": "ok"}
 
 
-# ---- AC2/AC3/AC4: success -> 200 with full classification body -------------
+# ---- RNG-12: success -> 200 with the RingSpec contract body ---------------
 def test_classify_success_returns_200_with_body(client, monkeypatch):
     _set_classify(monkeypatch, available=True,
                   result=_classify_result(ring_detected=True))
     resp = _upload(client)
     assert resp.status_code == 200
     data = resp.get_json()
-    for key in ("style", "prong_count", "shank_taper",
-                "features", "estimates", "note"):
+    for key in ("ring_detected", "detected_style", "note", "spec"):
         assert key in data, f"response missing {key}"
     assert data["ring_detected"] is True
+    assert data["spec"]["archetype"] == "solitaire"
 
 
 # ---- AC7: not-a-ring -> 200, ring_detected false --------------------------
