@@ -166,7 +166,7 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 
 **RNG-12 follow-ups (do RNG-21 first, then RNG-20):**
 
-- **RNG-21** Enable the vision layer end-to-end (configure key + verify real photos) [Medium] - relates RNG-12; turn it on with a real key, see real behaviour first
+- **RNG-21** Enable the vision layer end-to-end (configure key + verify real photos) [Done] - relates RNG-12; turned it on with a real key, fixed the all-required-schema bug it exposed
 - **RNG-20** Vision spec castable by construction (guarantee upload -> generate) [Medium] - relates RNG-12; do after RNG-21 so it solves observed castability failures, not hypothetical ones
 
 > Removed in the pivot: RNG-7 (cathedral shoulders, OpenSCAD-specific) and RNG-8
@@ -220,8 +220,24 @@ shared fields with confidence < 0.5 (amber marker + aria note). Built as two
 commits on one branch (backend, frontend), not per-checkpoint PRs. The frozen
 design lives in `specs/RNG-12.md`.
 
-**Then (do RNG-21 first, then RNG-20):** RNG-21 turns the vision layer on
-end-to-end with a real API key and verifies real photos (and fixes the `.env`
-not-auto-loaded gotcha); RNG-20 then makes the vision spec castable by
-construction so upload -> generate works first try. RNG-21 before RNG-20 so the
-castability work solves observed failures, not hypothetical ones.
+**RNG-21 (enable vision end-to-end) complete:** ran the vision layer against a
+real API key for the first time and fixed what only the real path exposed.
+Config: `.env` now loads at startup via `python-dotenv` (`load_dotenv()` in
+`create_app()`; explicit exports still win). Bug found + fixed: the
+`RingClassification` structured-output schema had ~24 *optional* (defaulted)
+fields, which the real Messages API rejects (400 on `float | None` unions) and
+then, once unions were cut, *hangs* on (exponential compile cost from the
+present/absent field combinations). Fix: **every schema field is required, no
+defaults**; `0` is the "not estimated" sentinel the parser reads, and the prompt
+tells the model to fill every field. Offline guard `tests/test_classify_schema.py`
+asserts zero optional fields + the 16 union cap — the tests that catch it without
+a key. Because every classify test stubs the client, this shipped invisibly
+through RNG-6/12; see `docs/adr/0004-structured-output-schemas-need-all-required-fields.md`
+(all-required rule + "verify against the real API once"). Verified live on a real
+solitaire photo (correct archetype/4-prong, five estimable dims adjusted, ~4s,
+confidence 0.60–0.95). **Decisions recorded: keep Haiku as the default model;
+keep the 0.5 confidence-marker threshold.**
+
+**Then (RNG-20):** make the vision spec castable by construction so upload ->
+generate works first try — now solving observed failures, since the vision layer
+is live.

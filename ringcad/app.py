@@ -6,6 +6,7 @@ namespace so tests can patch them at `ringcad.app.*` (where they are looked up).
 """
 from __future__ import annotations
 
+from dotenv import load_dotenv
 from flask import Flask, Response, jsonify, render_template, request
 
 from pydantic import ValidationError as PydanticValidationError
@@ -37,6 +38,9 @@ def _sniff_media_type(b: bytes):
 
 
 def create_app() -> Flask:
+    # Load a local .env (if present) so ANTHROPIC_API_KEY set there reaches the
+    # process. Does not override vars already exported -- an explicit export wins.
+    load_dotenv()
     app = Flask(
         __name__,
         template_folder="../templates",
