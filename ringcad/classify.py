@@ -70,10 +70,13 @@ _SYSTEM = (
     "ring of small accents around the centre), trilogy (one centre plus two "
     "flanking side stones), or side_stone (a channel row of small accents "
     "down each shoulder). Estimate the dimensions of the chosen archetype's "
-    "group (halo_*, side_stone_* for trilogy, accent_* for side_stone); leave "
-    "the others null. Give a per-field `confidence` in [0,1] for each shared "
-    "dimension you estimate. If the image does not clearly show a single "
-    "ring, set ring_detected to false and leave dimension fields null. Never "
+    "group (halo_*, side_stone_* for trilogy, accent_* for side_stone). "
+    "EVERY field is required: fill in a number for every dimension, and use "
+    "0 for any dimension you cannot estimate or that does not apply to the "
+    "chosen archetype (e.g. the halo_* fields on a solitaire). Give a "
+    "per-field `confidence` in [0,1] for each shared dimension (0 when you "
+    "did not estimate it). If the image does not clearly show a single ring, "
+    "set ring_detected to false and set every dimension to 0. Never "
     "guess finger size or inner diameter -- there is no field for it. All "
     "millimetre estimates are rough approximations."
 )
@@ -86,50 +89,62 @@ _USER = (
 
 class RingConfidence(BaseModel):
     """Per-field vision confidence in [0,1] for the shared dimensions. Bounds
-    are intentionally omitted from the schema (structured-output constraint
-    stripping) and clamped in code. inner_diameter is absent -- never guessed."""
+    are omitted from the schema (structured-output constraint stripping) and
+    clamped in code. EVERY field is required (no defaults): strict structured
+    output treats a defaulted field as optional, and many optional fields blow
+    up server-side compilation (RNG-21). 0.0 means "no confidence".
+    inner_diameter is absent -- never guessed."""
 
-    band_width: float | None = None
-    band_thickness: float | None = None
-    stone_diameter: float | None = None
-    stone_height: float | None = None
-    setting_height: float | None = None
-    prong_count: float | None = None
+    band_width: float
+    band_thickness: float
+    stone_diameter: float
+    stone_height: float
+    setting_height: float
+    prong_count: float
 
 
 class RingClassification(BaseModel):
     """Structured output schema for messages.parse. `style` is the free-text
-    detected style; `archetype` is the nearest supported buildable style. Group
-    dims are optional -- only the chosen archetype's are read. No inner_diameter
-    field (never guessed)."""
+    detected style; `archetype` is the nearest supported buildable style. Only
+    the chosen archetype's group dims are read; the rest are ignored. No
+    inner_diameter field (never guessed).
+
+    EVERY field is REQUIRED (no defaults). Strict structured output treats a
+    field with a default as optional, and a schema with many optional fields
+    incurs exponential compilation cost -- the real Messages API then hangs and
+    times out (RNG-21, the "17 params with type arrays or anyOf" 400 was the
+    same root cause surfacing as a hard reject). The model instead fills every
+    field and uses 0 for a dimension it cannot estimate or that does not apply
+    to the chosen archetype; parsing treats 0 as "not estimated" and falls back
+    to the shared/group default. See tests/test_classify_schema for the guard."""
 
     ring_detected: bool
-    style: str = ""
-    archetype: str = "solitaire"
-    prong_count: int = 6
-    shank_taper: str = ""
-    features: list[str] = []
-    band_width: float | None = None
-    band_thickness: float | None = None
-    stone_diameter: float | None = None
-    stone_height: float | None = None
-    setting_height: float | None = None
+    style: str
+    archetype: str
+    prong_count: int
+    shank_taper: str
+    features: list[str]
+    band_width: float
+    band_thickness: float
+    stone_diameter: float
+    stone_height: float
+    setting_height: float
     # Halo group
-    halo_stone_diameter: float | None = None
-    halo_stone_count: float | None = None
-    halo_gap: float | None = None
-    halo_stone_height: float | None = None
+    halo_stone_diameter: float
+    halo_stone_count: float
+    halo_gap: float
+    halo_stone_height: float
     # Trilogy group
-    side_stone_diameter: float | None = None
-    side_stone_height: float | None = None
-    side_stone_gap: float | None = None
+    side_stone_diameter: float
+    side_stone_height: float
+    side_stone_gap: float
     # Side-stone (channel) group
-    accent_stone_diameter: float | None = None
-    accent_stone_height: float | None = None
-    accent_count_per_side: float | None = None
-    accent_gap: float | None = None
-    confidence: RingConfidence | None = None
-    note: str = ""
+    accent_stone_diameter: float
+    accent_stone_height: float
+    accent_count_per_side: float
+    accent_gap: float
+    confidence: RingConfidence
+    note: str
 
 
 @dataclass(frozen=True)
@@ -246,8 +261,9 @@ def _group_estimates(archetype: str, data: "RingClassification") -> dict:
     _, model_cls = _ARCHETYPE_GROUPS[archetype]
     out: dict = {}
     for name, fld in model_cls.model_fields.items():
-        raw = getattr(data, name, None)
-        if raw is None:
+        raw = getattr(data, name, 0.0)
+        # 0.0 is the "not estimated" sentinel (dims are strictly positive).
+        if not raw or raw <= 0:
             continue
         lo, hi = _field_bounds(model_cls, name)
         if fld.annotation is int:
@@ -259,13 +275,14 @@ def _group_estimates(archetype: str, data: "RingClassification") -> dict:
 
 def _confidence(data: "RingConfidence | None") -> dict:
     """Flatten a RingConfidence into a {field: value in [0,1]} dict, dropping
-    None entries. inner_diameter is never present (never estimated)."""
+    unset entries (0.0 sentinel). inner_diameter is never present (never
+    estimated)."""
     if data is None:
         return {}
     out: dict = {}
     for name in RingConfidence.model_fields:
-        val = getattr(data, name, None)
-        if val is not None:
+        val = getattr(data, name, 0.0)
+        if val and val > 0:
             out[name] = max(0.0, min(1.0, float(val)))
     return out
 
@@ -340,7 +357,8 @@ def classify_ring(image_bytes: bytes, media_type: str) -> ClassifyResult:
         estimates: dict[str, float] = {
             key: _clamp(key, getattr(data, key))
             for key in CLAMP_BOUNDS
-            if getattr(data, key) is not None
+            # 0.0 is the "not estimated" sentinel (dims are strictly positive).
+            if getattr(data, key) and getattr(data, key) > 0
         }
         estimates["prong_count"] = _snap_prong(data.prong_count)
         archetype = (

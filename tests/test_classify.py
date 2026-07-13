@@ -63,14 +63,35 @@ def _install_client(monkeypatch, *, parsed_output=None, raises=None):
     return rec
 
 
+# RingClassification now requires EVERY field (RNG-21: no defaults, so the
+# structured-output schema has no optional fields). The helper supplies a full
+# set; group dims default to 0.0 ("not estimated") and are overridden per test.
+_FULL = dict(
+    ring_detected=True, style="solitaire", archetype="solitaire", prong_count=6,
+    shank_taper="straight", features=["polished"],
+    band_width=2.2, band_thickness=1.9, stone_diameter=6.5,
+    stone_height=4.0, setting_height=6.0,
+    halo_stone_diameter=0.0, halo_stone_count=0.0, halo_gap=0.0,
+    halo_stone_height=0.0,
+    side_stone_diameter=0.0, side_stone_height=0.0, side_stone_gap=0.0,
+    accent_stone_diameter=0.0, accent_stone_height=0.0,
+    accent_count_per_side=0.0, accent_gap=0.0,
+    note="rough estimate",
+)
+
+
+def _conf(**vals):
+    """A RingConfidence with every field supplied (all required); unset -> 0.0."""
+    base = dict(band_width=0.0, band_thickness=0.0, stone_diameter=0.0,
+                stone_height=0.0, setting_height=0.0, prong_count=0.0)
+    base.update(vals)
+    return RingConfidence(**base)
+
+
 def _ring(**overrides):
     """A RingClassification for a detected ring, with field overrides."""
-    base = dict(
-        ring_detected=True, style="solitaire", prong_count=6,
-        shank_taper="straight", features=["polished"],
-        band_width=2.2, band_thickness=1.9, stone_diameter=6.5,
-        stone_height=4.0, setting_height=6.0, note="rough estimate",
-    )
+    base = dict(_FULL)
+    base.setdefault("confidence", _conf())
     base.update(overrides)
     return RingClassification(**base)
 
@@ -122,7 +143,7 @@ def test_not_a_ring_returns_empty_estimates(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     _install_client(
         monkeypatch,
-        parsed_output=RingClassification(ring_detected=False),
+        parsed_output=_ring(ring_detected=False),
     )
     result = classify_ring(IMG, JPEG)
     assert result.ok is True
@@ -246,7 +267,7 @@ def test_group_count_snapped_to_int(monkeypatch):
 # ---- AC3: per-field confidence (shared 7) surfaced -------------------------
 def test_confidence_surfaced_on_spec(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
-    conf = RingConfidence(band_width=0.6, stone_diameter=0.9)
+    conf = _conf(band_width=0.6, stone_diameter=0.9)
     _install_client(monkeypatch, parsed_output=_ring(confidence=conf))
     spec = classify_ring(IMG, JPEG).to_spec()
     assert spec["confidence"]["band_width"] == 0.6
@@ -258,7 +279,7 @@ def test_confidence_surfaced_on_spec(monkeypatch):
 def test_confidence_clamped_to_unit_interval(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     _install_client(monkeypatch,
-                    parsed_output=_ring(confidence=RingConfidence(band_width=1.7)))
+                    parsed_output=_ring(confidence=_conf(band_width=1.7)))
     spec = classify_ring(IMG, JPEG).to_spec()
     assert spec["confidence"]["band_width"] == 1.0
 
@@ -294,7 +315,7 @@ def test_spec_inner_diameter_is_default_not_guessed(monkeypatch):
 def test_not_a_ring_has_no_spec(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     _install_client(monkeypatch,
-                    parsed_output=RingClassification(ring_detected=False))
+                    parsed_output=_ring(ring_detected=False))
     result = classify_ring(IMG, JPEG)
     assert result.to_spec() is None
     assert result.to_json()["spec"] is None
