@@ -80,10 +80,17 @@ preview and download the STL.
 | `CLASSIFY_MODEL`    | `claude-haiku-4-5` | Claude model used for photo classification                                                                                    |
 
 The Anthropic key is read server-side only and is never sent to the browser. To
-enable photo classification, add it to a local `.env` file (gitignored):
+enable photo classification, add it to a local `.env` file (gitignored) — the app
+loads it at startup via `python-dotenv`:
 
 ```
 ANTHROPIC_API_KEY=sk-ant-...
+```
+
+An explicit environment export also works and takes precedence over `.env`:
+
+```
+export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 ## Ring parameters
