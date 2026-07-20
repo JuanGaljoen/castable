@@ -87,7 +87,7 @@ regress on a refactor.
 - [x] CP1 — contract + outline primitive; no consumer changes yet ·
       files: `ringcad/ringspec/models.py`, `ringcad/geometry/outline.py` (new),
       `docs/parameter-ranges.md`, `tests/test_stone_outline.py`, `tests/test_ringspec_schema.py`
-- [ ] CP2 — centre-stone geometry consumes the outline + castability generalised to curvature ·
+- [x] CP2 — centre-stone geometry consumes the outline + castability generalised to curvature ·
       files: `ringcad/geometry/_common.py`, `seat.py`, `prong_setting.py`, `bezel.py`,
       `ringcad/ringspec/castability.py`, `tests/test_oval_geometry.py`,
       `tests/test_oval_castability.py`
