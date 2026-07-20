@@ -26,7 +26,7 @@ from __future__ import annotations
 import math
 from typing import Protocol, runtime_checkable
 
-from build123d import Circle, Ellipse, Rot, Vector, Wire
+from build123d import Circle, Ellipse, Plane, Torus, Vector, Wire, sweep
 
 TWO_PI = 2 * math.pi
 
@@ -63,6 +63,15 @@ class StoneOutline(Protocol):
         against for a non-round stone.
         """
 
+    def tube(self, minor_r: float):
+        """The girdle tube of section radius `minor_r` -- the seat collar.
+
+        Built by the outline rather than by `seat()` so the round case can keep
+        its original `Torus` call verbatim. Sweeping a circle along a circular
+        path would be mathematically equivalent but not numerically identical,
+        and the parity / golden suites pin today's round output.
+        """
+
 
 class RoundOutline:
     """A circular girdle: the pre-RNG-23 behaviour, unchanged."""
@@ -87,6 +96,10 @@ class RoundOutline:
 
     def min_curvature_radius(self) -> float:
         return self.radius
+
+    def tube(self, minor_r: float):
+        # The pre-RNG-23 seat call, unchanged: `Torus(stone_r, collar_tr)`.
+        return Torus(self.radius, minor_r)
 
 
 class OvalOutline:
@@ -127,6 +140,19 @@ class OvalOutline:
     def min_curvature_radius(self) -> float:
         # Tightest bend is at the end of the major axis: p^2 / q.
         return self.semi_minor ** 2 / self.semi_major
+
+    def tube(self, minor_r: float):
+        """Sweep the collar section along the ellipse.
+
+        The section plane's normal must lie along the path tangent at the start
+        point (semi_minor, 0), which is +Y -- a section oriented radially instead
+        produces a null solid rather than an error, so this orientation is
+        load-bearing.
+        """
+        section = Plane(
+            origin=(self.semi_minor, 0, 0), x_dir=(1, 0, 0), z_dir=(0, 1, 0)
+        ) * Circle(minor_r)
+        return sweep(section, self.wire(), is_frenet=True)
 
 
 def outline_for(shape: str, half_width: float, length_ratio: float) -> StoneOutline:

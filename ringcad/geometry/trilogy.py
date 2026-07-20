@@ -42,7 +42,11 @@ POST_OVERLAP = 0.2
 def _side_loc(spec, c: dict, sign: float) -> Location:
     """Rigid placement for one side setting: `placement(c)` rotated by the
     derived angular offset (specs/RNG-10.md Decision 4). `sign` is +1.0/-1.0."""
-    stone_r = c["stone_r"]
+    # Width-consumer of the outline, not a curve-walker: the side settings flank
+    # along the band, which is local Y -- the axis an N-S oval is LONGEST on. Using
+    # the short-axis `stone_r` here would seat them inside an oval centre stone.
+    # Round returns the same radius on both axes, so this is a no-op for round.
+    stone_r = c["outline"].half_width("y")
     side_r = spec.trilogy.side_stone_diameter / 2
     phi = (stone_r + spec.trilogy.side_stone_gap + side_r) / c["head_r"]
     return Rot(0, 0, sign * math.degrees(phi)) * placement(c)

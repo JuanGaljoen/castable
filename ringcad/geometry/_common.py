@@ -17,6 +17,8 @@ from build123d import (
 from ringcad.mesh_validator import MIN_PRONG_TIP_MM, MIN_WALL_MM
 from ringcad.ringspec import RingSpec, to_params
 
+from .outline import outline_for
+
 SHANK_TAPER = 1.7
 NA = 96  # sections around the ring (matches the spike)
 
@@ -60,13 +62,26 @@ FLAT_TAPER = 1.0
 
 
 def clamps(spec: RingSpec) -> dict:
-    """Derive the casting clamps for a RingSpec (with `prong_n` resolved)."""
+    """Derive the casting clamps for a RingSpec (with `prong_n` and the centre
+    stone's `outline` resolved).
+
+    `stone_r` is retained as the SHORT-axis half-width (unchanged meaning for a
+    round stone). Modules that place geometry around the girdle should read
+    `outline` instead; `stone_r` remains only for scale-derived values such as
+    peg and hub radii, which are not girdle-following.
+    """
     p = to_params(spec)
     taper = FLAT_TAPER if getattr(spec, "archetype", None) == "side_stone" \
         else SHANK_TAPER
     c = _clamps(p, taper)
     pc = int(p["prong_count"])
     c["prong_n"] = pc if pc in (4, 6) else 4
+    stones = getattr(spec, "stones", None)
+    c["outline"] = outline_for(
+        getattr(stones, "shape", "round"),
+        c["stone_r"],
+        getattr(stones, "length_ratio", 1.0),
+    )
     return c
 
 
