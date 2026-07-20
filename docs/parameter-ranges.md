@@ -20,6 +20,29 @@ shank, US6).
 |----------------|---------|-----------|-------|
 | `shank_taper`  | 1.7     | 1.0 - 2.0 | cross-section scale at the head shoulder vs the base; 1.0 = no taper |
 
+### Centre-stone shape (RNG-23)
+| Parameter      | Default | Range            | Notes |
+|----------------|---------|------------------|-------|
+| `shape`        | `round` | {`round`, `oval`}| omitted means `round`, so every pre-RNG-23 spec is unchanged |
+| `length_ratio` | 1.0     | 1.0 - 2.5        | long axis / short axis; 1.0 is round |
+
+With `shape: oval`, **`stone_diameter` is the SHORT axis** (the width) and the long
+axis is `stone_diameter * length_ratio`. The long axis runs along the finger
+(N-S), the conventional oval setting.
+
+Two consequences worth knowing before choosing a ratio:
+
+- **Elongation thins the tips.** An ellipse's tightest bend is
+  `semi_minor^2 / semi_major`, so raising `length_ratio` sharpens the apex where
+  the min-wall floor is hardest to hold. That is what caps the range at 2.5.
+- **Elongation costs trilogy clearance.** The side stones flank along the same
+  axis the oval is longest on, so an oval centre reaches further toward them than
+  a round one of equal `stone_diameter` and can trip the overcrowding check.
+
+Prongs are placed so the tips fall midway between adjacent claws (the
+conventional 10-2-4-8 layout at 4 prongs), keeping every claw off the
+high-curvature apex.
+
 ## Halo accent (RNG-9, HaloSpec only)
 The accent-stone ring encircling the centre stone. Ranges are structural sanity
 caps; casting floors are enforced by construction in the `gallery`/
