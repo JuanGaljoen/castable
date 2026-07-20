@@ -164,14 +164,28 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 - **RNG-11** Side-stone band (channel/pave) [Done] - needs RNG-17, RNG-9
 - **RNG-12** Vision -> RingSpec population (photo populates structured spec) [Done] - needs RNG-14, RNG-16; most valuable last, on the full catalog
 
-**RNG-12 follow-ups (do RNG-21 first, then RNG-20):**
+**RNG-12 follow-ups:**
 
 - **RNG-21** Enable the vision layer end-to-end (configure key + verify real photos) [Done] - relates RNG-12; turned it on with a real key, fixed the all-required-schema bug it exposed
-- **RNG-20** Vision spec castable by construction (guarantee upload -> generate) [Medium] - relates RNG-12; do after RNG-21 so it solves observed castability failures, not hypothetical ones
+
+**Fidelity depth (the current block — "looks like the photo", not more archetypes):**
+
+- **RNG-18** Pin build123d + OCP in requirements.txt [High] - a clean clone cannot currently generate a ring
+- **RNG-22** Photo fidelity probe harness (repeatable photo -> model corpus run) [High] - the measuring stick for everything below; relates RNG-12
+- **RNG-23** Stone shape/cut in RingSpec (oval, emerald, cushion, pear, marquise) [Highest] - needs RNG-14, RNG-16; blocks RNG-26
+- **RNG-25** Shank profile family (knife-edge, cathedral, comfort-fit, graduated) [High] - needs RNG-16; the spec-widening half RNG-19 fenced off
+- **RNG-27** Viewer presentation (metal material, studio lighting, tessellation) [High] - independent; perceived quality, touches no geometry
+- **RNG-19** Geometry aesthetic refinement (fillets, surfaces, proportions) [High] - surface polish behind the *existing* schema
+- **RNG-24** Composable features (halo + pave on one ring, retire the archetype union) [Medium] - the architectural fix; needs an ADR
+- **RNG-26** Vision estimates proportions from the image, not style averages [Medium] - needs RNG-23
+- **RNG-28** Accept WebP + HEIC uploads [Low] - deliberately deferred paper cut
 
 > Removed in the pivot: RNG-7 (cathedral shoulders, OpenSCAD-specific) and RNG-8
 > (style registry over OpenSCAD) were deleted — both are superseded by the
-> RingSpec + module-library foundation.
+> RingSpec + module-library foundation. **RNG-20** (vision spec castable by
+> construction) was deleted on 2026-07-20: its premise was disproved — a probe of
+> real photos generated 3/3 watertight with zero repairs, so it was solving a
+> hypothetical.
 
 ## Current Phase
 
@@ -238,6 +252,27 @@ solitaire photo (correct archetype/4-prong, five estimable dims adjusted, ~4s,
 confidence 0.60–0.95). **Decisions recorded: keep Haiku as the default model;
 keep the 0.5 confidence-marker threshold.**
 
-**Then (RNG-20):** make the vision spec castable by construction so upload ->
-generate works first try — now solving observed failures, since the vision layer
-is live.
+**Roadmap checkpoint (2026-07-20): breadth -> depth.** With the vision layer live,
+real photos were run end-to-end through `/classify-ring` -> `/generate-ring`
+(`spikes/rng22/probe_vision.py`, the RNG-22 prototype). Findings:
+
+- **Castability is not the problem.** 3/3 real ring photos generated as raw
+  watertight manifolds, `X-Mesh-Repaired: false`. RNG-20's premise was
+  hypothetical; it was deleted rather than built.
+- **Fidelity is the problem, and it is a vocabulary gap, not an archetype gap.**
+  Two of three photos had *oval* centre stones and we built round ones — `Stones`
+  has only `stone_diameter`/`stone_height`, so every ring ever generated is a
+  round brilliant (-> RNG-23).
+- **The archetype union loses information the classifier already has.** A halo
+  photo read as "halo ... with pave-set accents along the shoulders"; the
+  discriminated union forced one choice and the shoulders vanished. The union
+  quietly reintroduced the "monolithic templates" this file's core principle
+  rejects (-> RNG-24).
+- **Vision recalls genre averages rather than measuring.** Its own note: "dimensions
+  estimated from standard proportions for this style". Absolute mm are
+  unknowable from a photo; *ratios* are visible and currently discarded (-> RNG-26).
+- **"Looks bad" is two problems:** geometric fidelity (RNG-23/25/19) and
+  presentation — flat grey material, validation-grade tessellation (-> RNG-27).
+
+**Next:** RNG-18 (clean clone is broken), then RNG-22 (make fidelity measurable),
+then RNG-23 (the biggest visual win). RNG-27 can run in parallel.
