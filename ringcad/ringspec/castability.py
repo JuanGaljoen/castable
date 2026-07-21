@@ -94,15 +94,22 @@ def _min_prong_tip(spec: RingSpec) -> list[Violation]:
 def _geometric(spec: RingSpec) -> list[Violation]:
     """Cross-field geometric impossibilities."""
     out: list[Violation] = []
-    if spec.stones.stone_diameter >= spec.shank.inner_diameter:
+    # The stone's LONGEST axis is what has to fit over the bore: `stone_diameter`
+    # is the short axis once a shape is involved (RNG-23), so comparing it alone
+    # let a 10mm stone at length_ratio 2.5 -- 25mm long across a 16.5mm bore --
+    # through the gate.
+    stone_length = spec.stones.stone_diameter * getattr(
+        spec.stones, "length_ratio", 1.0
+    )
+    if stone_length >= spec.shank.inner_diameter:
         out.append(
             Violation(
                 code="stone_exceeds_bore",
                 field="stones.stone_diameter",
-                message="Stone diameter must be smaller than the finger bore "
-                "(inner_diameter).",
+                message="Stone must be smaller than the finger bore "
+                "(inner_diameter) along its longest axis.",
                 limit_mm=spec.shank.inner_diameter,
-                actual_mm=spec.stones.stone_diameter,
+                actual_mm=stone_length,
             )
         )
     if spec.stones.stone_height >= spec.setting.setting_height:
@@ -134,15 +141,39 @@ def _geometric(spec: RingSpec) -> list[Violation]:
 # accents) that construction does not guard against.
 
 
+def _ring_perimeter(semi_minor: float, semi_major: float) -> float:
+    """Perimeter of the accent ring, circle or ellipse.
+
+    Ramanujan's approximation, accurate to better than 1e-5 relative across the
+    elongations RingSpec allows. Kept as arithmetic here rather than reaching into
+    `ringcad.geometry.outline`, so the spec layer stays independent of the kernel
+    (the same separation `_SEAT_COLLAR_R` and the side-stone angles observe).
+    """
+    if semi_minor == semi_major:
+        return 2 * math.pi * semi_minor
+    a, b = semi_major, semi_minor
+    return math.pi * (
+        3 * (a + b) - math.sqrt((3 * a + b) * (a + 3 * b))
+    )
+
+
 def _halo_overcrowding(spec: RingSpec) -> list[Violation]:
-    """Accents packed tighter than their own diameter around the halo ring."""
+    """Accents packed tighter than their own diameter around the halo ring.
+
+    Measured around the ring the halo ACTUALLY rides. Since RNG-23 CP3 that ring
+    follows the centre stone's outline, so for an oval stone it is an ellipse and
+    is longer than a circle of the short axis. Computing the arc from that circle
+    rejected specs the geometry could build -- caught by running a real oval-halo
+    photo end to end, since every classify test stubs the client.
+    """
     if not isinstance(spec, HaloSpec):
         return []
     halo = spec.halo
-    radius = (
-        spec.stones.stone_diameter / 2 + halo.halo_gap + halo.halo_stone_diameter / 2
-    )
-    arc = 2 * math.pi * radius / halo.halo_stone_count
+    offset = halo.halo_gap + halo.halo_stone_diameter / 2
+    semi_minor = spec.stones.stone_diameter / 2
+    semi_major = semi_minor * getattr(spec.stones, "length_ratio", 1.0)
+    perimeter = _ring_perimeter(semi_minor + offset, semi_major + offset)
+    arc = perimeter / halo.halo_stone_count
     if arc < halo.halo_stone_diameter:
         return [
             Violation(

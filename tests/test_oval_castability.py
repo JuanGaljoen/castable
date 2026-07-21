@@ -96,6 +96,27 @@ def test_same_stone_becomes_castable_when_less_elongated():
     )
 
 
+# --- the bore is a width-consumer too --------------------------------------
+
+def test_an_oval_longer_than_the_finger_bore_is_rejected():
+    """`stone_exceeds_bore` compared the SHORT axis, so a 10mm stone at ratio 2.5
+    -- 25mm long on a 16.5mm bore -- passed. A stone longer than the hole the
+    finger goes through is not a ring."""
+    assert "stone_exceeds_bore" in _codes(
+        _spec(shape="oval", length_ratio=2.5, stone_diameter=10.0)
+    )
+
+
+def test_a_round_stone_inside_the_bore_still_passes():
+    assert "stone_exceeds_bore" not in _codes(_spec(stone_diameter=10.0))
+
+
+def test_a_modest_oval_inside_the_bore_still_passes():
+    assert "stone_exceeds_bore" not in _codes(
+        _spec(shape="oval", length_ratio=1.4, stone_diameter=8.0)
+    )
+
+
 # --- the trilogy consequence -----------------------------------------------
 
 def test_oval_centre_consumes_more_trilogy_clearance_than_round():
