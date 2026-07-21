@@ -133,12 +133,22 @@ regress on a refactor.
       promise. Fixed by dispatching `change` on the shape select, as the archetype
       select already did.
 
+## Real-photo verification (done)
+
+Run via `spikes/rng22/probe_vision.py` on 2026-07-21:
+
+| photo | detected | shape | ratio | generated |
+|---|---|---|---|---|
+| `solitaire.jpg` | classic solitaire | round | 1.0 | yes |
+| `halo.jpeg` | "oval halo with pave shoulders" | **oval** | 1.35–1.45 | yes, raw watertight |
+| `trilogy.jpg` | "trilogy with oval centre stone" | **oval** | 1.4 | yes, raw watertight |
+
+This found two castability-gate bugs the 3404-test suite did not (see
+`docs/adr/0006`): `halo_overcrowding` and `stone_exceeds_bore` were both still
+measuring the short axis.
+
 ## Remaining before this ticket is delivered
 
-- [ ] Verify against a REAL photo via `spikes/rng22/probe_vision.py`. Every
-      classify test stubs the client, so nothing here proves the live model
-      returns "oval" for an actually-oval stone — precisely the blind spot
-      docs/adr/0004 exists to record ("verify against the real API once").
 - [ ] Ship the branch / open the PR; transition RNG-23.
 
 ## Risks
