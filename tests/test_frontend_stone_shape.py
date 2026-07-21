@@ -113,6 +113,36 @@ def test_shape_fields_are_read_from_the_form_not_hardcoded():
     assert 'getElementById("length_ratio")' in src
 
 
+def test_every_selectable_style_sends_the_shape_fields():
+    """The shape only reaches the server on the STRUCTURED request path.
+
+    Solitaire was routed down the legacy flat-7 body, which has no stones group,
+    so picking Oval on a solitaire silently produced a round ring -- on the
+    default archetype, the one most users see. Caught by looking at a render, not
+    by a test: the earlier tests asserted the fields existed in
+    `gatherStructuredBody` without asking which styles actually use it.
+
+    So assert the real invariant: every style offered in the form is handled by
+    the structured path.
+    """
+    html = create_app().test_client().get("/").get_data(as_text=True)
+    block = re.search(r'<select[^>]*id="archetype".*?</select>', html, re.S)
+    assert block, "no archetype select found"
+    offered = set(re.findall(r'value="([^"]+)"', block.group(0)))
+
+    src = _source("app.js")
+    registry = re.search(r"const ARCHETYPES = \{.*?\n\};", src, re.S)
+    assert registry, "no ARCHETYPES registry"
+    registered = set(re.findall(r"^  (\w+):", registry.group(0), re.M))
+
+    missing = offered - registered
+    assert not missing, (
+        f"styles offered in the form but not in the structured registry: "
+        f"{sorted(missing)} -- these send the legacy flat body and silently drop "
+        "the stone shape"
+    )
+
+
 def test_photo_prefill_reenables_the_ratio_for_a_detected_oval():
     """`setField` assigns `.value` without dispatching an event, so prefilling
     the shape select alone leaves `length_ratio` DISABLED (its state is only

@@ -18,6 +18,18 @@ const NUMBER_KEYS = [
 // Number, ints via parseInt, strings read verbatim — e.g. a <select> value).
 // A registry, not an if-chain, so a new archetype is one entry (RNG-10 CP3).
 const ARCHETYPES = {
+  // Solitaire has no group of its own, but it must still be requested as a
+  // structured RingSpec: the legacy flat-7 body carries no `stones` group, so a
+  // solitaire sent that way silently drops the centre-stone shape and comes back
+  // round (RNG-23). `/generate-ring` accepts either form for solitaire; only the
+  // structured one can express a shape.
+  solitaire: {
+    group: null,
+    fieldset: null,
+    numberKeys: [],
+    intKeys: [],
+    stringKeys: [],
+  },
   halo: {
     group: "halo",
     fieldset: "halo-fields",
@@ -86,7 +98,7 @@ function gatherStructuredBody(name) {
   for (const key of cfg.stringKeys) {
     group[key] = document.getElementById(key).value;
   }
-  return {
+  const body = {
     archetype: name,
     shank: {
       inner_diameter: Number(document.getElementById("inner_diameter").value),
@@ -102,8 +114,11 @@ function gatherStructuredBody(name) {
       stone_height: Number(document.getElementById("stone_height").value),
       ...stoneShapeFields(),
     },
-    [cfg.group]: group,
   };
+  // Solitaire has no group of its own; the schema forbids extra keys, so an
+  // empty one cannot be sent.
+  if (cfg.group) body[cfg.group] = group;
+  return body;
 }
 
 // Centre-stone shape (RNG-23). `stone_diameter` is the WIDTH; the long axis is
