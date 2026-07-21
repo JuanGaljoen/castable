@@ -170,15 +170,17 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 
 **Fidelity depth (the current block — "looks like the photo", not more archetypes):**
 
-- **RNG-18** Pin build123d + OCP in requirements.txt [High] - a clean clone cannot currently generate a ring
-- **RNG-22** Photo fidelity probe harness (repeatable photo -> model corpus run) [High] - the measuring stick for everything below; relates RNG-12
-- **RNG-23** Stone shape/cut in RingSpec (oval, emerald, cushion, pear, marquise) [Highest] - needs RNG-14, RNG-16; blocks RNG-26
+- **RNG-18** Pin build123d + OCP in requirements.txt [Done] - a clean clone could not generate a ring; also found pydantic undeclared
+- **RNG-23** Stone shape/cut in RingSpec (round + oval) [Done] - `StoneOutline` seam; unblocked RNG-26
+- **RNG-22** Photo fidelity probe harness (repeatable photo -> model corpus run) [High] - the measuring stick for everything below; prototype already in `spikes/rng22/`
 - **RNG-25** Shank profile family (knife-edge, cathedral, comfort-fit, graduated) [High] - needs RNG-16; the spec-widening half RNG-19 fenced off
 - **RNG-27** Viewer presentation (metal material, studio lighting, tessellation) [High] - independent; perceived quality, touches no geometry
 - **RNG-19** Geometry aesthetic refinement (fillets, surfaces, proportions) [High] - surface polish behind the *existing* schema
 - **RNG-24** Composable features (halo + pave on one ring, retire the archetype union) [Medium] - the architectural fix; needs an ADR
-- **RNG-26** Vision estimates proportions from the image, not style averages [Medium] - needs RNG-23
+- **RNG-26** Vision estimates proportions from the image, not style averages [Medium] - **unblocked by RNG-23** (`length_ratio` is the first ratio it can fill)
+- **RNG-30** 3D preview keeps stale geometry after the form changes [Medium] - misled RNG-23 QA twice; fold into RNG-27 if that lands first
 - **RNG-28** Accept WebP + HEIC uploads [Low] - deliberately deferred paper cut
+- **RNG-29** Photo error message does not clear when a file is chosen [Low] - found in RNG-23 QA
 
 > Removed in the pivot: RNG-7 (cathedral shoulders, OpenSCAD-specific) and RNG-8
 > (style registry over OpenSCAD) were deleted — both are superseded by the
@@ -188,6 +190,13 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 > hypothetical.
 
 ## Current Phase
+
+> **Where we stand (2026-07-21):** the archetype catalogue is complete (solitaire,
+> halo, trilogy, side-stone), vision is live against a real key, and the first
+> **fidelity** ticket has shipped — centre stones can now be oval, end to end from
+> a photo. The roadmap has turned from *breadth* (more archetypes) to *depth*
+> (shape, profile, proportion, presentation); see the roadmap checkpoint below.
+> **Kick off at RNG-22**, then RNG-19 + RNG-27.
 
 **RNG-9 (halo), RNG-10 (trilogy), and RNG-11 (side-stone) complete.**
 
@@ -274,5 +283,53 @@ real photos were run end-to-end through `/classify-ring` -> `/generate-ring`
 - **"Looks bad" is two problems:** geometric fidelity (RNG-23/25/19) and
   presentation — flat grey material, validation-grade tessellation (-> RNG-27).
 
-**Next:** RNG-18 (clean clone is broken), then RNG-22 (make fidelity measurable),
-then RNG-23 (the biggest visual win). RNG-27 can run in parallel.
+**RNG-18 (dependency pinning) complete:** `build123d`, `cadquery-ocp-novtk` (the
+OpenCASCADE binding — *not* "OCP") and `pydantic` are now declared and pinned; a
+clean venv installs and runs the full suite with no manual steps.
+`tests/test_requirements.py` walks the real AST of `ringcad/` and fails on any
+undeclared or unpinned import, so this class of gap cannot return silently.
+
+**RNG-23 (stone shape) complete — round + oval end to end.** An uploaded oval
+photo now produces an oval castable model, and shape is an editable field on every
+ring style.
+
+- **The seam is `ringcad/geometry/outline.py`.** `StoneOutline` answers `wire()`,
+  `prong_angles()`, `frame_at()`, `half_width()`, `min_curvature_radius()`,
+  `expanded()`, `angles_by_arc()`, `tube()`. Consumers split two ways:
+  **curve-walkers** (`seat`, `bezel`, `prong_setting`, `halo`) take the path and
+  frames; **width-consumers** (`trilogy`, the overcrowding checks) take a
+  half-width only. `c["stone_r"]` survives *only* for scale-derived values (peg,
+  hub radii), never for anything that follows the girdle. **A new cut is a new
+  outline class, not an edit to six modules** — that is the whole point.
+- **Contract:** `Stones.shape` (`round`|`oval`) + `length_ratio` (1.0–2.5), both
+  defaulted, so pre-RNG-23 specs are untouched. `stone_diameter` is the **short**
+  axis. A ratio (not a length) because a ratio is what a photo shows.
+- **Conventions worth keeping:** prongs sit so the tips fall midway between claws
+  (`θ = tip + (k+0.5)·2π/n` — the 10-2-4-8 oval layout at n=4); halo accents are
+  spaced by **arc length**, since equal angles bunch them at the tips; round keeps
+  its literal `Torus` call so circular seats are bit-identical.
+- **New castability rule:** `stone_curvature` — a tube swept along a curve tighter
+  than its own section radius passes through itself, so
+  `(stone_diameter/2)/length_ratio` must clear the 0.45mm seat collar.
+- **`docs/adr/0005`** — a fuse that silently DROPS bodies still reports watertight,
+  zero non-manifold edges, and passes every casting floor, because the offending
+  metal is gone. Assert volume, not just watertightness.
+- **`docs/adr/0006`** — when a scalar becomes a shape, audit *every* consumer;
+  **validation gates need it more urgently than builders** (a wrong builder is
+  visible, a wrong gate is silent). Three separate gates were still measuring the
+  short axis.
+
+> **The lesson that generalises:** three RNG-23 bugs passed a fully green
+> 3413-test suite and were caught by a real photo and a screenshot — including the
+> *default* ring style silently discarding the chosen shape (solitaire took the
+> legacy flat-7 request path, which has no `stones` group). Each was a test written
+> against the author's assumptions rather than against what a user gets. **Run the
+> real path before calling shape/vision work done.**
+
+**Next:** **RNG-22** (promote `spikes/rng22/probe_vision.py` into a committed
+harness) — everything below claims "closer to the photo" and there is still no
+repeatable way to judge it. Then the pair that moves what you actually see:
+**RNG-19** (proportions/surfaces) and **RNG-27** (material + lighting); the
+standing complaint after RNG-23 is that models still read as parametric rather
+than as jewelry. **RNG-26** is now unblocked — `length_ratio` is the first ratio
+vision can actually fill.
