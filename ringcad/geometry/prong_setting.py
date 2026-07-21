@@ -54,19 +54,19 @@ def prong_setting(spec: RingSpec, c: dict | None = None):
                  (C, wire_r * 0.92, D, tip_r)]
         parts = [Pos(*v) * Sphere(r) for v, r in nodes]
         parts += [body_solid(*e) for e in edges]
-        # Fuse each claw on its own FIRST. A single n-ary fuse over every node and
-        # segment of every claw can fail silently in OCCT -- not raising, not
-        # producing open edges, but quietly DROPPING bodies: a 6-prong oval at
-        # length_ratio 1.3 came back as the bare peg (volume 5.65 against an
-        # expected 39.02) while still reporting watertight with zero non-manifold
-        # edges. Fusing claw-by-claw and then into the peg keeps each boolean
-        # small enough to survive, and is bit-identical on every configuration
-        # that already worked.
+        # Pre-fuse each claw into ONE body before the final fuse. A single n-ary
+        # fuse over every node and segment of every claw at once can fail silently
+        # in OCCT -- not raising, not producing open edges, but quietly DROPPING
+        # bodies: a 6-prong oval at length_ratio 1.3 came back as the bare peg
+        # (volume 5.65 against an expected 39.02) while still reporting watertight
+        # with zero non-manifold edges. See docs/adr/0005.
+        #
+        # Per-claw grouping is the module's own internal pre-fusion, which
+        # docs/adr/0001 sanctions; what that ADR forbids -- pairwise-fusing
+        # pre-fused bodies one at a time -- is avoided by the single general fuse
+        # below. Both orderings give identical volumes; this one keeps to the ADR.
         local.append(parts[0].fuse(*parts[1:]))
 
     place = placement(c)
     solids = [place * s for s in local]
-    out = solids[0]
-    for s in solids[1:]:
-        out = out.fuse(s)
-    return out
+    return solids[0].fuse(*solids[1:])

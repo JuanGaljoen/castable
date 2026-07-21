@@ -101,6 +101,31 @@ def test_oval_solitaire_is_one_raw_watertight_manifold(
     assert result.body_count == 1
 
 
+@pytest.mark.parametrize("prong_count", [4, 6])
+@pytest.mark.parametrize("length_ratio", [1.0, 1.3, 1.8, 2.5])
+def test_the_claws_are_actually_there(prong_count, length_ratio):
+    """Every claw contributes metal (docs/adr/0005).
+
+    A fuse that silently drops bodies still reports watertight, zero
+    non-manifold edges and one solid -- a 6-prong oval at ratio 1.3 once came
+    back as the bare peg (5.65 against 39.02) and passed every other check. So
+    pin something proportional to the metal that must exist: the peg alone is
+    under 10mm3, and each claw adds several more.
+    """
+    from ringcad.geometry import prong_setting
+
+    shape = "round" if length_ratio == 1.0 else "oval"
+    volume = prong_setting(
+        _spec(shape=shape, length_ratio=length_ratio,
+              prong_count=prong_count, stone_diameter=6.0)
+    ).volume
+    floor = 10.0 + 3.0 * prong_count
+    assert volume > floor, (
+        f"{prong_count} claws at ratio {length_ratio} give only {volume:.2f}mm3 "
+        f"(expected > {floor:.0f}) -- claws were probably dropped by the fuse"
+    )
+
+
 def test_oval_solitaire_holds_together_at_a_small_stone(raw_validate):
     """Small stone + high elongation is the tightest curvature we allow, and the
     hardest place to keep the seat wall and claw tips castable."""

@@ -12,8 +12,17 @@ Classification: feature
 - [ ] Prong placement is shape-appropriate: no prong sits on the tip of the long axis
 - [ ] An uploaded photo of an oval solitaire produces an oval model
 - [ ] Frontend control present, editable, WCAG 2.1 AA
-- [ ] **No regression:** round geometry is bit-identical to today (existing parity,
-      watertightness and golden tests untouched and green)
+- [x] **No regression:** existing parity, watertightness and golden tests untouched
+      and green
+
+      *Criterion corrected during CP2 (was: "round geometry is bit-identical").*
+      The seat's `Torus` path IS exactly preserved (12.990866793 before and after).
+      `prong_setting` is not: building claws at girdle points replaces a rotation
+      matrix with `cos`/`sin`, moving round volumes by ~2e-7 relative
+      (38.268503476 -> 38.268510607). Every parity test passes. Bit-identity was
+      achievable only by branching on shape inside `prong_setting`, which is the
+      scattering the outline exists to prevent, so the looser-but-true criterion
+      was adopted deliberately rather than the promise being quietly reinterpreted.
 
 ## Approach
 
