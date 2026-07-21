@@ -118,9 +118,28 @@ regress on a refactor.
       circular rail was never coherent. Also removed `halo._ring_angles`, which
       became unreachable once the outline took over; its RNG-9 contract test moved
       onto `RoundOutline.angles_by_arc` unchanged.
-- [ ] CP4 — wire-up: vision reports shape + ratio, frontend control ·
+- [x] CP4 — wire-up: vision reports shape + ratio, frontend control ·
       files: `ringcad/classify.py`, `templates/index.html`, `static/app.js`,
-      `tests/test_classify.py`, `tests/test_frontend.py`
+      `static/photo.js`, `docs/parameter-ranges.md`,
+      `tests/test_classify_stone_shape.py`, `tests/test_frontend_stone_shape.py`,
+      `tests/test_classify.py`
+
+      Full suite green: 3404 passed, only the 8 warnings ADR-0005 records.
+
+      Bug found while wiring: `photo.js`'s `setField` assigns `.value` without
+      dispatching, so a detected oval prefilled `length_ratio` while leaving it
+      DISABLED (its state only recomputes on `change`). The user could see the
+      estimate but not correct it, breaking the "every field stays editable"
+      promise. Fixed by dispatching `change` on the shape select, as the archetype
+      select already did.
+
+## Remaining before this ticket is delivered
+
+- [ ] Verify against a REAL photo via `spikes/rng22/probe_vision.py`. Every
+      classify test stubs the client, so nothing here proves the live model
+      returns "oval" for an actually-oval stone — precisely the blind spot
+      docs/adr/0004 exists to record ("verify against the real API once").
+- [ ] Ship the branch / open the PR; transition RNG-23.
 
 ## Risks
 

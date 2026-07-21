@@ -17,6 +17,7 @@ from pydantic import BaseModel, ValidationError
 from ringcad.ringspec import (
     Halo,
     SideStone,
+    Stones,
     Trilogy,
     validate_spec,
 )
@@ -58,6 +59,14 @@ _ARCHETYPE_GROUPS = {
 }
 SUPPORTED_ARCHETYPES = ("solitaire", "halo", "trilogy", "side_stone")
 
+# Read off the schema rather than restated, so the clamp cannot drift from the
+# contract (the same rule `_field_bounds` follows for the archetype groups).
+_MAX_LENGTH_RATIO = next(
+    (m.le for m in Stones.model_fields["length_ratio"].metadata
+     if getattr(m, "le", None) is not None),
+    2.5,
+)
+
 DEFAULT_MODEL = "claude-haiku-4-5"
 DEFAULT_NOTE = "Estimates are rough; verify before generating."
 
@@ -73,7 +82,14 @@ _SYSTEM = (
     "group (halo_*, side_stone_* for trilogy, accent_* for side_stone). "
     "EVERY field is required: fill in a number for every dimension, and use "
     "0 for any dimension you cannot estimate or that does not apply to the "
-    "chosen archetype (e.g. the halo_* fields on a solitaire). Give a "
+    "chosen archetype (e.g. the halo_* fields on a solitaire). Set "
+    "`stone_shape` to 'oval' when the centre stone is visibly longer than it "
+    "is wide, otherwise 'round' -- those are the only two shapes that can be "
+    "built, so answer 'round' for any other cut (emerald, pear, cushion, "
+    "marquise) and for anything you are unsure of. Set `stone_length_ratio` to "
+    "the stone's length divided by its width as it appears in the photo (1.0 "
+    "for a round stone, about 1.5 for a typical oval); this is a ratio you can "
+    "see directly, unlike absolute millimetres. Give a "
     "per-field `confidence` in [0,1] for each shared dimension (0 when you "
     "did not estimate it). If the image does not clearly show a single ring, "
     "set ring_detected to false and set every dimension to 0. Never "
@@ -129,6 +145,12 @@ class RingClassification(BaseModel):
     stone_diameter: float
     stone_height: float
     setting_height: float
+    # Centre-stone shape (RNG-23). Plain `str`/`float`, not a Literal or an
+    # optional: either would add a union param, and ADR-0004 keeps this schema
+    # flat and required. The value is validated in code, where an unsupported cut
+    # degrades to "round" instead of failing the whole classification.
+    stone_shape: str
+    stone_length_ratio: float
     # Halo group
     halo_stone_diameter: float
     halo_stone_count: float
@@ -160,6 +182,8 @@ class ClassifyResult:
     archetype: str = "solitaire"
     group_estimates: dict = field(default_factory=dict)
     confidence: dict = field(default_factory=dict)
+    stone_shape: str = "round"
+    stone_length_ratio: float = 1.0
 
     def to_spec(self) -> dict | None:
         """Assemble a validated RingSpec (archetype + groups + confidence), or
@@ -200,6 +224,7 @@ class ClassifyResult:
                     "stone_diameter", _SHARED_DEFAULTS["stone_diameter"]),
                 "stone_height": est.get(
                     "stone_height", _SHARED_DEFAULTS["stone_height"]),
+                **_stone_shape(self.stone_shape, self.stone_length_ratio),
             },
         }
         if self.confidence:
@@ -217,6 +242,31 @@ class ClassifyResult:
             "note": self.note,
             "spec": self.to_spec(),
         }
+
+
+def _stone_shape(shape: str, ratio: float) -> dict:
+    """Normalise the vision layer's stone shape into RingSpec's stones fields.
+
+    Degrades rather than fails: RNG-23 builds round and oval only, so a cut we
+    cannot build yet (emerald, pear, marquise) becomes a round stone of the same
+    size instead of a spec that fails validation. That keeps the never-500 rule
+    and leaves the field editable, which the "estimates only" framing already
+    promises.
+
+    A ratio of 1.0 IS a circle, so an "oval" that thin is recorded as round --
+    calling it oval would be a claim the geometry then has to special-case.
+    """
+    name = (shape or "").strip().lower()
+    try:
+        value = float(ratio)
+    except (TypeError, ValueError):
+        value = 1.0
+    # 0.0 is the schema's "not estimated" sentinel; below 1.0 is the same stone
+    # rotated, not a new shape.
+    value = max(1.0, min(_MAX_LENGTH_RATIO, value))
+    if name != "oval" or value <= 1.0:
+        return {"shape": "round", "length_ratio": 1.0}
+    return {"shape": "oval", "length_ratio": value}
 
 
 def _model() -> str:
@@ -377,6 +427,8 @@ def classify_ring(image_bytes: bytes, media_type: str) -> ClassifyResult:
             archetype=archetype,
             group_estimates=_group_estimates(archetype, data),
             confidence=_confidence(data.confidence),
+            stone_shape=data.stone_shape,
+            stone_length_ratio=data.stone_length_ratio,
         )
     except Exception:
         logger.error("classify_ring failed", exc_info=True)

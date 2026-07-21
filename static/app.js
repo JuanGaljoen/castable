@@ -100,9 +100,31 @@ function gatherStructuredBody(name) {
     stones: {
       stone_diameter: Number(document.getElementById("stone_diameter").value),
       stone_height: Number(document.getElementById("stone_height").value),
+      ...stoneShapeFields(),
     },
     [cfg.group]: group,
   };
+}
+
+// Centre-stone shape (RNG-23). `stone_diameter` is the WIDTH; the long axis is
+// width * length_ratio. A round stone is always ratio 1.0 whatever the ratio box
+// happens to hold, so a stale value can never elongate a round stone.
+function stoneShapeFields() {
+  const shape = document.getElementById("shape").value;
+  const ratio = Number(document.getElementById("length_ratio").value);
+  if (shape !== "oval" || !(ratio > 1)) {
+    return { shape: "round", length_ratio: 1 };
+  }
+  return { shape: "oval", length_ratio: ratio };
+}
+
+// The ratio only means anything for an oval, so it is disabled (and reset) for a
+// round stone rather than left as a live control with no effect.
+function applyShapeState() {
+  const isOval = document.getElementById("shape").value === "oval";
+  const ratio = document.getElementById("length_ratio");
+  ratio.disabled = !isOval;
+  if (!isOval) ratio.value = "1";
 }
 
 function gatherRequestBody() {
@@ -311,3 +333,7 @@ async function generate(event) {
 form.addEventListener("submit", generate);
 archetypeSelect.addEventListener("change", applyArchetypeVisibility);
 applyArchetypeVisibility();
+
+const shapeSelect = document.getElementById("shape");
+shapeSelect.addEventListener("change", applyShapeState);
+applyShapeState();

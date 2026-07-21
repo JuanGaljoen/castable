@@ -76,6 +76,9 @@ _FULL = dict(
     side_stone_diameter=0.0, side_stone_height=0.0, side_stone_gap=0.0,
     accent_stone_diameter=0.0, accent_stone_height=0.0,
     accent_count_per_side=0.0, accent_gap=0.0,
+    # Centre-stone shape (RNG-23); required like everything else, so the default
+    # stub describes a plain round stone.
+    stone_shape="round", stone_length_ratio=1.0,
     note="rough estimate",
 )
 

@@ -41,7 +41,14 @@ Two consequences worth knowing before choosing a ratio:
 
 Prongs are placed so the tips fall midway between adjacent claws (the
 conventional 10-2-4-8 layout at 4 prongs), keeping every claw off the
-high-curvature apex.
+high-curvature apex. A halo follows the same outline, with its accents spaced by
+arc length so they do not bunch at the tips.
+
+The vision layer estimates both fields from a photo. It reports `oval` only when
+the stone is visibly longer than wide, answers `round` for any cut it cannot
+build (emerald, pear, cushion, marquise) or is unsure of, and estimates
+`length_ratio` as a ratio rather than in millimetres, since a ratio is what a
+photo actually shows.
 
 ## Halo accent (RNG-9, HaloSpec only)
 The accent-stone ring encircling the centre stone. Ranges are structural sanity
