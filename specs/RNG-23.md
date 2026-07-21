@@ -100,8 +100,24 @@ regress on a refactor.
       files: `ringcad/geometry/_common.py`, `seat.py`, `prong_setting.py`, `bezel.py`,
       `ringcad/ringspec/castability.py`, `tests/test_oval_geometry.py`,
       `tests/test_oval_castability.py`
-- [ ] CP3 — halo walks the outline (arc-length spacing, not equal-angle) ·
-      files: `ringcad/geometry/halo.py`, `tests/test_oval_halo.py`
+- [x] CP3 — halo walks the outline (arc-length spacing, not equal-angle) ·
+      files: `ringcad/geometry/halo.py`, `ringcad/geometry/gallery.py`,
+      `ringcad/geometry/outline.py`, `tests/test_oval_halo.py`,
+      `tests/test_halo_watertight.py`
+
+      Full suite green: 3374 passed, only the 8 warnings ADR-0005 already records.
+
+      Scope note: CP3 needed `gallery.py` and `outline.py` beyond the planned file
+      list. The halo's connectivity standard IS the gallery, so an oval halo on a
+      circular rail was never coherent. Also removed `halo._ring_angles`, which
+      became unreachable once the outline took over; its RNG-9 contract test moved
+      onto `RoundOutline.angles_by_arc` unchanged.
+
+      Scope note: CP3 needed `gallery.py` and `outline.py` beyond the planned file
+      list. The halo's connectivity standard IS the gallery, so an oval halo on a
+      circular rail was never coherent. Also removed `halo._ring_angles`, which
+      became unreachable once the outline took over; its RNG-9 contract test moved
+      onto `RoundOutline.angles_by_arc` unchanged.
 - [ ] CP4 — wire-up: vision reports shape + ratio, frontend control ·
       files: `ringcad/classify.py`, `templates/index.html`, `static/app.js`,
       `tests/test_classify.py`, `tests/test_frontend.py`

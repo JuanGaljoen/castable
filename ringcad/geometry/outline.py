@@ -72,6 +72,19 @@ class StoneOutline(Protocol):
         and the parity / golden suites pin today's round output.
         """
 
+    def expanded(self, distance: float) -> "StoneOutline":
+        """The same shape grown outward by `distance` -- the curve a halo ring or
+        a bezel wall sits on."""
+
+    def angles_by_arc(self, n: int, offset: float = 0.0) -> list[float]:
+        """`n` angles spaced equally by ARC LENGTH, not by angle.
+
+        Equal angles crowd features toward the tips of an elongated shape, where
+        the curve travels fastest per radian, so a halo that looks even in polar
+        coordinates is visibly bunched in metal. `offset` shifts the whole set by
+        that fraction of one step (0.5 = the gap midpoints, for shared prongs).
+        """
+
 
 class RoundOutline:
     """A circular girdle: the pre-RNG-23 behaviour, unchanged."""
@@ -100,6 +113,15 @@ class RoundOutline:
     def tube(self, minor_r: float):
         # The pre-RNG-23 seat call, unchanged: `Torus(stone_r, collar_tr)`.
         return Torus(self.radius, minor_r)
+
+    def expanded(self, distance: float) -> "RoundOutline":
+        return RoundOutline(self.radius + distance)
+
+    def angles_by_arc(self, n: int, offset: float = 0.0) -> list[float]:
+        # On a circle equal arc IS equal angle, so return the analytic values
+        # rather than a numerical inversion -- this keeps the existing halo ring
+        # bit-identical.
+        return [TWO_PI * (k + offset) / n for k in range(n)]
 
 
 class OvalOutline:
@@ -140,6 +162,58 @@ class OvalOutline:
     def min_curvature_radius(self) -> float:
         # Tightest bend is at the end of the major axis: p^2 / q.
         return self.semi_minor ** 2 / self.semi_major
+
+    def expanded(self, distance: float) -> "OvalOutline":
+        """Grow both semi-axes by `distance`.
+
+        Deliberately NOT the exact parallel curve of an ellipse, which is a
+        higher-degree curve and not an ellipse at all. Growing both axes keeps the
+        result a clean ellipse the kernel can sweep, and the error against the
+        true offset is largest at the tips and small at the scale of a halo gap.
+        A jeweller lays out a halo the same way.
+        """
+        return OvalOutline(self.semi_minor + distance, self.semi_major + distance)
+
+    def _arc_table(self, samples: int = 4096) -> tuple[list[float], float]:
+        """Cumulative arc length at `samples` equally-spaced parameter values.
+
+        Integrated here rather than read off the kernel wire: OCCT reports this
+        ellipse's length ~0.13% high (see tests/test_stone_outline.py), and the
+        accent spacing should not inherit that.
+        """
+        p, q = self.semi_minor, self.semi_major
+        cumulative = [0.0]
+        prev_x, prev_y = p, 0.0
+        for i in range(1, samples + 1):
+            t = TWO_PI * i / samples
+            x, y = p * math.cos(t), q * math.sin(t)
+            cumulative.append(
+                cumulative[-1] + math.hypot(x - prev_x, y - prev_y)
+            )
+            prev_x, prev_y = x, y
+        return cumulative, cumulative[-1]
+
+    def angles_by_arc(self, n: int, offset: float = 0.0) -> list[float]:
+        cumulative, total = self._arc_table()
+        samples = len(cumulative) - 1
+        angles = []
+        for k in range(n):
+            target = total * (k + offset) / n
+            # Invert the cumulative table by linear interpolation.
+            lo, hi = 0, samples
+            while lo < hi:
+                mid = (lo + hi) // 2
+                if cumulative[mid] < target:
+                    lo = mid + 1
+                else:
+                    hi = mid
+            if lo == 0:
+                angles.append(0.0)
+                continue
+            span = cumulative[lo] - cumulative[lo - 1]
+            frac = (target - cumulative[lo - 1]) / span if span else 0.0
+            angles.append(TWO_PI * (lo - 1 + frac) / samples)
+        return angles
 
     def tube(self, minor_r: float):
         """Sweep the collar section along the ellipse.
