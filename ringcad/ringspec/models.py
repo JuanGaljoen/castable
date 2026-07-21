@@ -47,12 +47,25 @@ class Setting(BaseModel):
 
 
 class Stones(BaseModel):
-    """Centre-stone sizing for the seat module."""
+    """Centre-stone sizing and shape for the seat module.
+
+    `stone_diameter` is the SHORT axis (the width); the long axis is
+    `stone_diameter * length_ratio`. Both shape fields are defaulted, so every
+    spec written before RNG-23 stays valid and still means a round stone.
+
+    A ratio rather than an explicit length: it is the quantity a photo actually
+    shows (feeding RNG-26), and `length_ratio == 1.0` makes round fall out of the
+    same code path instead of needing a branch. The 2.5 cap is a castability
+    guard -- an ellipse's tightest bend is `semi_minor^2 / semi_major`, so
+    elongation directly thins the metal at the tips.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     stone_diameter: float = Field(gt=0, le=24)
     stone_height: float = Field(gt=0, le=12)
+    shape: Literal["round", "oval"] = "round"
+    length_ratio: float = Field(default=1.0, ge=1.0, le=2.5)
 
 
 class Motif(BaseModel):

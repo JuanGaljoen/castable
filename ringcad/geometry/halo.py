@@ -1,7 +1,10 @@
 """halo() — the halo composition module (RNG-9 CP3).
 
-Rings N `accent_seat` beads at angles `theta_k = 2*pi*k/N` and N shared prongs at
-the gap midpoints `theta_k + pi/N` on a `gallery`, fused into ONE watertight body.
+Rings N `accent_seat` beads along the centre stone's outline, grown outward by
+`halo_gap + accent_r`, with N shared prongs at the gap midpoints, all on a
+`gallery`, fused into ONE watertight body. Accents are spaced by ARC LENGTH so an
+oval halo does not bunch them at the tips (RNG-23); on a circle that is the same
+as the original `2*pi*k/N`.
 
 Connectivity is watertight BY CONSTRUCTION, not by luck. OCCT booleans slice
 cleanly through *transversal* overlaps but sliver / drop bodies on *tangential*
@@ -27,8 +30,6 @@ one sanctioned map), applied last — identical contract to the CP2 primitives.
 """
 from __future__ import annotations
 
-import math
-
 from build123d import Align, Box, Cone, Location, Pos
 
 from ._common import (
@@ -50,17 +51,6 @@ FOOT_RISE = 0.15
 # Minimum visible claw rise above the foot (guarantees a positive-height claw on
 # low settings where the girdle nearly meets the stone crown).
 MIN_CLAW_RISE = 0.3
-
-
-def _ring_angles(n: int) -> tuple[list[float], list[float]]:
-    """The N seat angles + N shared-prong midpoint angles (radians).
-
-    Seats sit at `2*pi*k/N`; each prong bisects the gap to the next seat
-    (`+ pi/N`), so the last prong wraps closed between seat N-1 and seat 0.
-    """
-    seats = [2 * math.pi * k / n for k in range(n)]
-    prongs = [theta + math.pi / n for theta in seats]
-    return seats, prongs
 
 
 def _prong(base_r: float, tip_r: float, foot_w: float, foot_h: float,
@@ -94,6 +84,10 @@ def halo_parts(spec, c: dict | None = None) -> list:
     height = spec.halo.halo_stone_height
     n = spec.halo.halo_stone_count
 
+    # The accent ring FOLLOWS the girdle: the same shape grown outward by the gap
+    # plus one accent radius. For a round stone this is a circle of exactly the
+    # old radius, so circular halos are unchanged.
+    ring = c["outline"].expanded(spec.halo.halo_gap + accent_r)
     R = c["stone_r"] + spec.halo.halo_gap + accent_r
     seat_z = c["ring_z"]
     depth = max(0.5 * height, MIN_WALL)
@@ -102,7 +96,13 @@ def halo_parts(spec, c: dict | None = None) -> list:
     rail_z = rail_top_z - RAIL_MINOR
 
     place = placement(c)
-    seats, prongs = _ring_angles(n)
+    # Spaced by ARC LENGTH, not by angle: on an ellipse equal angles crowd the
+    # accents toward the tips, where the curve covers most distance per radian.
+    # `RoundOutline` returns the analytic even angles, so the original contract
+    # (seats at 2*pi*k/N, prongs bisecting each gap) is preserved exactly for a
+    # circular halo.
+    seats = ring.angles_by_arc(n)
+    prongs = ring.angles_by_arc(n, offset=0.5)
 
     # Prong geometry: Box foot buried from the rail core up past the girdle,
     # tapered Cone claw above it (never touching the rail torus).
@@ -118,14 +118,14 @@ def halo_parts(spec, c: dict | None = None) -> list:
     #   (1) Gallery rail backbone: every accent seat's bearing plunges RAIL_OVERLAP
     #       into the gallery rail tube, welding the ring — one rail, no bead-rail.
     #   (2) Transversal prongs: each Box-footed claw buried in the rail-tube core.
-    parts = [gallery(R, rail_top_z, hub_r, loc=place)]
+    parts = [gallery(R, rail_top_z, hub_r, outline=ring, loc=place)]
     for theta in seats:
-        seat_loc = place * Pos(R * math.cos(theta), R * math.sin(theta), seat_z)
+        point, _ = ring.frame_at(theta)
+        seat_loc = place * Pos(point.X, point.Y, seat_z)
         parts.append(accent_seat(accent_r, height, seat_loc))
     for theta_m in prongs:
-        loc = place * Pos(
-            R * math.cos(theta_m), R * math.sin(theta_m), prong_base_z
-        )
+        point, _ = ring.frame_at(theta_m)
+        loc = place * Pos(point.X, point.Y, prong_base_z)
         parts.append(_prong(base_r, tip_r, foot_w, foot_h, claw_h, loc))
     return parts
 

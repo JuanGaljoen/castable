@@ -31,6 +31,12 @@ _SIDE_STONE_A_MAX_DEG = 110.0
 # against the SCAD/build123d geometry; do not treat it as exact.
 _PRONG_WIRE_FRACTION = 0.25
 
+# Section radius of the seat collar, mirrored from ringcad/geometry/seat.py
+# (`max(MIN_WALL / 2, 0.45)`). Imported as a number rather than from the geometry
+# package so the spec layer stays independent of the kernel, exactly as the
+# side-stone placement angles above mirror side_stone.py.
+_SEAT_COLLAR_R = max(MIN_WALL_MM / 2, 0.45)
+
 
 class Violation(BaseModel):
     """A single structured castability failure (JSON-serializable)."""
@@ -88,15 +94,22 @@ def _min_prong_tip(spec: RingSpec) -> list[Violation]:
 def _geometric(spec: RingSpec) -> list[Violation]:
     """Cross-field geometric impossibilities."""
     out: list[Violation] = []
-    if spec.stones.stone_diameter >= spec.shank.inner_diameter:
+    # The stone's LONGEST axis is what has to fit over the bore: `stone_diameter`
+    # is the short axis once a shape is involved (RNG-23), so comparing it alone
+    # let a 10mm stone at length_ratio 2.5 -- 25mm long across a 16.5mm bore --
+    # through the gate.
+    stone_length = spec.stones.stone_diameter * getattr(
+        spec.stones, "length_ratio", 1.0
+    )
+    if stone_length >= spec.shank.inner_diameter:
         out.append(
             Violation(
                 code="stone_exceeds_bore",
                 field="stones.stone_diameter",
-                message="Stone diameter must be smaller than the finger bore "
-                "(inner_diameter).",
+                message="Stone must be smaller than the finger bore "
+                "(inner_diameter) along its longest axis.",
                 limit_mm=spec.shank.inner_diameter,
-                actual_mm=spec.stones.stone_diameter,
+                actual_mm=stone_length,
             )
         )
     if spec.stones.stone_height >= spec.setting.setting_height:
@@ -128,15 +141,39 @@ def _geometric(spec: RingSpec) -> list[Violation]:
 # accents) that construction does not guard against.
 
 
+def _ring_perimeter(semi_minor: float, semi_major: float) -> float:
+    """Perimeter of the accent ring, circle or ellipse.
+
+    Ramanujan's approximation, accurate to better than 1e-5 relative across the
+    elongations RingSpec allows. Kept as arithmetic here rather than reaching into
+    `ringcad.geometry.outline`, so the spec layer stays independent of the kernel
+    (the same separation `_SEAT_COLLAR_R` and the side-stone angles observe).
+    """
+    if semi_minor == semi_major:
+        return 2 * math.pi * semi_minor
+    a, b = semi_major, semi_minor
+    return math.pi * (
+        3 * (a + b) - math.sqrt((3 * a + b) * (a + 3 * b))
+    )
+
+
 def _halo_overcrowding(spec: RingSpec) -> list[Violation]:
-    """Accents packed tighter than their own diameter around the halo ring."""
+    """Accents packed tighter than their own diameter around the halo ring.
+
+    Measured around the ring the halo ACTUALLY rides. Since RNG-23 CP3 that ring
+    follows the centre stone's outline, so for an oval stone it is an ellipse and
+    is longer than a circle of the short axis. Computing the arc from that circle
+    rejected specs the geometry could build -- caught by running a real oval-halo
+    photo end to end, since every classify test stubs the client.
+    """
     if not isinstance(spec, HaloSpec):
         return []
     halo = spec.halo
-    radius = (
-        spec.stones.stone_diameter / 2 + halo.halo_gap + halo.halo_stone_diameter / 2
-    )
-    arc = 2 * math.pi * radius / halo.halo_stone_count
+    offset = halo.halo_gap + halo.halo_stone_diameter / 2
+    semi_minor = spec.stones.stone_diameter / 2
+    semi_major = semi_minor * getattr(spec.stones, "length_ratio", 1.0)
+    perimeter = _ring_perimeter(semi_minor + offset, semi_major + offset)
+    arc = perimeter / halo.halo_stone_count
     if arc < halo.halo_stone_diameter:
         return [
             Violation(
@@ -168,7 +205,12 @@ def _trilogy_overcrowding(spec: RingSpec) -> list[Violation]:
         return []
     trilogy = spec.trilogy
     shank = spec.shank
-    stone_r = spec.stones.stone_diameter / 2
+    # Width-consumer, not curve-walker: the side stones flank along the band,
+    # which is the SAME axis an N-S oval is longest on, so the clearance must be
+    # measured from the long half-width. Round is length_ratio 1.0, unchanged.
+    stone_r = (spec.stones.stone_diameter / 2) * getattr(
+        spec.stones, "length_ratio", 1.0
+    )
     side_r = trilogy.side_stone_diameter / 2
     head_r = shank.inner_diameter / 2 + shank.band_thickness * shank.shank_taper
     arc = stone_r + trilogy.side_stone_gap + side_r
@@ -251,12 +293,53 @@ def _side_stone_overcrowding(spec: RingSpec) -> list[Violation]:
     return []
 
 
+def _stone_curvature(spec: RingSpec) -> list[Violation]:
+    """The girdle bends too sharply for the seat collar to follow it (RNG-23).
+
+    A tube of section radius r swept along a curve whose radius of curvature is
+    smaller than r self-intersects: the inner wall passes through itself. That is
+    degenerate metal, not merely thin metal, so it is checked as the geometric
+    fact it is rather than through a wall-thickness proxy (cf. docs/adr/0002,
+    0003).
+
+    For an ellipse with semi-axes p (short) and q (long) the tightest bend is at
+    the apex of the long axis, radius p^2/q. With `stone_diameter` as the short
+    axis this is simply `(stone_diameter / 2) / length_ratio`, so it tightens
+    both as the stone shrinks and as it elongates.
+    """
+    stones = getattr(spec, "stones", None)
+    if stones is None or getattr(stones, "shape", "round") == "round":
+        return []
+    ratio = getattr(stones, "length_ratio", 1.0)
+    if ratio <= 1.0:
+        return []
+    semi_minor = stones.stone_diameter / 2
+    min_curvature = semi_minor / ratio
+    if min_curvature >= _SEAT_COLLAR_R:
+        return []
+    return [
+        Violation(
+            code="stone_curvature",
+            field="stones.length_ratio",
+            message=(
+                f"The stone's tip curves with a {min_curvature:.3f}mm radius, "
+                f"tighter than the {_SEAT_COLLAR_R:.2f}mm seat collar can "
+                "follow without passing through itself. Reduce length_ratio or "
+                "increase stone_diameter."
+            ),
+            limit_mm=_SEAT_COLLAR_R,
+            actual_mm=min_curvature,
+        )
+    ]
+
+
 def validate_castability(spec: RingSpec) -> list[Violation]:
     """Run the full lost-wax gate; [] means the spec is castable."""
     return (
         _min_wall(spec)
         + _min_prong_tip(spec)
         + _geometric(spec)
+        + _stone_curvature(spec)
         + _halo_overcrowding(spec)
         + _trilogy_overcrowding(spec)
         + _side_stone_overcrowding(spec)

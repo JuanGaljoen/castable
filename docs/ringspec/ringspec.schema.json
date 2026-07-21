@@ -441,7 +441,7 @@
     },
     "Stones": {
       "additionalProperties": false,
-      "description": "Centre-stone sizing for the seat module.",
+      "description": "Centre-stone sizing and shape for the seat module.\n\n`stone_diameter` is the SHORT axis (the width); the long axis is\n`stone_diameter * length_ratio`. Both shape fields are defaulted, so every\nspec written before RNG-23 stays valid and still means a round stone.\n\nA ratio rather than an explicit length: it is the quantity a photo actually\nshows (feeding RNG-26), and `length_ratio == 1.0` makes round fall out of the\nsame code path instead of needing a branch. The 2.5 cap is a castability\nguard -- an ellipse's tightest bend is `semi_minor^2 / semi_major`, so\nelongation directly thins the metal at the tips.",
       "properties": {
         "stone_diameter": {
           "exclusiveMinimum": 0,
@@ -453,6 +453,22 @@
           "exclusiveMinimum": 0,
           "maximum": 12,
           "title": "Stone Height",
+          "type": "number"
+        },
+        "shape": {
+          "default": "round",
+          "enum": [
+            "round",
+            "oval"
+          ],
+          "title": "Shape",
+          "type": "string"
+        },
+        "length_ratio": {
+          "default": 1.0,
+          "maximum": 2.5,
+          "minimum": 1.0,
+          "title": "Length Ratio",
           "type": "number"
         }
       },

@@ -138,6 +138,15 @@
       }
     });
 
+    // `setField` assigns `.value` silently, but the shape select drives whether
+    // `length_ratio` is editable, and that state is only recomputed on change.
+    // Without this a detected oval would arrive with its ratio locked, so the
+    // user could see the estimate but not correct it.
+    var shapeSelect = $("shape");
+    if (shapeSelect) {
+      shapeSelect.dispatchEvent(new Event("change"));
+    }
+
     // The one non-meta key is the active archetype's own group object.
     Object.keys(spec).forEach(function (key) {
       if (!META_KEYS[key] && spec[key] && typeof spec[key] === "object") {

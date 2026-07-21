@@ -15,9 +15,12 @@ construction — no tangency, no `.clean()` needed.
 """
 from __future__ import annotations
 
-from build123d import Align, Box, Cylinder, Location, Pos, Rot, Torus
+import math
+
+from build123d import Align, Box, Cylinder, Location, Pos, Rot
 
 from ._common import ACCENT_FUSE_EPS, MIN_WALL
+from .outline import RoundOutline
 
 # Rail tube minor radius -> rail wall = 2*RAIL_MINOR ~= 1.2mm (> 0.8 floor).
 RAIL_MINOR = max(MIN_WALL * 0.75, 0.6)
@@ -30,11 +33,15 @@ _OV = ACCENT_FUSE_EPS * 4
 def gallery(ring_r: float, rail_top_z: float, hub_r: float, *,
             hub_bottom_z: float = 0.0, n_bridges: int = 4,
             rail_minor: float = RAIL_MINOR, bridge_r: float = BRIDGE_R,
-            loc: Location = Location()):
+            outline=None, loc: Location = Location()):
     """One fused gallery solid, placed by rigid `loc`.
 
     Args:
-        ring_r: radius of the rail circle (mm).
+        ring_r: radius of the rail circle (mm). Ignored when `outline` is given.
+        outline: optional StoneOutline the rail should FOLLOW instead of a circle
+            (RNG-23) -- an oval centre stone needs an oval gallery under its halo.
+            Omitted means a circle of radius `ring_r`, which is what
+            `RoundOutline(ring_r)` builds anyway, so round output is unchanged.
         rail_top_z: local +Z of the rail tube's top (where seats seat).
         hub_r: central hub cylinder radius (mm); must overlap the center peg.
         hub_bottom_z: local +Z of the hub base (default 0, the shank plane).
@@ -43,8 +50,11 @@ def gallery(ring_r: float, rail_top_z: float, hub_r: float, *,
         bridge_r: bridge strut half-width (drives bridge wall thickness).
         loc: rigid Location (rot+trans) applied last.
     """
+    ring = outline if outline is not None else RoundOutline(ring_r)
     rail_z = rail_top_z - rail_minor
-    rail = Pos(0, 0, rail_z) * Torus(ring_r, rail_minor)
+    # RoundOutline.tube() IS `Torus(ring_r, rail_minor)`, so the circular gallery
+    # is bit-identical to pre-RNG-23.
+    rail = Pos(0, 0, rail_z) * ring.tube(rail_minor)
     hub = Pos(0, 0, hub_bottom_z) * Cylinder(
         hub_r, rail_top_z - hub_bottom_z,
         align=(Align.CENTER, Align.CENTER, Align.MIN),
@@ -56,15 +66,21 @@ def gallery(ring_r: float, rail_top_z: float, hub_r: float, *,
     # embeds `_OV` into the hub; the outer end punches PAST the tube centre
     # (radius `ring_r`) into its far half so the whole strut is buried in the
     # tube core. Angles are half-stepped so no strut lies in a symmetry plane.
+    # On a non-circular rail each strut has its own reach, so the outer end is
+    # derived per bridge from where the rail actually is at that angle.
     inner = hub_r - _OV
-    outer = ring_r + rail_minor * 0.5
-    length = outer - inner
     bridges = []
-    for i in range(n_bridges):
+    for theta in ring.angles_by_arc(n_bridges, offset=0.5):
+        point, _ = ring.frame_at(theta)
+        # The geometric bearing of the point, which for an ellipse is NOT the
+        # parametric angle; the strut must be rotated to where the rail IS.
+        bearing = math.degrees(math.atan2(point.Y, point.X))
+        outer = math.hypot(point.X, point.Y) + rail_minor * 0.5
+        length = outer - inner
         strut = Pos(inner + length / 2, 0, rail_z) * Box(
             length, 2 * bridge_r, 2 * bridge_r
         )
-        bridges.append(Rot(0, 0, (i + 0.5) * 360.0 / n_bridges) * strut)
+        bridges.append(Rot(0, 0, bearing) * strut)
 
     g = rail.fuse(hub, *bridges)
     return loc * g

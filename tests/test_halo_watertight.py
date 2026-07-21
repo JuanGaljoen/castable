@@ -19,7 +19,8 @@ import pytest
 
 from ringcad.geometry import compose
 from ringcad.geometry._common import clamps
-from ringcad.geometry.halo import _ring_angles, halo
+from ringcad.geometry.halo import halo
+from ringcad.geometry.outline import RoundOutline
 from ringcad.ringspec import Halo, HaloSpec, Setting, Shank, Stones
 
 # Curated CASTABLE band: min/mid/max of each halo dimension in representative
@@ -99,10 +100,17 @@ def test_halo_band_raw_watertight(
 
 @pytest.mark.parametrize("n", [8, 9, 14, 24])
 def test_ring_closes_and_count(n):
-    """CP3-2: `_ring_angles(N)` returns N seat angles + N midpoint prong angles;
-    the ring CLOSES — the last shared prong sits at the midpoint between accent
-    N-1 and accent 0 (wrap). Covers odd (9) and even parity."""
-    seats, prongs = _ring_angles(n)
+    """CP3-2: N seat angles + N midpoint prong angles, and the ring CLOSES — the
+    last shared prong sits at the midpoint between accent N-1 and accent 0
+    (wrap). Covers odd (9) and even parity.
+
+    RNG-23 moved this contract from halo's private `_ring_angles` onto the stone
+    outline (`angles_by_arc`), so that an oval halo can space its accents by arc
+    length instead of by angle. On a circle the two coincide, so the contract
+    asserted here is unchanged — only its home moved."""
+    ring = RoundOutline(3.25)
+    seats = ring.angles_by_arc(n)
+    prongs = ring.angles_by_arc(n, offset=0.5)
     assert len(seats) == n, f"expected {n} seat angles, got {len(seats)}"
     assert len(prongs) == n, f"expected {n} prong angles, got {len(prongs)}"
     # each prong bisects an accent gap; the first between accent 0 and accent 1
