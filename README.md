@@ -1,14 +1,19 @@
 # Ring CAD
 
-Parametric solitaire-ring generator. Enter ring parameters (or upload a photo),
+Parametric jewelry-ring generator. Enter ring parameters (or upload a photo),
 and the app generates a watertight 3D model in-process with build123d (an
-OpenCASCADE B-rep kernel), validates and auto-repairs the mesh, previews it in the
-browser, and exports a clean STL (and STEP) ready for lost-wax casting.
+OpenCASCADE B-rep kernel), validates the mesh, previews it in the browser, and
+exports a clean STL (and STEP) ready for lost-wax casting. Four ring styles are
+supported — **solitaire, halo, trilogy, and side-stone band** — with round or
+oval centre stones.
 
 ## Features
 
-- **Parametric geometry** — 7 ring parameters drive composable build123d modules
-  (`shank`, `prong_setting`, `seat`) fused into one watertight manifold.
+- **Parametric geometry** — each ring style is a composition of reusable
+  build123d modules (`shank`, `seat`, `prong_setting`, `bezel`, `gallery`,
+  `accent_seat`, `accent_prong`, …) fused into one watertight manifold; a
+  pluggable `StoneOutline` seam makes stone shape (round / oval) orthogonal to
+  the modules that follow it.
 - **Typed contract (RingSpec)** — requests are validated against a versioned,
   typed RingSpec schema; castability is checked *before* any geometry runs.
 - **Casting-ready output** — manufacturing limits (min wall 0.8 mm, min prong tip
@@ -20,8 +25,10 @@ browser, and exports a clean STL (and STEP) ready for lost-wax casting.
 - **STL + STEP export** — STL for print/preview, STEP for CAD interchange.
 - **3D preview** — Three.js viewer with orbit/zoom/pan and a wireframe toggle.
 - **Photo-assisted entry (optional)** — upload a ring photo and Claude vision
-  estimates parameters to pre-fill the form. Works without an API key (the
-  feature degrades gracefully to manual entry).
+  detects the ring style and populates a full, schema-valid RingSpec (archetype,
+  dimensions, stone shape, per-field confidence) that pre-fills the form; every
+  estimate stays user-overridable, and low-confidence fields are flagged. Works
+  without an API key (the feature degrades gracefully to manual entry).
 
 ## Screenshots
 
@@ -29,7 +36,24 @@ browser, and exports a clean STL (and STEP) ready for lost-wax casting.
 
 ## Architecture
 
-![Ring CAD architecture diagram](docs/screenshots/architecture.png)
+A `/generate-ring` request, end to end:
+
+```mermaid
+sequenceDiagram
+    participant U as Browser (app.js)
+    participant F as Flask (app.py)
+    participant V as validate_spec
+    participant G as compose(spec)
+    participant M as Mesh gate
+    U->>F: POST /generate-ring {archetype, shank, setting, stones, ...}
+    F->>V: parse + validate RingSpec
+    V-->>F: 400 naming the bad field (if invalid)
+    F->>G: build modules, fuse into one solid
+    G->>M: tessellate → watertight / manifold check
+    M-->>F: mesh stats (X-Mesh-* headers)
+    F-->>U: binary STL (or STEP with ?format=step)
+    U->>U: Three.js renders it, Download enabled
+```
 
 ## Stack
 
@@ -95,15 +119,22 @@ export ANTHROPIC_API_KEY=sk-ant-...
 
 ## Ring parameters
 
+The shared core (the solitaire's slice of RingSpec):
+
 | Parameter        | Notes                         |
 | ---------------- | ----------------------------- |
 | `inner_diameter` | Finger size (mm)              |
 | `band_width`     | Shank width (mm)              |
 | `band_thickness` | Shank thickness (mm, >= 0.8)  |
-| `stone_diameter` | Stone seat sizing (mm)        |
+| `stone_diameter` | Stone seat sizing (mm; the short axis for oval stones) |
 | `stone_height`   | Stone height (mm)             |
 | `prong_count`    | 4 or 6 only                   |
 | `setting_height` | Gallery / setting height (mm) |
+
+Centre stones also take a `shape` (`round` / `oval`) and, for ovals, a
+`length_ratio`. Each other archetype adds its own group on top — `halo`
+(accent size/count), `trilogy` (side-stone size/ratio), `side_stone`
+(accent row + `retention`) — selectable in the form's style dropdown.
 
 Defaults and sane ranges live in `docs/parameter-ranges.md`. The RingSpec contract
 (`docs/ringspec/`) validates types and ranges; non-castable specs (e.g. a wall
@@ -115,8 +146,8 @@ under 0.8 mm) are rejected with a structured error before geometry runs.
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /`               | The single-page app                                                                                                                          |
 | `GET /health`         | `{"status": "ok"}`                                                                                                                           |
-| `POST /generate-ring` | Accepts the 7 params as JSON; returns a binary STL (`model/stl`) with `X-Mesh-Valid` / `X-Mesh-Repaired` headers. `?format=step` returns STEP (`model/step`). Non-castable or malformed input returns a 400 JSON error naming the field. |
-| `POST /classify-ring` | Accepts an image (multipart `image`); returns Claude vision estimates, or 503 if no API key is configured                                    |
+| `POST /generate-ring` | Accepts a structured RingSpec JSON body (`archetype` + its groups) — or, for back-compat, the flat 7 solitaire params with no `archetype` key. Returns a binary STL (`model/stl`) with `X-Mesh-Valid` / `X-Mesh-Repaired` headers. `?format=step` returns STEP (`model/step`). Non-castable or malformed input returns a 400 JSON error naming the field. |
+| `POST /classify-ring` | Accepts an image (multipart `image`); returns `{ring_detected, detected_style, note, spec}` where `spec` is a validated RingSpec with per-field confidence, or 503 if no API key is configured |
 
 Example:
 
@@ -149,7 +180,7 @@ ringcad/
   app.py                # Flask app factory + routes
   params.py             # request validation (thin view over RingSpec)
   ringspec/             # RingSpec: typed/versioned contract + castability
-  geometry/             # build123d modules (shank / prong_setting / seat) + export
+  geometry/             # build123d module library + archetype compositions + export
   mesh_validator.py     # trimesh validation + auto-repair
   classify.py           # Claude vision ring classification
 templates/index.html    # single-page UI
