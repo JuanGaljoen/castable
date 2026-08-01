@@ -16,6 +16,9 @@ output/*.off
 output/*.png
 *.log
 
+# Probe output (RNG-22): geometry regenerated on demand, not source of truth
+probes/output/
+
 # Claude local settings (machine-specific)
 .claude/settings.local.json
 

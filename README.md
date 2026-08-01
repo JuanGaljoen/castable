@@ -172,6 +172,20 @@ pytest -q
 Geometry tests build real B-rep solids in-process (a few seconds each); photo
 classification tests mock the Anthropic client (no key or network required).
 
+### Photo fidelity probe
+
+The suite never calls the live vision API. To check what the app actually does
+with real photos — the measure for every "this looks closer to the photo" change
+— run the probe:
+
+```bash
+python probes/fidelity_probe.py
+```
+
+It runs a committed corpus through the real upload-to-generate path and reports
+per photo. Costs one Anthropic call each (~$0.003); skips cleanly with no key.
+See [probes/README.md](probes/README.md).
+
 ## Project layout
 
 ```
@@ -187,6 +201,9 @@ templates/index.html    # single-page UI
 static/                  # app.js, photo.js, viewer.js, styles.css, vendored three
 docs/                    # parameter ranges, RingSpec contract, per-ticket specs
 tests/                   # pytest suite
+probes/                  # developer probes (live API, never run by pytest)
+  fidelity_probe.py      # photo corpus -> real classify/generate path -> report
+  corpus/                # committed ring photos + manifest
 ```
 
 ## Casting requirements (lost-wax)
