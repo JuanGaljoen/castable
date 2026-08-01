@@ -18,14 +18,18 @@ vision ran (-> RNG-28), and the castability failure RNG-20 assumed simply never 
 
 ## Success criteria
 
-- [ ] One documented command runs the whole corpus and prints a per-photo verdict plus a
+- [x] One documented command runs the whole corpus and prints a per-photo verdict plus a
       summary line.
-- [ ] Re-running after a geometry or vision change is one command, no editing.
-- [ ] Skips gracefully with a clear message when `ANTHROPIC_API_KEY` is absent; never
+- [x] Re-running after a geometry or vision change is one command, no editing.
+- [x] Skips gracefully with a clear message when `ANTHROPIC_API_KEY` is absent; never
       fails the offline suite.
-- [ ] Corpus covers the supported archetypes plus a negative (non-ring) case.
-- [ ] Docs note explaining what it costs and when to run it.
-- [ ] Never collected by a normal `pytest` invocation.
+- [x] Corpus covers the supported archetypes plus a negative (non-ring) case — side-stone
+      carried as an explicit declared gap (RNG-34).
+- [x] Docs note explaining what it costs and when to run it.
+- [x] Never collected by a normal `pytest` invocation.
+
+**Verified 2026-08-01:** full suite 3443 passed (0:20:11), up from a 3426 baseline by the
+17 new verdict tests. Live corpus run exercised end to end; findings below.
 
 ## Decisions (frozen in Understand)
 
@@ -127,10 +131,17 @@ ok    negative-puppies.jpg  correctly declined to detect a ring
    internally inconsistent (a stone taller than the head that holds it), which is a
    *coherence* problem in the vision layer, not a castability floor being missed.
 
-3. **Two harness bugs, both found by using it rather than testing it** — the RNG-23 lesson
+3. **A cut we can see but cannot express.** Vision read `solitaire-round.jpg` as a cushion
+   cut — its own words — and wrote `shape: "round"`, because `Stones.shape` is
+   `round | oval`. RNG-23 shipped oval and deferred the rest (-> RNG-33).
+
+4. **Two harness bugs, both found by using it rather than testing it** — the RNG-23 lesson
    holding again. Ad hoc mode reported "expected None, vision read solitaire" as a
    mismatch, and a ring detected without an assembled spec was misreported as "no ring
    detected". Both fixed with tests.
+
+Filed from this run: **RNG-31** (non-determinism), **RNG-32** (cross-field incoherence),
+**RNG-33** (more cuts), **RNG-34** (the side-stone corpus gap).
 
 Note the timings: 55.7s and 23.3s per photo, against the ~4s RNG-21 measured for classify
 alone. The bulk is B-rep generation, not the API call.
