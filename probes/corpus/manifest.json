@@ -1,0 +1,41 @@
+{
+  "_comment": "RNG-22 fidelity corpus. Adding a photo is an entry here plus the file -- no code change. An entry whose file is absent is reported as a declared gap, not a failure.",
+  "photos": [
+    {
+      "file": "solitaire-round.jpg",
+      "expect_ring": true,
+      "expected_archetype": "solitaire",
+      "note": "four-prong solitaire, plain shank, round/step-cut centre"
+    },
+    {
+      "file": "halo-oval.jpg",
+      "expect_ring": true,
+      "expected_archetype": "halo",
+      "note": "oval centre in a halo with pave shoulders -- the RNG-24 evidence photo (the union forces one choice and the shoulders vanish)"
+    },
+    {
+      "file": "halo-round.png",
+      "expect_ring": true,
+      "expected_archetype": "halo",
+      "note": "round centre in a halo with pave shoulders; PNG exercises the other magic-byte branch"
+    },
+    {
+      "file": "trilogy-oval.jpg",
+      "expect_ring": true,
+      "expected_archetype": "trilogy",
+      "note": "oval centre with round side stones; converted from WebP because RNG-28 is still open"
+    },
+    {
+      "file": "side-stone.jpg",
+      "expect_ring": true,
+      "expected_archetype": "side_stone",
+      "note": "DECLARED GAP: no license-clean side-stone photo yet. Drop one in at this name to close it."
+    },
+    {
+      "file": "negative-puppies.jpg",
+      "expect_ring": false,
+      "expected_archetype": null,
+      "note": "not a ring; passes when the classifier declines to detect one"
+    }
+  ]
+}
