@@ -50,6 +50,22 @@ castability failure we had assumed and written a ticket for did not exist at all
 (RNG-20, deleted rather than built). None of that was visible to 3,400 passing
 unit tests, because none of them ran a real photo through the real path.
 
+### A caveat when comparing before and after
+
+**Vision is not deterministic.** Across runs of the same corpus we have seen the same
+photo classify as a ring once and not the next time (RNG-31), and produce a spec that
+fails the casting gate one day and passes the next (RNG-32).
+
+So a naive before/after — run it, change the geometry, run it again — compares two
+different specs and cannot tell you whether your change helped. **Geometry is
+deterministic given a spec; only the vision half wanders.**
+
+For anything that changes geometry or presentation (RNG-19, RNG-25, RNG-27, RNG-33),
+compare against a **saved spec** rather than re-classifying: keep the `<slug>.spec.json`
+from the "before" run and POST it straight to `/generate-ring`. Re-run the full probe when
+what you are measuring *is* the vision layer (RNG-26, RNG-31, RNG-32), and expect to run
+it more than once.
+
 ### What it does and does not tell you
 
 It reports what happened: which archetype vision picked, whether generation

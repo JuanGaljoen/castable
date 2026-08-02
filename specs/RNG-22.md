@@ -143,6 +143,35 @@ ok    negative-puppies.jpg  correctly declined to detect a ring
 Filed from this run: **RNG-31** (non-determinism), **RNG-32** (cross-field incoherence),
 **RNG-33** (more cuts), **RNG-34** (the side-stone corpus gap).
 
+## Second run, with the side-stone photo (2026-08-02)
+
+```
+ok    solitaire-round.jpg   solitaire  watertight, no repair  13.8s
+ok    halo-oval.jpg         halo       watertight, no repair  41.1s
+ok    halo-round.png        halo       watertight, no repair  35.6s
+ok    trilogy-oval.jpg      trilogy    watertight, no repair  17.0s
+warn  side-stone.jpg        solitaire  watertight, no repair  12.0s
+ok    negative-puppies.jpg  correctly declined to detect a ring
+
+5/5 generated · 5 pass · 0 fail · 1 archetype mismatch · 0 corpus gap
+```
+
+- **The corpus gap is closed; the archetype coverage is not.** Vision read an unambiguous
+  side-stone ring (round centre, six prongs, shared-prong accents down both shoulders) as
+  a **four-prong solitaire**, discarding the accents and the prong count. Adding the photo
+  cannot fix that — the classifier will not select the archetype. So the `side_stone`
+  geometry path is still never exercised from a photo. That is RNG-24 (the union forcing
+  one reading) and RNG-26, not a corpus problem, and **RNG-34 should not be closed on this
+  run alone.**
+- **RNG-32 is intermittent, not systematic.** `halo-round.png` failed the casting gate on
+  2026-08-01 and passed on 2026-08-02, same photo. Worse than a systematic bug: it cannot
+  be caught by testing once.
+- **The harness is only as repeatable as the layer it measures.** Vision wanders run to
+  run, so a naive before/after compares two different specs. Geometry is deterministic
+  given a spec; the recommended comparison for geometry/presentation work is to re-generate
+  from the saved `<slug>.spec.json` rather than re-classify. Documented in
+  `probes/README.md`.
+
 Note the timings: 55.7s and 23.3s per photo, against the ~4s RNG-21 measured for classify
 alone. The bulk is B-rep generation, not the API call.
 
