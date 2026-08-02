@@ -172,7 +172,7 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 
 - **RNG-18** Pin build123d + OCP in requirements.txt [Done] - a clean clone could not generate a ring; also found pydantic undeclared
 - **RNG-23** Stone shape/cut in RingSpec (round + oval) [Done] - `StoneOutline` seam; unblocked RNG-26
-- **RNG-22** Photo fidelity probe harness (repeatable photo -> model corpus run) [High] - the measuring stick for everything below; prototype already in `spikes/rng22/`
+- **RNG-22** Photo fidelity probe harness (repeatable photo -> model corpus run) [Done] - the measuring stick for everything below; found RNG-31/32/33 on its first run
 - **RNG-25** Shank profile family (knife-edge, cathedral, comfort-fit, graduated) [High] - needs RNG-16; the spec-widening half RNG-19 fenced off
 - **RNG-27** Viewer presentation (metal material, studio lighting, tessellation) [High] - independent; perceived quality, touches no geometry
 - **RNG-19** Geometry aesthetic refinement (fillets, surfaces, proportions) [High] - surface polish behind the *existing* schema
@@ -181,6 +181,13 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 - **RNG-30** 3D preview keeps stale geometry after the form changes [Medium] - misled RNG-23 QA twice; fold into RNG-27 if that lands first
 - **RNG-28** Accept WebP + HEIC uploads [Low] - deliberately deferred paper cut
 - **RNG-29** Photo error message does not clear when a file is chosen [Low] - found in RNG-23 QA
+
+**Found by RNG-22's first live corpus run (2026-08-01):**
+
+- **RNG-32** Vision estimates fields independently, producing specs the casting gate rejects [High] - a stone taller than its own head; **revives the premise RNG-20 was deleted for**, now with a real counterexample
+- **RNG-33** Stone cuts beyond round + oval (cushion, emerald, pear, marquise) [High] - vision *said* "cushion cut" and had to write `round`; cashes in the RNG-23 `StoneOutline` seam
+- **RNG-31** Vision intermittently reports no ring for a clear ring photo [Medium] - 1 failure in 4 runs of the same photo; diagnose before fixing
+- **RNG-34** Close the side-stone gap in the fidelity corpus [Low] - needs a photo, no code
 
 > Removed in the pivot: RNG-7 (cathedral shoulders, OpenSCAD-specific) and RNG-8
 > (style registry over OpenSCAD) were deleted — both are superseded by the
@@ -191,12 +198,15 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 
 ## Current Phase
 
-> **Where we stand (2026-07-21):** the archetype catalogue is complete (solitaire,
-> halo, trilogy, side-stone), vision is live against a real key, and the first
-> **fidelity** ticket has shipped — centre stones can now be oval, end to end from
-> a photo. The roadmap has turned from *breadth* (more archetypes) to *depth*
-> (shape, profile, proportion, presentation); see the roadmap checkpoint below.
-> **Kick off at RNG-22**, then RNG-19 + RNG-27.
+> **Where we stand (2026-08-01):** the archetype catalogue is complete (solitaire,
+> halo, trilogy, side-stone), vision is live against a real key, centre stones can
+> be oval end to end from a photo (RNG-23), and **fidelity is now measurable** —
+> `python probes/fidelity_probe.py` runs a real photo corpus through the real path
+> on demand (RNG-22). The roadmap has turned from *breadth* (more archetypes) to
+> *depth* (shape, profile, proportion, presentation). **Kick off at RNG-19 or
+> RNG-27** (what you see), with **RNG-33** the cheapest fidelity win and **RNG-32**
+> the one that stops real photos failing outright. **Run the probe before and
+> after** — that is what it is for.
 
 **RNG-9 (halo), RNG-10 (trilogy), and RNG-11 (side-stone) complete.**
 
@@ -326,10 +336,42 @@ ring style.
 > against the author's assumptions rather than against what a user gets. **Run the
 > real path before calling shape/vision work done.**
 
-**Next:** **RNG-22** (promote `spikes/rng22/probe_vision.py` into a committed
-harness) — everything below claims "closer to the photo" and there is still no
-repeatable way to judge it. Then the pair that moves what you actually see:
-**RNG-19** (proportions/surfaces) and **RNG-27** (material + lighting); the
-standing complaint after RNG-23 is that models still read as parametric rather
-than as jewelry. **RNG-26** is now unblocked — `length_ratio` is the first ratio
-vision can actually fill.
+**RNG-22 (photo fidelity probe harness) complete — the fidelity block is now
+measurable.** `python probes/fidelity_probe.py` runs a committed corpus of real
+ring photos through the *real* endpoints (`/classify-ring` -> `/generate-ring`,
+so the magic-byte sniff, spec assembly, casting gate and mesh check are all in
+the path) and reports per photo. Geometry lands in `probes/output/` (gitignored)
+so a render can be opened beside the photo it came from.
+
+- **Pure core, thin I/O shell.** `load_manifest` + `evaluate` hold the corpus
+  semantics and the whole failure bar and need no key, no network, no photo — so
+  they are tested offline in the normal suite (`tests/test_fidelity_probe.py`,
+  `tests/test_fidelity_verdict.py`) while the harness itself stays a standalone
+  script pytest never collects. A pytest marker would have needed registering
+  (there is no pytest config) and could still be run by accident; a script cannot.
+- **The failure bar is generation, deliberately.** An archetype mismatch is real
+  signal and is reported prominently but stays **amber** — a genuinely ambiguous
+  photo must not make the harness cry wolf. A declared manifest entry with no
+  photo behind it is a reported **gap**, not a failure. **Adding a photo is a
+  manifest entry plus a file — no code change.**
+- **It cost ~2 cents and found three product defects on its first run** (RNG-31,
+  RNG-32, RNG-33) plus two bugs in itself, none visible to the then-3426-test
+  suite. Timings: 15–56s per photo, of which the API call is ~4s — the rest is
+  B-rep generation. STLs are 6–48MB at validation-grade tessellation (relevant to
+  RNG-27).
+
+> **The lesson, again, sharper:** RNG-23 taught "run the real path before calling
+> shape/vision work done". RNG-22 is that lesson turned into a tool, and it
+> immediately proved itself: **a deleted ticket came back.** RNG-20 was deleted on
+> 2026-07-20 because 3/3 real photos generated clean; the fourth photo produced a
+> stone taller than its own head (-> RNG-32). Three samples looked like evidence
+> and were an anecdote. When deleting a ticket on empirical grounds, note the
+> sample size in the obituary.
+
+**Next:** the pair that moves what you actually see — **RNG-19**
+(proportions/surfaces) and **RNG-27** (material + lighting); the standing
+complaint after RNG-23 is that models still read as parametric rather than as
+jewelry. **RNG-33** is the cheapest fidelity win (the `StoneOutline` seam already
+exists), and **RNG-32** is the one that stops a real photo failing to generate at
+all. **RNG-26** remains unblocked — `length_ratio` is the first ratio vision can
+actually fill. Run the probe before and after each of them.
