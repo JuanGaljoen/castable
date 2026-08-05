@@ -77,15 +77,29 @@ enforced by construction (reusing the same accent primitives as halo).
 
 ## Side-stone band (RNG-11, SideStoneSpec only)
 A channel-set accent row down each shoulder of the shank, symmetric about the
-centre stone, stopping before the ring base. Ranges are structural sanity
-caps; wall floors are enforced by construction in the channel-wall geometry
-(CP2), not by a model-level proxy. `retention` is `Literal["channel"]` in v1 —
-pave is a future value.
+centre stone, stopping before the ring base. `retention` is
+`Literal["channel"]` in v1 — pave is a future value.
+
+**These ranges are not independent of the shank (RNG-19 CP3).** A channel is a
+groove cut INTO the band, not a rail sitting on it, so it consumes the band's
+own metal on both axes and the band must be big enough to survive the cut:
+
+| Rule | Requirement | Violation |
+|---|---|---|
+| walls | `band_width >= accent_stone_diameter + 2 x 0.8mm` | `side_stone_channel_fit` |
+| floor | `band_thickness >= groove_depth + 0.8mm`, where `groove_depth = 0.65 x accent_stone_height + 0.2mm` | `side_stone_channel_floor` |
+
+So the golden 1.5mm accent needs a **3.1mm** band — well above the 2.2mm
+default — and a 2.5mm accent needs 4.1mm. This is hard geometry, not
+preference: no construction holds a stone in a band narrower than the stone
+plus two walls. RNG-11 shipped raised beads precisely because real specs supply
+2.0mm bands. Bands that cannot hold their channel are now rejected rather than
+silently built as the wrong setting.
 
 | Parameter                | Default | Sane range | Castability floor / note |
 |---------------------------|---------|------------|--------------------------|
-| `accent_stone_diameter`   | 1.5 mm  | 0.9 - 2.5 mm | channel wall thickness is a fixed construction margin, independent of this field |
-| `accent_stone_height`     | 1.2 mm  | 0.8 - 3.0 mm | drives the accent bearing well depth |
+| `accent_stone_diameter`   | 1.5 mm  | 0.9 - 2.5 mm | **drives the required `band_width`** (stone + a 0.8mm wall each side); see the walls rule above |
+| `accent_stone_height`     | 1.2 mm  | 0.8 - 3.0 mm | drives the groove depth, and so the required `band_thickness`; see the floor rule above |
 | `accent_count_per_side`   | 3       | 1 - 8      | `side_stone_overcrowding` guards against the row overrunning the shoulder span before the ring base |
 | `accent_gap`               | 0.3 mm  | 0.2 - 1.0 mm | edge-to-edge spacing along the shoulder; `side_stone_overcrowding` guards adjacent accents' true chord clearance (see docs/ringspec/contract.md) |
 | `retention`                | channel | `channel`  | `Literal["channel"]`; pave is a future value |

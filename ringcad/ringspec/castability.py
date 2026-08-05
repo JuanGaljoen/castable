@@ -18,6 +18,7 @@ from ringcad.mesh_validator import MIN_PRONG_TIP_MM, MIN_WALL_MM
 
 from .models import (
     SHANK_THICKNESS_TAPER, HaloSpec, RingSpec, SideStoneSpec, TrilogySpec,
+    channel_band_width, channel_groove_depth,
 )
 
 # Side-stone row: angular clearance off the centre head (A_START) and the
@@ -339,6 +340,62 @@ def _stone_curvature(spec: RingSpec) -> list[Violation]:
     ]
 
 
+def _side_stone_channel(spec: RingSpec) -> list[Violation]:
+    """The band must be able to HOLD a channel (RNG-19 CP3).
+
+    Channel setting cuts a groove into the band, so unlike the retention modes
+    that sit on the surface it consumes the band's own metal on two axes:
+
+      (a) WIDTH — the groove runs across the band's width, so the band must
+          carry the stone plus a MIN_WALL wall each side. This is the
+          arithmetic that made RNG-11 ship raised beads: a 1.5mm accent needs
+          3.1mm of band and real specs supply 2.0mm.
+      (b) THICKNESS — the groove is cut inward from the outer surface, so the
+          metal left under it must still clear MIN_WALL. Otherwise the cut
+          severs the band, and per docs/adr/0005 a severed band can still
+          report watertight.
+
+    Both are hard geometry, not preference: no construction satisfies them on a
+    band that is simply too small. Returns (a) then (b), matching the shape of
+    the overcrowding checks.
+    """
+    if not isinstance(spec, SideStoneSpec):
+        return []
+    ss = spec.side_stone
+    shank = spec.shank
+
+    needed_w = channel_band_width(ss.accent_stone_diameter, MIN_WALL_MM)
+    if shank.band_width < needed_w:
+        return [
+            Violation(
+                code="side_stone_channel_fit",
+                field="shank.band_width",
+                message=f"a {ss.accent_stone_diameter:.2f}mm channel accent "
+                f"needs a {needed_w:.3f}mm band (stone + {MIN_WALL_MM}mm wall "
+                f"each side); this band is {shank.band_width:.3f}mm.",
+                limit_mm=needed_w,
+                actual_mm=shank.band_width,
+            )
+        ]
+
+    depth = channel_groove_depth(ss.accent_stone_height)
+    needed_t = depth + MIN_WALL_MM
+    if shank.band_thickness < needed_t:
+        return [
+            Violation(
+                code="side_stone_channel_floor",
+                field="shank.band_thickness",
+                message=f"a {ss.accent_stone_height:.2f}mm accent cuts a "
+                f"{depth:.3f}mm groove, needing a {needed_t:.3f}mm band to "
+                f"leave {MIN_WALL_MM}mm of floor; this band is "
+                f"{shank.band_thickness:.3f}mm.",
+                limit_mm=needed_t,
+                actual_mm=shank.band_thickness,
+            )
+        ]
+    return []
+
+
 def validate_castability(spec: RingSpec) -> list[Violation]:
     """Run the full lost-wax gate; [] means the spec is castable."""
     return (
@@ -349,6 +406,7 @@ def validate_castability(spec: RingSpec) -> list[Violation]:
         + _halo_overcrowding(spec)
         + _trilogy_overcrowding(spec)
         + _side_stone_overcrowding(spec)
+        + _side_stone_channel(spec)
     )
 
 

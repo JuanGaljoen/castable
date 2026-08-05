@@ -41,6 +41,33 @@ SPEC_VERSION = "1.0"
 SHANK_WIDTH_TAPER = 1.35
 SHANK_THICKNESS_TAPER = 1.15
 
+# --- Channel setting (RNG-19 CP3) -------------------------------------------
+# Here for the same reason as the tapers above: `castability` derives the band's
+# wall/floor requirements from the groove, `geometry` cuts it, and the two must
+# read one definition.
+#
+# A channel holds stones in a groove between two walls, with bearings cut into
+# the walls' inner faces (docs/jewelry-design-principles.md #Channel). We render
+# metal only, so the row IS the negative of its stones: the groove is cut at the
+# CLEAR span and each stone is then cut at its full diameter, which bites
+# GIRDLE_PENETRATION into either wall and leaves the bearings for free.
+GIRDLE_PENETRATION = 0.2  # how far each girdle edge tucks into its wall
+GIRDLE_RECESS = 0.2       # how far the girdle sits below the band's surface
+PAVILION_FRACTION = 0.65  # share of a stone's height below its girdle
+
+
+def channel_groove_depth(accent_stone_height: float) -> float:
+    """Radial depth of the channel trench, measured in from the band's outer
+    surface: the stone's pavilion plus the girdle's recess below the surface."""
+    return PAVILION_FRACTION * accent_stone_height + GIRDLE_RECESS
+
+
+def channel_band_width(accent_stone_diameter: float, min_wall: float) -> float:
+    """Band width a channel needs: the stone plus a wall each side. This is the
+    arithmetic that made RNG-11 ship raised beads instead — a 1.5mm accent needs
+    3.1mm of band and the corpus spec supplies 2.0mm."""
+    return accent_stone_diameter + 2 * min_wall
+
 
 class Shank(BaseModel):
     """Band geometry. `shank_taper` is the WIDTH flare toward the head (the SCAD

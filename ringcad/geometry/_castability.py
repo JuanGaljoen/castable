@@ -11,6 +11,8 @@ they do not replace it.
 """
 from __future__ import annotations
 
+import math
+
 from build123d import Location, Plane, Rot
 
 from ringcad.mesh_validator import MIN_PRONG_TIP_MM, MIN_WALL_MM
@@ -21,8 +23,13 @@ from .accent_prong import accent_prong
 from .accent_seat import accent_seat
 from .gallery import RAIL_MINOR
 from .halo import RAIL_OVERLAP
-from .side_stone import _accent_angles, _accent_loc, _wall, _wall_span
+from .side_stone import side_stone_cuts
 from .trilogy import _side_locs
+
+
+# Float slack for measurements read off a tessellated bounding box, so a cut
+# that lands exactly on a floor is not flagged by rounding alone.
+_TOL = 1e-6
 
 
 def _section_sizes(solid, plane: Plane) -> list:
@@ -272,34 +279,71 @@ def _check_wall(wall_solid, lo_deg: float) -> list[Violation]:
 
 
 def check_side_stone(solid, spec: RingSpec, clamps: dict) -> list[Violation]:
-    """Both shoulders' accent-seat floors + channel-wall floors (RNG-11 CP2).
+    """The channel cut leaves enough band behind it (RNG-19 CP3).
 
-    The side_stone module's `_check`. Mirrors `check_trilogy`: each accent
-    seat is rebuilt in isolation at its real `side_stone._accent_loc` before
-    `check_accent_seat` (the solid's own bbox is only meaningful for an
-    isolated leaf, not the fused multi-accent compound), and each channel-wall
-    rail is rebuilt at its real span before `_check_wall`. Uses the same
-    `side_stone` construction helpers `side_stone_parts` uses, so build and
-    check can never drift apart.
+    `solid` here is the channel's NEGATIVE volume, not metal — `side_stone` is
+    the library's first subtractive module. So this measures the cut rather
+    than the part: how deep it actually reaches toward the finger bore, and how
+    far it actually spreads across the band's width.
+
+    Deliberately measured off the CONSTRUCTED tools rather than recomputed from
+    the spec. `_side_stone_channel` in ringspec already gates the spec
+    arithmetic; duplicating it here would just be the same formula asserting
+    itself. What is worth catching is the two drifting apart — a construction
+    that cuts deeper or wider than the rule it was cleared against.
     """
     if getattr(spec, "archetype", None) != "side_stone" or getattr(
         spec, "side_stone", None
     ) is None:
         return []
-    ss = spec.side_stone
-    accent_r = ss.accent_stone_diameter / 2
-    height = ss.accent_stone_height
+
     violations: list[Violation] = []
-    for sign in (-1.0, 1.0):
-        for angle in _accent_angles(spec, clamps, sign):
-            loc = _accent_loc(clamps, angle)
-            seat_solid = accent_seat(accent_r, height, loc)
-            violations += check_accent_seat(seat_solid, accent_r, height, loc)
-        lo, hi = _wall_span(spec, clamps, sign)
-        z = clamps["bw"] / 2
-        for wz in (z, -z):
-            wall_solid = _wall(clamps, lo, hi, wz)
-            violations += _check_wall(wall_solid, lo)
+    inner_r = clamps["inner_r"]
+    half_w = clamps["bw"] / 2
+
+    for cut in side_stone_cuts(spec, clamps):
+        bb = cut.bounding_box()
+
+        # Floor: the cut's closest approach to the ring axis must leave
+        # MIN_WALL of band under it. A cut that reaches the bore severs the
+        # band — and per docs/adr/0005 a severed band still reports watertight.
+        #
+        # Measured over VERTICES, not the bounding box: these solids are arcs
+        # and cones about the Z (finger) axis, and a bbox corner is not a point
+        # on them — it sits well inside the true radius and reports a breach
+        # that does not exist.
+        verts = [(v.X, v.Y) for v in cut.vertices()]
+        if not verts:
+            continue
+        reach = min(math.hypot(x, y) for x, y in verts)
+        floor = reach - inner_r
+        if floor < MIN_WALL - _TOL:
+            violations.append(
+                Violation(
+                    code="side_stone_channel_floor",
+                    field="shank.band_thickness",
+                    message=f"the channel cut leaves {floor:.3f}mm of band "
+                    f"under it, below the {MIN_WALL}mm floor.",
+                    limit_mm=MIN_WALL,
+                    actual_mm=floor,
+                )
+            )
+
+        # Walls: the cut must not reach the band's width edges, or there is no
+        # wall left to retain the stones.
+        spread = max(abs(bb.min.Z), abs(bb.max.Z))
+        wall = half_w - spread
+        if wall < MIN_WALL - _TOL:
+            violations.append(
+                Violation(
+                    code="side_stone_channel_fit",
+                    field="shank.band_width",
+                    message=f"the channel cut leaves a {wall:.3f}mm wall, "
+                    f"below the {MIN_WALL}mm floor.",
+                    limit_mm=MIN_WALL,
+                    actual_mm=wall,
+                )
+            )
     return violations
 
 

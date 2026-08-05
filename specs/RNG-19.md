@@ -208,6 +208,51 @@ no half-written module.
   gains an optional `cuts(spec, c)`, subtracted after the single general fuse, and
   the degeneracy guard accepts a module that declares cuts instead of parts.
 
+  **Landed 2026-08-05.** Built as designed; `accent_seat` and both `Torus` rails
+  are gone from `side_stone`, which is now the library's first subtractive module.
+  Verified on the REAL path (the RNG-23 lesson), not only in tests:
+
+  | request | result |
+  |---|---|
+  | stock 2.2mm band | **400**, `shank.band_width`, "needs a 3.100mm band" |
+  | fitted 3.1mm band | **200**, raw watertight, `X-Mesh-Repaired: false` |
+  | corpus photo's own spec, band widened to 3.1mm | **200**, watertight, no repair |
+
+  The other four saved specs are byte-comparable to their post-CP2 numbers —
+  CP3 touches no other archetype, since every non-`side_stone` module declares
+  no cuts.
+
+  **A default that would have 400'd.** The form ships `band_width` 2.2mm, so
+  selecting Side-stone with stock values posted a spec the new gate rejects —
+  the same shape of defect as RNG-23's (the *default* path was the broken one).
+  `static/app.js` gains `fitBandToChannel()`, which widens the band to fit when
+  the archetype or accent size changes. A user who narrows it back still gets
+  the server's violation, which names the field and the required width.
+
+  **Two checks measure the same rule, deliberately.** `_side_stone_channel`
+  (ringspec) gates the spec arithmetic before geometry runs; `check_side_stone`
+  (in-kernel) measures the CONSTRUCTED cut. The second is not redundant: it
+  catches the two drifting apart — a construction that cuts deeper or wider than
+  the rule it was cleared against, which is docs/adr/0002's failure mode.
+
+  **A measurement bug worth remembering.** The first `check_side_stone` read
+  radial reach off the cut's BOUNDING BOX corners and reported a −3.001mm floor
+  on geometry that was fine. A bbox corner is not a point on a solid of
+  revolution — it sits well inside the true radius. Measuring over `vertices()`
+  is both correct and honest, because those are points the geometry actually
+  has. **When a check measures a curved solid, measure its geometry, not its
+  bounding box.**
+
+  **Accepted, and now real:** the fidelity corpus's side-stone entry is red. A
+  real photo's vision output (2.0mm band) is rejected — a second concrete
+  instance of **RNG-32** beyond the tall-stone one, and worth a comment there.
+
+  Still unaddressed from `docs/jewelry-design-principles.md`, out of CP3's scope
+  by decision: the trilogy GAP (CP1 eased the tilt but left `side_stone_gap` at
+  2.0mm, so the three stones still do not read as one line — the research's
+  primary recommendation) and the unenforced "keep >= 2mm at the narrowest"
+  shank rule.
+
 ### Cut from this pass (2026-08-05)
 
 **Seat / collar / gallery surface blends are deferred.** The ask is proportions

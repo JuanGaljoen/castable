@@ -34,7 +34,11 @@ def _side_stone_spec(shank=None, stones=None, side_stone=None):
             "archetype": "side_stone",
             "shank": {
                 "inner_diameter": 16.5,
-                "band_width": 2.2,
+                # 3.2mm, not the 2.2mm shank default: RNG-19 CP3 cuts the
+                # channel INTO the band, so a 1.5mm accent needs 3.1mm of
+                # width (stone + a 0.8mm wall each side) before any of the
+                # overcrowding cases below are even reachable.
+                "band_width": 3.2,
                 "band_thickness": 1.9,
                 "shank_taper": 1.7,
                 **(shank or {}),

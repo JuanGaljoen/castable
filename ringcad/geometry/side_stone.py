@@ -1,48 +1,51 @@
-"""side_stone() -- the side-stone (channel) composition module (RNG-11 CP2).
+"""side_stone() -- the channel-set accent row, built by SUBTRACTION (RNG-19 CP3).
 
-Places a symmetric row of `accent_seat` beads down each shoulder of the shank
-(Decision 6 in specs/RNG-11.md), retained by two continuous channel-wall rails
-per shoulder -- NO `accent_prong` (Decision 3: channel retention holds stones
-with walls, not claws) and NO `gallery` (Decision 4: connectivity is a weld
-THROUGH the shank, not an elevated post/rail).
+Channel setting holds stones in a groove cut into the band between two walls,
+with bearings cut into the walls' inner faces. There are NO prongs and NO
+per-stone collar -- that is the definition of channel
+(docs/jewelry-design-principles.md #Channel).
 
-Both the seats and the walls are placed using the shank's NOMINAL (untapered)
-outer radius/width (`c["inner_r"] + c["bt"]`, `c["bw"]`) -- the same
-approximation `_side_stone_overcrowding` uses (CP1). Because the shank tapers
-WIDER approaching the head (`_common._head_t`), the nominal values are a
-conservative lower bound everywhere the accent row actually sits (A_START..
-A_MAX, both comfortably short of the head-opposite thinnest point) -- so a
-placement embedded relative to the nominal surface is always embedded at least
-that much into the TRUE (thicker) local band, never floating clear of it.
+RNG-11 CP2 built the opposite: an `accent_seat` (a `Torus` collar deliberately
+left proud of the band) at each stone, retained by two `Torus` rails sitting ON
+the surface. That is correct halo geometry reused where its premise does not
+hold, and it shipped because a real channel needs `accent_d + 2*MIN_WALL` =
+3.1mm of band while real specs supply 2.0mm. `_side_stone_channel` now rejects
+those bands rather than silently building the wrong setting on them.
 
-Each seat's bearing plunges radially inward from the nominal outer surface (a
-deep volumetric overlap, not a tangent graze -- the recurring OCCT
-non-manifold trap); each wall is a partial `Torus` arc (major_angle < 360)
-spanning its shoulder's accent row, embedded into the band the same way.
+**We render metal only, so the row IS the negative of its stones.** Rather than
+model a setting, cut the band:
+
+  1. the TRENCH -- a rectangular section revolved along the accent arc at the
+     CLEAR span (`accent_d - 2*GIRDLE_PENETRATION`), so the walls left standing
+     are the band's own metal;
+  2. each STONE -- pavilion cone + crown cylinder at its girdle plane, at the
+     stone's FULL radius. Being wider than the clear span, it bites
+     GIRDLE_PENETRATION into either wall: **the bearings fall out of the
+     subtraction, at the research's stated depth, for free.**
+
+This is why CP3 is castable where an additive channel was not. ADR-0007's
+tessellation cracking came from fusing near-tangent bodies; a cut has no
+tangency to crack along (the stone tool overlaps the trench by 0.4mm, nowhere
+near a sliver). Watertightness holds by construction: a cut cannot open a solid
+unless it severs it, and `_side_stone_channel`'s floor rule forbids that.
 """
 from __future__ import annotations
 
 import math
 
-from build123d import Location, Pos, Rot, Torus
+from build123d import Axis, Cone, Cylinder, Align, Plane, Pos, Rectangle, Rot, revolve
 
 from ringcad.ringspec.castability import _SIDE_STONE_A_START_DEG as A_START_DEG
+from ringcad.ringspec.models import (
+    GIRDLE_PENETRATION, GIRDLE_RECESS, PAVILION_FRACTION, channel_groove_depth,
+)
 
-from ._common import MIN_WALL, clamps
-from .accent_seat import accent_seat
+from ._common import clamps
 
-# How far a seat's local z=0 (girdle plane) sits BELOW the flat band's outer
-# surface. Small: the seat's collar then stands clearly proud of the band (a
-# visible bead), while the bearing well still plunges `depth` (>= MIN_WALL)
-# radially inward for a deep volumetric weld into the band -- watertight by
-# construction, independent of accent_gap.
-ACCENT_EMBED = 0.1
-
-# Channel-wall rail tube minor radius -> wall = 2*WALL_MINOR ~= 0.9mm (> 0.8
-# floor), the same margin discipline as gallery.RAIL_MINOR.
-WALL_MINOR = max(MIN_WALL * 0.5, 0.45)
-# Fixed embed depth for the wall rail's major radius (mirrors ACCENT_EMBED).
-WALL_EMBED = 0.3
+# How far every cutting tool is extended PAST the band's outer surface. The cut
+# must break the surface cleanly rather than land tangent to it -- the inverse
+# of ADR-0001's prefer-overlap rule, applied to subtraction.
+CUT_OVERSHOOT = 0.5
 
 
 def _band_outer_r(c: dict) -> float:
@@ -63,18 +66,9 @@ def _accent_angles(spec, c: dict, sign: float) -> list[float]:
     return [sign * (A_START_DEG + k * dphi) for k in range(count)]
 
 
-def _accent_loc(c: dict, angle_deg: float) -> Location:
-    """Rigid placement for one accent seat: local +Z (radially outward, via
-    the shared `Rot(0, 90, 0)` convention) embedded `ACCENT_EMBED` inside the
-    nominal outer band surface, at ring-angle `angle_deg`."""
-    r = _band_outer_r(c) - ACCENT_EMBED
-    return Rot(0, 0, angle_deg) * Pos(r, 0, 0) * Rot(0, 90, 0)
-
-
-def _wall_span(spec, c: dict, sign: float) -> tuple[float, float]:
-    """One shoulder's wall arc span (deg), padded by the accent radius (arc
-    length -> angle, same conversion `_dphi_deg` uses) past the first/last
-    accent so the rails retain the end stones' girdles."""
+def _trench_span(spec, c: dict, sign: float) -> tuple[float, float]:
+    """One shoulder's trench arc (deg), padded past the first/last accent by
+    the accent radius so the groove fully contains the end stones."""
     angles = _accent_angles(spec, c, sign)
     accent_r = spec.side_stone.accent_stone_diameter / 2
     pad = math.degrees(accent_r / _band_outer_r(c))
@@ -82,51 +76,72 @@ def _wall_span(spec, c: dict, sign: float) -> tuple[float, float]:
     return lo, hi
 
 
-def _wall(c: dict, lo_deg: float, hi_deg: float, z: float):
-    """One channel-wall rail: a partial `Torus` arc over `[lo_deg, hi_deg]`,
-    embedded `WALL_EMBED` inside the nominal outer band surface at width
-    edge `z`.
+def _trench(spec, c: dict, lo_deg: float, hi_deg: float):
+    """The channel groove: a rectangular section revolved about the ring axis
+    over `[lo_deg, hi_deg]`.
 
-    `align=None` is load-bearing: the default CENTER align re-centers a
-    partial-angle Torus's (asymmetric) bounding box on the origin, which
-    un-anchors the arc from the ring's actual center. `align=None` keeps the
-    natural sweep, whose minor circle starts flush at ring-angle 0 (global
-    +X) and revolves counter-clockwise by `major_angle` -- the same +X /
-    counter-clockwise convention `_accent_loc`'s `Rot(0, 0, angle_deg)` uses.
+    Revolve (not `Torus`) because the trench's width and depth are independent
+    -- width is the stones' clear span, depth is their pavilion -- whereas a
+    torus couples both to one minor radius. `revolve` sweeps counter-clockwise
+    from global +X, the same convention `Rot(0, 0, angle)` uses for placement.
     """
-    r = _band_outer_r(c) - WALL_EMBED
-    torus = Torus(r, WALL_MINOR, major_angle=hi_deg - lo_deg, align=None)
-    return Pos(0, 0, z) * (Rot(0, 0, lo_deg) * torus)
+    ss = spec.side_stone
+    clear_w = ss.accent_stone_diameter - 2 * GIRDLE_PENETRATION
+    depth = channel_groove_depth(ss.accent_stone_height)
+    r_out = _band_outer_r(c)
+    x0, x1 = r_out - depth, r_out + CUT_OVERSHOOT
+    section = Plane.XZ * Pos((x0 + x1) / 2, 0) * Rectangle(x1 - x0, clear_w)
+    return Rot(0, 0, lo_deg) * revolve(
+        section, Axis.Z, revolution_arc=hi_deg - lo_deg
+    )
 
 
-def _shoulder_parts(spec, c: dict, sign: float) -> list:
-    """One shoulder's leaves: `[*seats, wall_top, wall_bottom]` -- UN-fused."""
-    height = spec.side_stone.accent_stone_height
-    accent_r = spec.side_stone.accent_stone_diameter / 2
-    seats = [
-        accent_seat(accent_r, height, _accent_loc(c, a))
-        for a in _accent_angles(spec, c, sign)
-    ]
-    lo, hi = _wall_span(spec, c, sign)
-    z = c["bw"] / 2
-    walls = [_wall(c, lo, hi, z), _wall(c, lo, hi, -z)]
-    return seats + walls
+def _stone_cut(spec, c: dict, angle_deg: float):
+    """One stone's own volume, removed from the band.
+
+    Authored in a local +Z-radially-outward frame (the shared `Rot(0, 90, 0)`
+    convention) with the girdle at z=0: a pavilion cone below, and a crown
+    cylinder above that breaks out through the band's surface. At the stone's
+    FULL radius against the trench's clear span, this is what cuts the bearing
+    into each wall's inner face.
+    """
+    ss = spec.side_stone
+    accent_r = ss.accent_stone_diameter / 2
+    pavilion = PAVILION_FRACTION * ss.accent_stone_height
+    rise = GIRDLE_RECESS + CUT_OVERSHOOT
+
+    crown = Cylinder(accent_r, rise, align=(Align.CENTER, Align.CENTER, Align.MIN))
+    pav = Cone(
+        accent_r, 0.0, pavilion,
+        align=(Align.CENTER, Align.CENTER, Align.MAX),
+    )
+    local = crown.fuse(pav)
+    r = _band_outer_r(c) - GIRDLE_RECESS
+    return Rot(0, 0, angle_deg) * Pos(r, 0, 0) * Rot(0, 90, 0) * local
 
 
-def side_stone_parts(spec, c: dict | None = None) -> list:
-    """The side-stone row's leaf solids UN-fused, both shoulders symmetric
-    about the centre: `[*seats_l, wall_l_top, wall_l_bot, *seats_r,
-    wall_r_top, wall_r_bot]`.
+def side_stone_cuts(spec, c: dict | None = None) -> list:
+    """Every solid the channel removes from the band, both shoulders:
+    `[trench_l, *stones_l, trench_r, *stones_r]`.
 
-    `compose` fuses these leaves alongside the centre modules' leaves in ONE
-    general fuse (the RNG-17/halo robustness lesson).
+    `compose` subtracts these AFTER its single general fuse, so the trench is
+    cut from the finished band rather than from a loose shank leaf.
     """
     c = c if c is not None else clamps(spec)
-    return _shoulder_parts(spec, c, -1.0) + _shoulder_parts(spec, c, 1.0)
+    out = []
+    for sign in (-1.0, 1.0):
+        lo, hi = _trench_span(spec, c, sign)
+        out.append(_trench(spec, c, lo, hi))
+        out += [_stone_cut(spec, c, a) for a in _accent_angles(spec, c, sign)]
+    return out
 
 
 def side_stone(spec, c: dict | None = None):
-    """Both shoulders' accent rows + channel walls for a SideStoneSpec -> one
-    fused solid."""
-    parts = side_stone_parts(spec, c)
-    return parts[0].fuse(*parts[1:])
+    """The channel's NEGATIVE volume as one fused solid.
+
+    Deliberately not "the side-stone band": this module contributes no metal.
+    It exists so the module interface still has a solid to hand `check_side_stone`
+    and to volume-check for degeneracy.
+    """
+    cuts = side_stone_cuts(spec, c)
+    return cuts[0].fuse(*cuts[1:])

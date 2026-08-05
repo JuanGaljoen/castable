@@ -13,11 +13,11 @@ from __future__ import annotations
 import pytest
 
 from ringcad.geometry import compose
-from ringcad.geometry._castability import check_accent_seat
-from ringcad.geometry._common import clamps
+from ringcad.geometry._common import MIN_WALL, clamps
 from ringcad.geometry.module import ARCHETYPES, MODULES
-from ringcad.geometry.side_stone import _accent_angles, _accent_loc, _wall_span
+from ringcad.geometry.side_stone import _accent_angles, _trench_span
 from ringcad.ringspec import Setting, Shank, SideStone, SideStoneSpec, Stones, from_params
+from ringcad.ringspec.models import channel_groove_depth
 
 CANONICAL_PARAMS = {
     "inner_diameter": 16.5,
@@ -53,11 +53,20 @@ BAND = [
 
 
 def _side_stone_spec(*, a_dia=1.5, a_height=1.2, a_count=3, a_gap=0.3,
-                      band_thickness=1.9, stone_dia=6.5, setting_h=6.0):
-    """The golden side-stone band (solitaire defaults + side_stone defaults),
-    overridable."""
+                      band_thickness=None, stone_dia=6.5, setting_h=6.0):
+    """The golden side-stone band, on a band that can actually HOLD its channel.
+
+    RNG-19 CP3 made the band size a hard constraint rather than a free choice:
+    a channel is cut INTO the band, so it needs `a_dia + 2*MIN_WALL` of width
+    and `groove_depth + MIN_WALL` of thickness. The old fixed 2.2mm band cannot
+    hold any legal accent, which is exactly why RNG-11 shipped raised beads.
+    Both dimensions are therefore derived, not hardcoded.
+    """
+    band_width = a_dia + 2 * MIN_WALL + 0.1
+    fits = channel_groove_depth(a_height) + MIN_WALL + 0.1
+    band_thickness = fits if band_thickness is None else max(band_thickness, fits)
     return SideStoneSpec(
-        shank=Shank(inner_diameter=16.5, band_width=2.2,
+        shank=Shank(inner_diameter=16.5, band_width=band_width,
                     band_thickness=band_thickness),
         setting=Setting(prong_count=6, setting_height=setting_h),
         stones=Stones(stone_diameter=stone_dia, stone_height=4.0),
@@ -118,20 +127,21 @@ def test_golden_side_stone_single_watertight(raw_validate):
     _assert_castable(raw_validate(s), "golden side-stone compose")
 
 
-def test_side_stone_accents_are_proud_not_buried():
-    """Regression (the taper-burial bug): the composed side-stone band must have
-    MORE volume than the same ring composed as a bare solitaire -- i.e. the
-    accents + channel walls actually stand proud of the band and add material,
-    rather than sitting buried inside a tapered shank where they contribute
-    nothing (which made the STL byte-identical to a solitaire). The margin is
-    deliberately well above float noise."""
+def test_side_stone_channel_is_cut_into_the_band():
+    """DELIBERATELY INVERTED in RNG-19 CP3 (was `..._accents_are_proud_not_
+    buried`). RNG-11 built raised beads, so it asserted the band gained volume
+    over a bare solitaire. A channel is a groove, so it must LOSE volume.
+
+    The guard's purpose is unchanged and still load-bearing: it catches a
+    side-stone band that is silently identical to a plain solitaire. Only the
+    sign of the expected difference moved, because the construction did."""
     spec = _side_stone_spec()
     band = compose(spec)
     bare = compose(spec, archetype="solitaire")
-    added = band.volume - bare.volume
-    assert added > 5.0, (
-        f"side-stone accents/walls add only {added:.2f}mm^3 over a bare "
-        "solitaire -- they are buried in the band, not proud (the taper bug)"
+    removed = bare.volume - band.volume
+    assert removed > 2.0, (
+        f"the channel removes only {removed:.2f}mm^3 from the band -- it is "
+        "not a groove, and this ring is effectively a plain solitaire"
     )
 
 
@@ -152,9 +162,9 @@ def test_side_stone_band_raw_watertight(raw_validate, a_dia, a_height, a_count, 
 # ------------------------------------------------------------- side floors
 @pytest.mark.parametrize("a_dia,a_height,a_count,a_gap", BAND)
 def test_side_stone_floors_hold(a_dia, a_height, a_count, a_gap):
-    """Across the in-range band, every accent seat and channel-wall rail
-    clears the min-wall floor by construction, via the reused/rebuilt checks
-    (`check_side_stone`, the side_stone module's `_check`)."""
+    """Across the in-range band, the channel cut leaves both walls and the
+    groove floor above MIN_WALL, via `check_side_stone` (the side_stone
+    module's `_check`, which after CP3 measures the CUT, not the metal)."""
     spec = _side_stone_spec(
         a_dia=a_dia, a_height=a_height, a_count=a_count, a_gap=a_gap,
     )
@@ -191,26 +201,29 @@ def test_accent_angles_are_symmetric():
     assert [abs(a) for a in left] == [abs(a) for a in right]
 
 
-def test_accent_locs_sit_at_the_same_radius():
-    """Every accent on a shoulder sits at the same distance from the ring
-    (finger) axis -- they march around the band's outer surface, not up/down
-    it."""
+def test_stone_cuts_sit_at_the_same_radius():
+    """Every stone cut on a shoulder sits at the same distance from the ring
+    (finger) axis -- the row marches around the band at one depth, so the
+    channel has a level floor rather than stones sinking into it."""
     spec = _side_stone_spec()
     c = clamps(spec)
+    from ringcad.geometry.side_stone import _stone_cut
     radii = set()
     for angle in _accent_angles(spec, c, 1.0):
-        loc = _accent_loc(c, angle)
-        pos = loc.position
-        radii.add(round((pos.X**2 + pos.Y**2) ** 0.5, 6))
+        bb = _stone_cut(spec, c, angle).bounding_box()
+        cx = (bb.min.X + bb.max.X) / 2
+        cy = (bb.min.Y + bb.max.Y) / 2
+        radii.add(round((cx**2 + cy**2) ** 0.5, 4))
     assert len(radii) == 1
 
 
-def test_wall_span_covers_the_accent_row():
-    """The channel-wall span for a shoulder covers every accent's angle on
-    that shoulder, with margin past the first/last."""
+def test_trench_span_covers_the_accent_row():
+    """The trench for a shoulder spans every accent's angle on that shoulder,
+    with margin past the first/last -- otherwise an end stone is cut through a
+    wall that the groove never reached."""
     spec = _side_stone_spec()
     c = clamps(spec)
     angles = _accent_angles(spec, c, 1.0)
-    lo, hi = _wall_span(spec, c, 1.0)
+    lo, hi = _trench_span(spec, c, 1.0)
     assert lo < min(angles)
     assert hi > max(angles)

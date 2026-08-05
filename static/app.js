@@ -169,6 +169,25 @@ function applyArchetypeVisibility() {
   }
 }
 
+// A channel is cut INTO the band, so it needs the stone plus a MIN_WALL wall
+// each side (RNG-19 CP3, docs/parameter-ranges.md). The form's 2.2mm default
+// cannot hold any legal accent, so selecting Side-stone with stock values
+// would post a spec the casting gate rejects. Widen the band to fit instead of
+// letting the default path 400 — the user can still narrow it and get the
+// server's violation, which names the field and the required width.
+const CHANNEL_MIN_WALL = 0.8;
+
+function fitBandToChannel() {
+  if (archetypeSelect.value !== "side_stone") return;
+  const bandWidth = document.getElementById("band_width");
+  const accent = document.getElementById("accent_stone_diameter");
+  if (!bandWidth || !accent) return;
+  const needed = Number(accent.value) + 2 * CHANNEL_MIN_WALL;
+  if (Number(bandWidth.value) < needed) {
+    bandWidth.value = needed.toFixed(1);
+  }
+}
+
 function setLoading(isLoading) {
   generateBtn.disabled = isLoading;
   if (isLoading) {
@@ -346,7 +365,12 @@ async function generate(event) {
 }
 
 form.addEventListener("submit", generate);
-archetypeSelect.addEventListener("change", applyArchetypeVisibility);
+archetypeSelect.addEventListener("change", () => {
+  applyArchetypeVisibility();
+  fitBandToChannel();
+});
+const accentDiaEl = document.getElementById("accent_stone_diameter");
+if (accentDiaEl) accentDiaEl.addEventListener("change", fitBandToChannel);
 applyArchetypeVisibility();
 
 const shapeSelect = document.getElementById("shape");
