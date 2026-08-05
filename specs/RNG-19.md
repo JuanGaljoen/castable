@@ -77,14 +77,20 @@ reports watertight).
 Per the repo's module-seam rule — each commit trustworthy on its own, tests green,
 no half-written module.
 
-- [ ] **CP1 — band.** Taper curve + section profile in `_common.py`
-      (`SHANK_TAPER`, `_head_t`, `_band_section`). Most visual mass, lowest risk,
-      touches every archetype.
-- [ ] **CP2 — claws.** Continuous taper, domed tips, claw-to-seat join in
+- [ ] **CP1 — proportions.** Band taper curve in `_common.py` (`SHANK_TAPER`,
+      `_head_t`, `_band_section`) plus the trilogy span defect above. Carries the
+      parity rebaseline, since this is the checkpoint that moves the numbers.
+- [ ] **CP2 — claw finishing.** Continuous taper, domed tips, claw-to-seat join in
       `prong_setting.py` and `accent_prong.py`. Highest risk: this is RNG-17's
       module. Volume assertion mandatory (ADR 0005).
-- [ ] **CP3 — seat / collar / gallery blends + proportions.** Includes the
-      trilogy span defect above, and carries the parity rebaseline.
+
+### Cut from this pass (2026-08-05)
+
+**Seat / collar / gallery surface blends are deferred.** The ask is proportions
+and claw finishing, not "reads as a real ring" — that bar is not being attempted
+yet. The blend work is also the half that flat shading and validation-grade
+tessellation hide, so it would be unjudgeable until RNG-27 lands. Everything kept
+in CP1/CP2 is visible in the viewer as it stands today.
 
 ## Success criteria
 
@@ -93,6 +99,8 @@ no half-written module.
       `X-Mesh-Repaired: false` — the RNG-17 bar.
 - [ ] Min wall 0.8mm and min prong tip 0.7mm hold across the in-range space.
 - [ ] No RingSpec schema change.
-- [ ] Full suite green (3443 baseline), parity rebaselined only in CP3 and only
+- [ ] Full suite green (3443 baseline), parity rebaselined only in CP1 and only
       deliberately.
-- [ ] Each archetype reads as jewelry to the eye, judged at checkpoint boundaries.
+- [ ] Proportions read correctly and claws read as cast rather than assembled,
+      judged at checkpoint boundaries. **Not** "indistinguishable from a real
+      ring" — that bar belongs to RNG-25/27/33 and is not attempted here.
