@@ -15,6 +15,26 @@ from ._common import (
     MIN_PRONG_TIP, MIN_WALL, body_solid, clamps, placement,
 )
 
+# How far each claw segment is extended PAST its end nodes, so its rim sits
+# inside the node spheres rather than tangent to them. Far below anything the
+# viewer or the STL resolves, and it changes no designed radius.
+NODE_OVERLAP = 0.03
+
+
+def _seg(p, r_p, q, r_q):
+    """One claw segment, extended `NODE_OVERLAP` past both nodes.
+
+    Radii are extrapolated along the same taper so the cone's profile through
+    the original nodes is exactly `r_p` -> `r_q`; only the stubs poking into the
+    node spheres lie outside that span.
+    """
+    axis = q - p
+    length = axis.length
+    u = axis.normalized()
+    slope = (r_q - r_p) / length
+    d = NODE_OVERLAP
+    return (p - u * d, r_p - slope * d, q + u * d, r_q + slope * d)
+
 
 def prong_setting(spec: RingSpec, c: dict | None = None):
     """Gallery peg + claws for a RingSpec → one fused build123d solid."""
@@ -48,10 +68,39 @@ def prong_setting(spec: RingSpec, c: dict | None = None):
         tip_xy = radial * (girdle_r * 0.88)
         D = Vector(tip_xy.X, tip_xy.Y, ring_z + claw_rise)
 
-        nodes = [(A, wire_r), (B, wire_r), (C, wire_r * 0.92),
-                 (D, tip_r * 1.45)]
-        edges = [(A, wire_r, B, wire_r), (B, wire_r, C, wire_r * 0.92),
-                 (C, wire_r * 0.92, D, tip_r)]
+        # RNG-19: radii step DOWN continuously from base to tip, and each node's
+        # sphere matches the radius of the cones meeting there. Previously every
+        # node carried the same `wire_r` and the tip node was `tip_r * 1.45` —
+        # a ball WIDER than its own shaft, so the claw was thickest at the one
+        # place a real claw is thinnest. Cross-sections up the length ran
+        # 4.58 / 4.18 / 3.80 / 4.71 / 6.32 mm2: a taper, then a balloon.
+        #
+        # The base radius is unchanged: ~1.0mm diameter is already correct trade
+        # practice (docs/jewelry-design-principles.md), so this sheds metal from
+        # the upper claw rather than adding any.
+        girdle_r = wire_r * 0.92
+        nodes = [(A, wire_r), (B, girdle_r), (D, tip_r)]
+        # Node radii EQUAL the cone radii meeting there, and the mid node is
+        # gone: the claw is base -> girdle -> tip, which is what a cast claw
+        # actually does (grip at the girdle, then fold over the stone).
+        #
+        # The equal radii are load-bearing, not incidental. A sphere whose radius
+        # matches its cone's rim is TANGENT, and OCCT merges the two surfaces
+        # into one smooth face. Give them a genuine intersection -- by thinning
+        # the cone radially OR by extending it past the node -- and the B-rep
+        # stays valid and single-solid while the STL tessellator cracks along the
+        # intersection circles (measured: 265 non-manifold edges off a perfectly
+        # valid 74-face B-rep; nearly the whole parameter grid once every joint
+        # had one). So this construction DEPENDS on tangency to tessellate, and
+        # the way to make it robust is fewer joints, not better-overlapped ones.
+        #
+        # Dropping the mid node also removes the joint that actually failed: with
+        # the old oversized tip ball gone (1.16mm across a 0.92mm gap at a 2mm
+        # stone, which welded all six claws into a ring), the mid joint lost its
+        # redundant connection and OCCT resolved that one tangency as a seam,
+        # splitting a claw's upper half off as its own solid -- watertight, and
+        # still wrong (docs/adr/0005).
+        edges = [(A, wire_r, B, girdle_r), (B, girdle_r, D, tip_r)]
         parts = [Pos(*v) * Sphere(r) for v, r in nodes]
         parts += [body_solid(*e) for e in edges]
         # Pre-fuse each claw into ONE body before the final fuse. A single n-ary

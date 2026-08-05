@@ -117,9 +117,35 @@ no half-written module.
   reported success left the process alive holding port 5000 (which macOS
   ControlCenter also listens on). **Verify the server is younger than the edit
   before trusting a before/after.**
-- [ ] **CP2 — claw finishing.** Continuous taper, domed tips, claw-to-seat join in
+- [x] **CP2 — claw finishing.** Continuous taper, domed tips, claw-to-seat join in
       `prong_setting.py` and `accent_prong.py`. Highest risk: this is RNG-17's
       module. Volume assertion mandatory (ADR 0005).
+
+  **Landed 2026-08-05.** Claws now run base → girdle → tip with radii stepping
+  down continuously, finishing in a dome the shaft's own width; `accent_prong`'s
+  straight cylinder became a taper, so halo shared-prongs and trilogy side
+  settings inherit it. Cross-sections up one claw:
+
+      pre-CP2   4.58 · 4.18 · 3.80 · 4.71 · 6.32    taper, then balloon
+      post-CP2  3.92 · 3.61 · 3.32 · 3.13 · 3.05    monotonic
+
+  The base cross-section *shrank*, so nothing got thicker — the research found
+  our ~1.0mm claw diameter was already correct trade practice, making this a
+  shape fix only. Volumes moved −0.2% to −2.7% across the five saved specs, all
+  raw watertight with `X-Mesh-Repaired: false`.
+
+  **The expensive part, recorded in `docs/adr/0007`.** Removing the oversized tip
+  ball broke watertightness at `stone_diameter=2.0`: those balls were 1.16mm
+  across a 0.92mm gap, so they had been overlapping *each other* into a ring and
+  welding all six claws together at the top, carrying connectivity past joints
+  that were only ever tangent. Then the obvious fix made it worse — giving the
+  cone and sphere a genuine overlap (radially, then axially) left the B-rep
+  valid and single-solid while the STL tessellator cracked along the new
+  intersection circles: 265 non-manifold edges off a perfectly good 74-face
+  solid. **This construction depends on tangency to tessellate**, which inverts
+  ADR-0001's prefer-overlap rule, so the fix was fewer joints rather than
+  better-overlapped ones: dropping the mid node, which is also what a cast claw
+  does. All 18 grid points single-solid and watertight.
 
 ### Cut from this pass (2026-08-05)
 
