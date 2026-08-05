@@ -16,10 +16,13 @@ from build123d import (
 
 from ringcad.mesh_validator import MIN_PRONG_TIP_MM, MIN_WALL_MM
 from ringcad.ringspec import RingSpec, to_params
+from ringcad.ringspec.models import SHANK_THICKNESS_TAPER, SHANK_WIDTH_TAPER
 
 from .outline import outline_for
 
-SHANK_TAPER = 1.7
+# Re-exported under the historic name; the schema owns the value so the
+# castability checks derive `head_r` identically (docs/adr/0002).
+SHANK_TAPER = SHANK_WIDTH_TAPER
 NA = 96  # sections around the ring (matches the spike)
 
 
@@ -31,13 +34,18 @@ def _lerp(a: float, b: float, t: float) -> float:
     return a + (b - a) * t
 
 
-def _clamps(p: Mapping[str, object], taper: float = SHANK_TAPER) -> dict:
+def _clamps(
+    p: Mapping[str, object],
+    taper: float = SHANK_TAPER,
+    t_taper: float = SHANK_THICKNESS_TAPER,
+) -> dict:
     id_c = max(float(p["inner_diameter"]), 5.0)
     bt_c = max(float(p["band_thickness"]), MIN_WALL_MM)
     bw_c = max(float(p["band_width"]), MIN_WALL_MM)
     sd_c = max(float(p["stone_diameter"]), 1.0)
     gh_c = max(float(p["setting_height"]), MIN_WALL_MM)
     taper = max(taper, 1.0)
+    t_taper = max(t_taper, 1.0)
     inner_r = id_c / 2
     return {
         "inner_r": inner_r,
@@ -45,8 +53,12 @@ def _clamps(p: Mapping[str, object], taper: float = SHANK_TAPER) -> dict:
         "bw": bw_c,
         "stone_r": sd_c / 2,
         "gh": gh_c,
-        "taper": taper,
-        "head_r": inner_r + bt_c * taper,
+        "taper": taper,        # WIDTH flare toward the head
+        "t_taper": t_taper,    # thickness rise toward the head (near-flat)
+        # `head_r` is the band's outer radius AT THE HEAD, so it follows the
+        # thickness taper. `placement()` welds every setting at `head_r - 0.4`;
+        # if these two disagree the setting floats clear of the band.
+        "head_r": inner_r + bt_c * t_taper,
         "ring_z": gh_c * 0.5,
         "claw_rise": gh_c * 0.5,
     }
@@ -71,9 +83,12 @@ def clamps(spec: RingSpec) -> dict:
     peg and hub radii, which are not girdle-following.
     """
     p = to_params(spec)
-    taper = FLAT_TAPER if getattr(spec, "archetype", None) == "side_stone" \
-        else SHANK_TAPER
-    c = _clamps(p, taper)
+    flat = getattr(spec, "archetype", None) == "side_stone"
+    taper = FLAT_TAPER if flat else SHANK_TAPER
+    # A flat band is flat on BOTH axes — the side-stone row needs a constant
+    # outer radius for its seats and rails to sit ON the surface (RNG-11).
+    t_taper = FLAT_TAPER if flat else SHANK_THICKNESS_TAPER
+    c = _clamps(p, taper, t_taper)
     pc = int(p["prong_count"])
     c["prong_n"] = pc if pc in (4, 6) else 4
     stones = getattr(spec, "stones", None)
@@ -85,17 +100,26 @@ def clamps(spec: RingSpec) -> dict:
     return c
 
 
+# How far the setting frame sits INSIDE the band's outer surface at the head, so
+# the setting is welded into metal rather than balanced on it. Named because
+# `trilogy._side_loc` needs the same radius while decoupling its own tilt.
+HEAD_INSET = 0.4
+
+
 def placement(c: dict) -> Location:
     """Local +Z setting frame laid onto the global +X head axis (the spike's
     `place` transform). Shared so peg, claws and seat torus land identically."""
-    return Pos(c["head_r"] - 0.4, 0, 0) * Rot(0, 90, 0)
+    return Pos(c["head_r"] - HEAD_INSET, 0, 0) * Rot(0, 90, 0)
 
 
 def _band_section(c: dict, a_deg: float):
     """One oval cross-section face at ring angle `a` (deg)."""
     r = math.radians(a_deg)
     t = _head_t(a_deg)
-    th = _lerp(c["bt"], c["bt"] * c["taper"], t)
+    # Width flares toward the head; thickness only rises slightly. Real shanks
+    # taper in width (docs/jewelry-design-principles.md) — one factor on both
+    # axes gave a band 3.4mm wide AND 3.06mm thick at the head.
+    th = _lerp(c["bt"], c["bt"] * c["t_taper"], t)
     w = _lerp(c["bw"], c["bw"] * c["taper"], t)
     rc = c["inner_r"] + th / 2
     origin = Vector(rc * math.cos(r), rc * math.sin(r), 0)

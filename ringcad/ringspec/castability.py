@@ -16,7 +16,9 @@ from pydantic import BaseModel
 
 from ringcad.mesh_validator import MIN_PRONG_TIP_MM, MIN_WALL_MM
 
-from .models import HaloSpec, RingSpec, SideStoneSpec, TrilogySpec
+from .models import (
+    SHANK_THICKNESS_TAPER, HaloSpec, RingSpec, SideStoneSpec, TrilogySpec,
+)
 
 # Side-stone row: angular clearance off the centre head (A_START) and the
 # angular limit before the ring base (A_MAX) — mirrored by the actual
@@ -212,7 +214,11 @@ def _trilogy_overcrowding(spec: RingSpec) -> list[Violation]:
         spec.stones, "length_ratio", 1.0
     )
     side_r = trilogy.side_stone_diameter / 2
-    head_r = shank.inner_diameter / 2 + shank.band_thickness * shank.shank_taper
+    # THICKNESS taper, not `shank.shank_taper` (which is the WIDTH flare): the
+    # head radius is how far the band's outer surface stands off the finger, and
+    # the builder derives it the same way (`_common._clamps`). Reading the width
+    # field here is what made this check disagree with the geometry it guards.
+    head_r = shank.inner_diameter / 2 + shank.band_thickness * SHANK_THICKNESS_TAPER
     arc = stone_r + trilogy.side_stone_gap + side_r
     phi = arc / head_r
     chord = 2 * head_r * math.sin(phi / 2)

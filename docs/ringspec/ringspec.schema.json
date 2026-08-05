@@ -253,7 +253,7 @@
     },
     "Shank": {
       "additionalProperties": false,
-      "description": "Band geometry. shank_taper is the SCAD 8th shaping param (default 1.7).",
+      "description": "Band geometry. `shank_taper` is the WIDTH flare toward the head (the SCAD\n8th shaping param); thickness is governed by `SHANK_THICKNESS_TAPER`.",
       "properties": {
         "inner_diameter": {
           "exclusiveMinimum": 0,
@@ -274,7 +274,7 @@
           "type": "number"
         },
         "shank_taper": {
-          "default": 1.7,
+          "default": 1.35,
           "maximum": 3.0,
           "minimum": 1.0,
           "title": "Shank Taper",

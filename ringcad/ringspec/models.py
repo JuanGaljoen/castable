@@ -26,15 +26,32 @@ SPEC_VERSION = "1.0"
 # lower casting floors (min wall / min tip) are enforced in castability.py.
 
 
+# RNG-19: the shank tapers in WIDTH toward the head; thickness stays
+# near-constant so the ring keeps a consistent feel on the finger
+# (docs/jewelry-design-principles.md). One factor applied to both axes made the
+# band a swollen tube at the head.
+#
+# These live here, in the schema, rather than in `geometry/_common.py`, because
+# BOTH the builder and `castability.py` derive `head_r` from the thickness
+# taper. `ringspec` cannot import `geometry` (the dependency runs the other
+# way), so a geometry-side constant would force the check to keep its own copy —
+# exactly the drift docs/adr/0002 is about, and exactly what had already
+# happened: the builder used a module constant while the check read the
+# `shank_taper` FIELD.
+SHANK_WIDTH_TAPER = 1.35
+SHANK_THICKNESS_TAPER = 1.15
+
+
 class Shank(BaseModel):
-    """Band geometry. shank_taper is the SCAD 8th shaping param (default 1.7)."""
+    """Band geometry. `shank_taper` is the WIDTH flare toward the head (the SCAD
+    8th shaping param); thickness is governed by `SHANK_THICKNESS_TAPER`."""
 
     model_config = ConfigDict(extra="forbid")
 
     inner_diameter: float = Field(gt=0, le=40)
     band_width: float = Field(gt=0, le=12)
     band_thickness: float = Field(gt=0, le=8)
-    shank_taper: float = Field(default=1.7, ge=1.0, le=3.0)
+    shank_taper: float = Field(default=SHANK_WIDTH_TAPER, ge=1.0, le=3.0)
 
 
 class Setting(BaseModel):

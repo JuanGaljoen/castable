@@ -30,7 +30,10 @@ CANONICAL_PARAMS = {
 }
 
 # Pre-CP2 solitaire baseline (RNG-16 compose target); parity must hold.
-EXPECTED_VOLUME_MM3 = 389.56
+# Was the spike-measured 389.56; REBASELINED in RNG-19 CP1 (2026-08-05)
+# when the shank stopped tapering in thickness. See
+# tests/test_geometry_parity.py for the before/after and the reasoning.
+EXPECTED_VOLUME_MM3 = 279.62
 VOLUME_TOL = 0.05  # +/-5%, the RNG-13 parity band
 
 # Curated CASTABLE band: min/mid/max of each side_stone dimension in
