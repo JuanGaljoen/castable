@@ -147,6 +147,67 @@ no half-written module.
   better-overlapped ones: dropping the mid node, which is also what a cast claw
   does. All 18 grid points single-solid and watertight.
 
+- [ ] **CP3 — side-stone channel accents.** Deferred here by RNG-11's closing
+      comment ("making the accents read more prominently as fine jewelry is
+      deferred to RNG-19"). `docs/jewelry-design-principles.md` §Channel finds this
+      is the one archetype **wrong in kind**, not merely unrefined.
+
+  **The defect.** Channel setting means stones sit in a groove cut into the band
+  between two walls, with seats cut into the walls' inner faces — **no prongs and
+  no per-stone collar at all; that is the definition.** We place an `accent_seat`
+  (a `Torus` collar deliberately proud of the band, `ACCENT_EMBED = 0.1`, commented
+  "a visible bead") at each stone, retained by two `Torus` rails sitting *on* the
+  surface. That is correct halo geometry reused where its premise does not hold —
+  a row of raised donuts instead of stones recessed between two rails.
+
+  **The arithmetic that explains RNG-11's shortcut.** A channel groove runs across
+  the band's width axis, so it needs `accent_d + 2·MIN_WALL` = 1.5 + 1.6 =
+  **3.1mm**. The corpus side-stone spec supplies `band_width: 2.0`. Even the
+  smallest legal accent (0.9mm) needs 2.5mm, and the research's own shank table
+  puts typical bands at 1.5–3mm. **Real channel-set bands are wide because the
+  geometry forces it; our schema lets you ask for a channel on a band that cannot
+  physically have one.** RNG-11's raised beads were not only a shortcut — they are
+  the only thing that fits in 2.0mm. So CP3 is not a rendering change; it is a
+  constraint the archetype has never satisfied.
+
+  **The construction: cut the stones out of the metal.** We render metal only
+  (§"The metal-only caveat"), so a channel row *is* the negative of its stones.
+  Rather than model a setting, model the band and subtract:
+
+  1. Flat band (`FLAT_TAPER`) — unchanged, now correct for the stated reason.
+  2. **Cut the groove** — swept along the accent arc, clear span
+     `accent_d − 2·GIRDLE_PENETRATION`, inward from the outer surface. The walls
+     are the band's own metal, not rails on it.
+  3. **Cut each stone** — a solid of revolution of radius `accent_r` at that
+     stone's girdle plane. At 1.5mm across a 1.1mm clear span it bites exactly
+     0.2mm into each wall's inner face: **the bearing seats, at the research's
+     stated penetration, fall out of the subtraction for free.**
+  4. Delete `accent_seat` and both `Torus` rails from `side_stone` entirely.
+
+  **Why this is castable where the additive version was not.** It is purely
+  subtractive, so ADR-0007's tessellation cracking (fusing near-tangent bodies)
+  has no tangency to crack along — the stone tool overlaps the groove by 0.4mm,
+  nowhere near a sliver. Watertightness holds by construction: a cut cannot open a
+  solid unless it severs it, and the floor rule forbids that. The ~0.25mm undercut
+  never exists as a feature; the smallest cutting tool is a 1.5mm sphere.
+
+  **Three derived castability rules, no schema change:**
+
+      walls   band_width     >= accent_diameter + 2 * MIN_WALL
+      floor   band_thickness >= groove_depth    +     MIN_WALL
+      depth   groove_depth   >= pavilion clearance, clamped to the floor budget
+
+  **Accepted consequence:** narrow bands are now rejected rather than silently
+  built wrong. The fidelity corpus side-stone spec (2.0mm) will fail to generate
+  until its band widens — a real red entry, per RNG-22's rule that a declared
+  manifest entry with no valid result is reported, not hidden.
+
+  **New seam — subtractive modules.** `compose` is additive-only: it collects
+  leaves and fuses, and `DegenerateModuleError` rejects a module contributing zero
+  volume. A cut-only `side_stone` contributes no leaves. So the module Protocol
+  gains an optional `cuts(spec, c)`, subtracted after the single general fuse, and
+  the degeneracy guard accepts a module that declares cuts instead of parts.
+
 ### Cut from this pass (2026-08-05)
 
 **Seat / collar / gallery surface blends are deferred.** The ask is proportions
