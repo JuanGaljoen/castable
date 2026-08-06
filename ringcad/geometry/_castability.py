@@ -22,7 +22,8 @@ from ._common import MIN_WALL, placement
 from .accent_prong import accent_prong
 from .accent_seat import accent_seat
 from .gallery import RAIL_MINOR
-from .halo import RAIL_OVERLAP
+from .halo import RAIL_OVERLAP, _halo_geometry, halo_parts
+from ringcad.ringspec.models import HALO_WELL_BACK_RATIO
 from .side_stone import side_stone_cuts
 from .trilogy import _side_locs
 
@@ -344,6 +345,71 @@ def check_side_stone(solid, spec: RingSpec, clamps: dict) -> list[Violation]:
                     actual_mm=wall,
                 )
             )
+    return violations
+
+
+def check_halo_plate(solid, spec: RingSpec, clamps: dict) -> list[Violation]:
+    """The halo plate carries its own floors (RNG-19 CP4).
+
+    Replaces `check_gallery` as the halo module's `_check`. That check worked by
+    finding rail-tube cross-sections, and CP4 removed the rail -- so it stopped
+    finding anything and returned clean on every halo, leaving the archetype
+    with no in-kernel check at all. A gate that cannot fail is docs/adr/0006.
+
+    Measures the plate as BUILT, in its own local frame (the placement maps
+    local +Z onto the global head axis, so an unrotated bbox would read the
+    wrong axis entirely), plus the floor left under each bored seat.
+    """
+    if getattr(spec, "archetype", None) != "halo" or getattr(
+        spec, "halo", None
+    ) is None:
+        return []
+
+    violations: list[Violation] = []
+    g = _halo_geometry(spec, clamps)
+
+    # The web between adjacent seats, measured as the true CHORD between the
+    # bore centres on the built ring. `_halo_web` in ringspec gates the same
+    # quantity by ARC, which is an over-estimate — most on an ellipse, where the
+    # accents an oval halo actually places are closer together than the
+    # perimeter/n average suggests. This is the measurement that catches the two
+    # disagreeing; asserting the spec formula back at itself would not.
+    back_r = g["accent_r"] * HALO_WELL_BACK_RATIO
+    pts = [g["ring"].frame_at(t)[0] for t in g["seats"]]
+    webs = [
+        math.hypot(b.X - a.X, b.Y - a.Y) - 2 * back_r
+        for a, b in zip(pts, pts[1:] + pts[:1])
+    ]
+    if webs and min(webs) < MIN_WALL - _TOL:
+        violations.append(
+            Violation(
+                code="min_wall",
+                field="halo.halo_stone_count",
+                message=f"Halo seats leave {min(webs):.3f}mm of metal between "
+                f"them at their narrowest, below the {MIN_WALL_MM}mm minimum "
+                "wall.",
+                limit_mm=MIN_WALL_MM,
+                actual_mm=min(webs),
+            )
+        )
+
+    # The plate's own thickness, read off the built solid in its local frame
+    # (the placement maps local +Z onto the global head axis, so an unrotated
+    # bbox would read the wrong axis entirely).
+    plate = halo_parts(spec, clamps)[0]
+    local = placement(clamps).inverse() * plate
+    thickness = local.bounding_box().size.Z
+    if thickness < MIN_WALL - _TOL:
+        violations.append(
+            Violation(
+                code="min_wall",
+                field="halo.halo_stone_height",
+                message=f"Halo plate is {thickness:.3f}mm thick, below the "
+                f"{MIN_WALL_MM}mm minimum wall.",
+                limit_mm=MIN_WALL_MM,
+                actual_mm=thickness,
+            )
+        )
     return violations
 
 

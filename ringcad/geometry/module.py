@@ -51,10 +51,17 @@ class SimpleModule:
     like `halo`; see `halo_parts`). Modules without it contribute one leaf:
     their fused `build` result.
 
-    An optional `_cuts` callable yields solids SUBTRACTED after that fuse. A
-    module that declares cuts contributes no leaves: `side_stone` (RNG-19 CP3)
-    is the first, because a channel setting removes metal from the band rather
-    than adding metal to it.
+    An optional `_cuts` callable yields solids SUBTRACTED after that fuse.
+    Modules come in both shapes:
+
+      - cut-only — `side_stone` (RNG-19 CP3) declares cuts and no parts, because
+        a channel setting removes metal from the band rather than adding to it;
+      - parts AND cuts — `halo` (RNG-19 CP4) builds a plate and then bores the
+        accent seats out of it.
+
+    So `_parts` and `_cuts` are independent: declaring cuts does not suppress
+    leaves. Only a module with `_cuts` and no `_parts` contributes nothing to
+    the fuse.
     """
 
     name: str
@@ -67,10 +74,10 @@ class SimpleModule:
         return self._build(spec, clamps)
 
     def parts(self, spec: RingSpec, clamps: dict) -> list:
-        if self._cuts is not None:
-            return []
         if self._parts is not None:
             return self._parts(spec, clamps)
+        if self._cuts is not None:
+            return []
         return [self._build(spec, clamps)]
 
     def cuts(self, spec: RingSpec, clamps: dict) -> list:
@@ -122,7 +129,7 @@ MODULES: dict[str, Module] = {
     "halo": SimpleModule(
         name="halo",
         _build=lambda spec, c: halo(spec, c),
-        _check=_ck.check_gallery,
+        _check=_ck.check_halo_plate,
         _parts=lambda spec, c: halo_parts(spec, c),
     ),
     "trilogy": SimpleModule(
@@ -188,6 +195,7 @@ def compose(spec: RingSpec, archetype: str | None = None):
         leaves.extend(parts)
         cuts.extend(mod_cuts)
     solid = leaves[0].fuse(*leaves[1:])
-    for cut in cuts:
-        solid = solid - cut
-    return solid
+    # ONE cut with every tool, not a subtraction per tool — the same lesson as
+    # the single general fuse above (RNG-17 risk #1), and measured: iterating
+    # raised `Null TopoDS_Shape` on a 13-accent halo that a single cut resolved.
+    return solid.cut(*cuts) if cuts else solid

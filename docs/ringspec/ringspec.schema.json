@@ -108,7 +108,7 @@
     },
     "Halo": {
       "additionalProperties": false,
-      "description": "Accent-stone ring encircling the centre stone (RNG-9).",
+      "description": "Accent-stone ring encircling the centre stone (RNG-9).\n\nHow many accents actually fit depends on the centre stone the halo rides,\nnot on this range alone: each seat needs metal either side of it. That is\n`_halo_web`'s job (RNG-19 CP4), not the schema's.",
       "properties": {
         "halo_stone_diameter": {
           "default": 1.3,

@@ -253,6 +253,75 @@ no half-written module.
   primary recommendation) and the unenforced "keep >= 2mm at the narrowest"
   shank rule.
 
+- [x] **CP4 — the halo is a plate, not a ring of collars.** Added 2026-08-06
+      after `docs/reference/halo.png` (a trade semi-mount) was compared against a
+      render. Not in the original scope: the seat/collar blends were cut on the
+      grounds they could not be judged before RNG-27, and a single reference
+      sketch disproved that — it is bare metal too, and reads as jewelry.
+
+  **The defect.** RNG-9 built the halo body as N `accent_seat` torus collars on a
+  gallery rail. On the corpus halo that is a 0.7–0.8mm tube around a 1.2mm stone
+  — metal two thirds the stone's own diameter — and `collar_tr` is pinned at
+  `max(MIN_WALL/2, 0.35)`, so no tuning could make it finer. It read as lumpy
+  tubing. The sketch shows one continuous plate with the seats bored through it,
+  small beads between adjacent stones, and an open understructure.
+
+  **The construction.** CP3's move, second customer: a solid plate with the
+  stones cut out of it. Seats are bored FIRST, into the bare plate, then the
+  beads are fused on top so they sit proud at each junction and overhang the seat
+  rims the way a set bead does.
+
+  **Four defects found that were live on `main`,** none visible to the suite:
+
+  | | |
+  |---|---|
+  | unguarded web | `_halo_overcrowding` only checked accents do not OVERLAP. The corpus halo had 0.195mm of metal between seats and the gate reported castable (docs/adr/0006). |
+  | silent halo gate | `check_gallery` was the halo's `_check` and worked by finding rail-tube faces. Once the rail went it found nothing and passed everything. |
+  | plate vs. setting | A 3mm accent in a 3mm setting wanted a 2.75mm plate inside 1.5mm of room and pushed the halo through the band; OCC could not bound the solid. `halo_seat_depth` now clamps to available metal. |
+  | redundant rail | The gallery rail existed only to weld N loose collars. With a plate it is a second ring, and read as a band slung under the halo. |
+
+  **No gallery at all now.** The centre claws rise through the plate's own height
+  at exactly the girdle radius — they were GRAZING its inner edge. Opening the
+  plate `HALO_PLATE_INNER_BITE` (0.7mm) inside the girdle embeds them, so the
+  halo hangs off the prongs, which is both what a real halo head does and what
+  was asked for. Verified single-solid and raw watertight at 4 AND 6 prongs,
+  since the claws are now load-bearing for the halo.
+
+  **The web rule was relaxed mid-checkpoint, deliberately.** First measured at
+  the girdle — a tapered bore's WIDEST point — which forced 1.1mm of flat plate
+  between every pair of stones and left visible gaps. The metal between two
+  tapered seats is a V-shaped ridge, near zero at the surface and thickening with
+  depth; measuring its top sliver as the wall is the same error as measuring a
+  knife-edge shank at its edge. Measured where the bore is narrowest, stones sit
+  0.15mm apart at the default accent — the reference's bright-cut edge. **This is
+  a wall rule that got looser after a visual complaint, so it deserves the
+  scepticism**; the defence is that the original measurement was wrong for a
+  tapered feature, and the reference shows real halos set stones nearly touching.
+
+  **Consequence:** `halo_stone_count` briefly went 14 → 10 under the stricter
+  measure and is back at 14, so the contract is unchanged after all.
+
+  **Two bugs of mine worth keeping:**
+
+  - **Sealed cavities.** The first bores left a 0.02mm floor under each seat,
+    sealing 15 internal voids. The solid reported watertight, one B-rep solid,
+    every casting floor met, because the defect was a hole that failed to OPEN.
+    Only mesh BODY COUNT exposed it (docs/adr/0005). Now a regression test.
+  - **A tautological gate.** The replacement check measured `plate_t -
+    seat_depth`, but `plate_t` is *defined* as `seat_depth + MIN_WALL`, so it was
+    arithmetically incapable of failing. `test_halo_check_can_actually_fail`
+    caught it. It now measures the true CHORD web on built geometry, which can
+    genuinely disagree with the spec rule's arc approximation — most on an
+    ellipse. **Write the test that asserts a gate can fail.**
+
+  **Iterative cuts are unsafe.** `compose` subtracted one tool at a time; on a
+  13-accent halo that raised `Null TopoDS_Shape`. A single `cut(*tools)` resolved
+  it — RNG-17's single-general-fuse lesson, applied to subtraction.
+
+  Full suite green: 3488 passed. Corpus: `halo-round` (22 accents) and
+  `side-stone` (2.0mm band) are now red — both vision-produced specs the gates
+  reject, i.e. two more RNG-32 instances.
+
 ### Cut from this pass (2026-08-05)
 
 **Seat / collar / gallery surface blends are deferred.** The ask is proportions

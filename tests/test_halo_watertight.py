@@ -28,13 +28,19 @@ from ringcad.ringspec import Halo, HaloSpec, Setting, Shank, Stones
 # corner (count 24 + diameter 2.5 + gap 0.3, which CP1 already flags); the two
 # dense (count=24) rows use the wider center stone so their arc spacing clears.
 # (h_dia, h_count, h_gap, h_height, stone_dia, setting_h)
+# Counts REBASELINED in RNG-19 CP4: the web between adjacent seats must carry a
+# retaining bead, so how many accents fit is a function of the ring they ride.
+# Each row keeps its original intent (sparse / dense / big / small) at a count
+# `_halo_web` allows; rows that were only ever legal because nothing checked the
+# web have come down. Densest rows now sit on the 10mm centre, which is the ring
+# with the arc to support them.
 BAND = [
     (0.9, 8, 0.3, 0.8, 6.5, 3.0),    # small accents, sparse, low setting
-    (1.3, 14, 0.5, 1.2, 6.5, 6.0),   # golden
+    (1.3, 10, 0.5, 1.2, 6.5, 6.0),   # golden (was 14 -- uncastable webs)
     (2.5, 8, 1.5, 3.0, 10.0, 6.0),   # big accents, wide gap, sparse
-    (1.3, 24, 0.5, 1.2, 10.0, 6.0),  # dense, mid diameter, wide center
-    (0.9, 24, 0.3, 0.8, 10.0, 3.0),  # dense small accents, wide center
-    (2.5, 14, 1.5, 3.0, 6.5, 3.0),   # big accents, mid count
+    (1.3, 16, 0.5, 1.2, 10.0, 6.0),  # dense, mid diameter, wide center
+    (0.9, 18, 0.3, 0.8, 10.0, 3.0),  # dense small accents, wide center
+    (2.5, 8, 1.5, 3.0, 6.5, 3.0),    # big accents on a small ring -> sparse
     (1.3, 8, 1.5, 0.8, 6.5, 6.0),
     (0.9, 14, 0.5, 3.0, 10.0, 3.0),
 ]

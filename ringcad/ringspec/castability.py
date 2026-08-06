@@ -18,7 +18,8 @@ from ringcad.mesh_validator import MIN_PRONG_TIP_MM, MIN_WALL_MM
 
 from .models import (
     SHANK_THICKNESS_TAPER, HaloSpec, RingSpec, SideStoneSpec, TrilogySpec,
-    channel_band_width, channel_groove_depth,
+    HALO_WELL_BACK_RATIO, channel_band_width, channel_groove_depth,
+    halo_min_arc,
 )
 
 # Side-stone row: angular clearance off the centre head (A_START) and the
@@ -185,6 +186,48 @@ def _halo_overcrowding(spec: RingSpec) -> list[Violation]:
                 message=f"{halo.halo_stone_count} accents leave {arc:.3f}mm of arc "
                 f"each, below the {halo.halo_stone_diameter}mm accent diameter.",
                 limit_mm=halo.halo_stone_diameter,
+                actual_mm=arc,
+            )
+        ]
+    return []
+
+
+def _halo_web(spec: RingSpec) -> list[Violation]:
+    """Metal left BETWEEN adjacent halo seats (RNG-19 CP4).
+
+    `_halo_overcrowding` guards that accents do not overlap each other. This
+    guards what survives between them — the web the seats are bored either side
+    of. They are different questions, and only the first was ever asked: the
+    corpus halo passed the gate with a 0.195mm web, a quarter of the casting
+    floor, because 22 accents of 1.2mm on that ring leave arc for the stones and
+    almost nothing for the metal.
+
+    Measured in arc, matching `_halo_overcrowding`'s own convention rather than
+    the chord the side-stone check uses. The two diverge by <0.5% at these
+    counts (~0.004mm against a 0.8mm floor), so consistency with the halo's
+    existing math is worth more here than the stricter measure.
+    """
+    if not isinstance(spec, HaloSpec):
+        return []
+    halo = spec.halo
+    offset = halo.halo_gap + halo.halo_stone_diameter / 2
+    semi_minor = spec.stones.stone_diameter / 2
+    semi_major = semi_minor * getattr(spec.stones, "length_ratio", 1.0)
+    perimeter = _ring_perimeter(semi_minor + offset, semi_major + offset)
+    arc = perimeter / halo.halo_stone_count
+    needed = halo_min_arc(
+        halo.halo_stone_diameter, MIN_WALL_MM, MIN_PRONG_TIP_MM
+    )
+    if arc < needed:
+        web = arc - halo.halo_stone_diameter * HALO_WELL_BACK_RATIO
+        return [
+            Violation(
+                code="halo_web",
+                field="halo.halo_stone_count",
+                message=f"{halo.halo_stone_count} accents leave {web:.3f}mm of "
+                f"metal between adjacent seats, below the {MIN_WALL_MM}mm "
+                f"minimum wall; at most {int(perimeter // needed)} accents fit.",
+                limit_mm=needed,
                 actual_mm=arc,
             )
         ]
@@ -404,6 +447,7 @@ def validate_castability(spec: RingSpec) -> list[Violation]:
         + _geometric(spec)
         + _stone_curvature(spec)
         + _halo_overcrowding(spec)
+        + _halo_web(spec)
         + _trilogy_overcrowding(spec)
         + _side_stone_overcrowding(spec)
         + _side_stone_channel(spec)

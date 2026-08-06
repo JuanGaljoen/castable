@@ -62,6 +62,95 @@ def channel_groove_depth(accent_stone_height: float) -> float:
     return PAVILION_FRACTION * accent_stone_height + GIRDLE_RECESS
 
 
+# --- Halo plate (RNG-19 CP4) ------------------------------------------------
+# The halo body is ONE continuous plate with the accent seats bored through it
+# (docs/reference/halo.png), not a ring of collar tubes. Metal outside the
+# outermost bore, giving the plate the crisp rim the sketch shows.
+#
+# Deliberately well under MIN_WALL, and legitimately so: this is how far the
+# plate overhangs its outermost seat, NOT a wall thickness. The plate's actual
+# wall is its THICKNESS, which carries the floor. At 0.8mm the overhang read as
+# a broad flat collar of dead metal around the stones; the reference shows a
+# thin bright edge.
+HALO_PLATE_RIM = 0.25
+# How far the plate reaches INSIDE the centre girdle, so the centre setting's
+# claws are embedded in it rather than grazing its edge. The claws rise through
+# the plate's own height exactly at the girdle radius, so without this the two
+# only touch -- and the halo needed a hub-and-spokes gallery of its own to hang
+# from, which read as a cross slung under it. Larger than the claw wire radius
+# (0.5) so the weld is volumetric.
+HALO_PLATE_INNER_BITE = 0.7
+# Bore radius at the bottom of a seat, as a fraction of the stone's: a seat is a
+# TAPERED bearing, narrower behind the girdle than at it.
+HALO_WELL_BACK_RATIO = 0.5
+
+
+# Shallowest seat worth boring; below this there is no bearing left to speak of.
+HALO_MIN_SEAT_DEPTH = 0.2
+
+
+def halo_seat_depth(
+    accent_stone_height: float, available: float, min_wall: float
+) -> float:
+    """How deep a seat can actually be bored.
+
+    The stone's pavilion, CLAMPED to the metal there is to bore into: a plate
+    needs `depth + min_wall`, and it only has `available` (the setting's
+    half-height) before it drops below the placement origin into the shank. A
+    3mm accent in a 3mm setting asked for a 2.75mm plate inside 1.5mm of room
+    and pushed the halo through the band — OCC then failed to bound the solid at
+    all. Shallower seats on a low setting is the physical answer: you cannot
+    bore deeper than the metal you have.
+    """
+    return max(HALO_MIN_SEAT_DEPTH,
+               min(PAVILION_FRACTION * accent_stone_height, available - min_wall))
+
+
+def halo_plate_thickness(accent_stone_height: float, min_wall: float) -> float:
+    """Plate thickness: the seat's own depth plus a floor beneath it.
+
+    The seats are BLIND, and that is a structural requirement rather than a
+    style choice. The accent ring and the gallery rail share a radius, so a seat
+    bored through the plate lands straight on the rail torus, and cone-against-
+    torus intersections would not tessellate — a valid single B-rep solid whose
+    mesh had null-triangulation faces and was not watertight. Leaving MIN_WALL of
+    floor keeps every bore clear of the rail entirely.
+    """
+    return PAVILION_FRACTION * accent_stone_height + min_wall
+
+
+def halo_min_arc(
+    accent_stone_diameter: float, min_wall: float, min_prong_tip: float
+) -> float:
+    """Arc each accent needs so the METAL BETWEEN adjacent seats survives.
+
+    `_halo_overcrowding` only ever checked that accents do not overlap each
+    other (`arc >= diameter`). It never checked what is left between them, so a
+    halo could pass the gate with 0.195mm webs and report castable — exactly
+    docs/adr/0006, a wrong gate being silent.
+
+    **Measured where the bore is NARROWEST, not at the girdle.** The seats are
+    tapered, so the metal between two of them is a V-shaped ridge: near zero at
+    the surface, thickening with depth. Measuring at the girdle — the bore's
+    widest point — treats that ridge's top sliver as the wall, and it forced
+    1.1mm of flat plate between every pair of stones. Real halos set the stones
+    nearly touching, with a bright-cut edge and a bead between them
+    (docs/reference/halo.png); the load-bearing section is the one lower down,
+    where the bores have tapered in to `HALO_WELL_BACK_RATIO` of their radius.
+
+    So the wall is `pitch - 2*back_r`, and requiring that to clear `min_wall`
+    gives `pitch >= accent_r + min_wall`. `min_prong_tip` is retained in the
+    signature because the bead still has to exist, but it no longer sets the
+    spacing: beads are fused ON the bored plate, overhanging the seat rims the
+    way a set bead does, rather than needing clear plate to stand on.
+    """
+    back_r = accent_stone_diameter / 2 * HALO_WELL_BACK_RATIO
+    # Never below the stone's own diameter: on a big accent the wall rule is
+    # slacker than simply not overlapping the neighbour, and `_halo_overcrowding`
+    # owns that floor -- but this must not report a limit it would itself allow.
+    return max(accent_stone_diameter, min_wall + 2 * back_r)
+
+
 def channel_band_width(accent_stone_diameter: float, min_wall: float) -> float:
     """Band width a channel needs: the stone plus a wall each side. This is the
     arithmetic that made RNG-11 ship raised beads instead — a 1.5mm accent needs
@@ -150,7 +239,12 @@ class SolitaireSpec(BaseModel):
 
 
 class Halo(BaseModel):
-    """Accent-stone ring encircling the centre stone (RNG-9)."""
+    """Accent-stone ring encircling the centre stone (RNG-9).
+
+    How many accents actually fit depends on the centre stone the halo rides,
+    not on this range alone: each seat needs metal either side of it. That is
+    `_halo_web`'s job (RNG-19 CP4), not the schema's.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
