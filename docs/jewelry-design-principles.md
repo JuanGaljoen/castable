@@ -53,6 +53,18 @@ tapering *toward* the tip must not go below it.
 | Accent diameter | micro 1.0–1.25mm · **classic ~1.5mm** · large 1.75–2.0mm (up to 3mm) |
 | Spacing | evenly spaced, matched, level, each supported by enough metal |
 | Gap to centre | usually none; deliberate negative space is a named style choice |
+| Halo body | **one continuous plate**, seats bored through it; crisp outer rim |
+| Retention | **small beads between adjacent stones**, not a few large shared claws |
+| Understructure | an **open arched basket**, not a solid hub |
+
+**The body is a plate, not a ring of collars** (`reference/halo.png`, 2026-08-06).
+Ours builds N `accent_seat` torus collars that happen to overlap into a scalloped
+rim — on the corpus halo that is a 0.7–0.8mm tube around a 1.2mm stone, so the
+metal is two thirds the stone's own diameter and reads as lumpy tubing.
+`collar_tr = max(MIN_WALL/2, 0.35)` is pinned at the casting floor, so on small
+accents it *cannot* get finer by tuning. The fix is the RNG-19 CP3 move applied
+again: make the plate solid and **cut the wells out of it**, so the metal between
+stones is what the cuts leave rather than the sum of fat tubes (→ RNG-19 CP4).
 
 Accents are specified in **absolute mm**, not as a ratio of the centre stone — a
 1.5mm accent is 1.5mm whether the centre is 1ct or 3ct. Worth knowing before
@@ -100,6 +112,15 @@ alone. Any setting therefore reads as the *negative* of the stone: a channel row
 a groove with seat recesses, a halo is a ring of collars with empty wells. Judging
 "does this look like jewelry" has to account for the missing stones — the metal can
 be correct while the render still looks odd.
+
+**Do not over-claim this caveat (2026-08-06).** It excuses a *correct* model
+looking odd; it does not excuse a wrong one. `reference/halo.png` is a trade
+semi-mount — bare metal, empty prongs, no stones set, exactly our situation —
+and it reads unmistakably as jewelry. So "you cannot judge it without stones"
+was doing more work than it deserved: it was part of the reasoning that deferred
+the seat/collar blends out of RNG-19, and a single reference sketch overturned
+it. **Where a semi-mount sketch exists, compare against it and the caveat does
+not apply.** See `reference/README.md`.
 
 ## Sources
 
