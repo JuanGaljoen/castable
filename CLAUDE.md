@@ -175,7 +175,7 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 - **RNG-22** Photo fidelity probe harness (repeatable photo -> model corpus run) [Done] - the measuring stick for everything below; found RNG-31/32/33 on its first run
 - **RNG-25** Shank profile family (knife-edge, cathedral, comfort-fit, graduated) [High] - needs RNG-16; the spec-widening half RNG-19 fenced off
 - **RNG-27** Viewer presentation (metal material, studio lighting, tessellation) [High] - independent; perceived quality, touches no geometry
-- **RNG-19** Geometry aesthetic refinement (fillets, surfaces, proportions) [High] - surface polish behind the *existing* schema
+- **RNG-19** Geometry aesthetic refinement (proportions, claws, channel, halo) [Done] - surface polish behind the *existing* schema; four checkpoints, and the source of `docs/reference/` + ADR-0008
 - **RNG-24** Composable features (halo + pave on one ring, retire the archetype union) [Medium] - the architectural fix; needs an ADR
 - **RNG-26** Vision estimates proportions from the image, not style averages [Medium] - **unblocked by RNG-23** (`length_ratio` is the first ratio it can fill)
 - **RNG-30** 3D preview keeps stale geometry after the form changes [Medium] - misled RNG-23 QA twice; fold into RNG-27 if that lands first
@@ -189,6 +189,11 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 - **RNG-31** Vision intermittently reports no ring for a clear ring photo [Medium] - 1 failure in 4 runs of the same photo; diagnose before fixing
 - **RNG-34** Close the side-stone gap in the fidelity corpus [Low] - needs a photo, no code
 
+**Found by RNG-19 (2026-08-06):**
+
+- **RNG-35** Trilogy side stones sit too far from the centre to read as one line [Medium] - CP1 fixed the TILT half and deliberately left the SPACING half, which the research calls the primary defect; a trilogy sketch in `docs/reference/` would make it easy to call done
+- **RNG-36** Enforce the 2mm minimum band width at the shank's narrowest point [Low] - flagged unenforced in the research and still unenforced; may be the first legitimate non-`error` `Violation.severity`
+
 > Removed in the pivot: RNG-7 (cathedral shoulders, OpenSCAD-specific) and RNG-8
 > (style registry over OpenSCAD) were deleted — both are superseded by the
 > RingSpec + module-library foundation. **RNG-20** (vision spec castable by
@@ -198,15 +203,25 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 
 ## Current Phase
 
-> **Where we stand (2026-08-01):** the archetype catalogue is complete (solitaire,
-> halo, trilogy, side-stone), vision is live against a real key, centre stones can
-> be oval end to end from a photo (RNG-23), and **fidelity is now measurable** —
-> `python probes/fidelity_probe.py` runs a real photo corpus through the real path
-> on demand (RNG-22). The roadmap has turned from *breadth* (more archetypes) to
-> *depth* (shape, profile, proportion, presentation). **Kick off at RNG-19 or
-> RNG-27** (what you see), with **RNG-33** the cheapest fidelity win and **RNG-32**
-> the one that stops real photos failing outright. **Run the probe before and
-> after** — that is what it is for.
+> **Where we stand (2026-08-06):** the archetype catalogue is complete, vision is
+> live, centre stones can be oval end to end (RNG-23), fidelity is measurable
+> (RNG-22), and **the geometry now reads as jewelry rather than as fused
+> primitives** (RNG-19: shank proportions, claw finishing, channel setting, halo
+> plate). What remains in the fidelity block is **presentation** (RNG-27, still
+> the cheapest large win and touches no geometry), **vocabulary** (RNG-33 stone
+> cuts, RNG-25 shank profiles), and **the vision layer emitting buildable specs**
+> (RNG-32 — now the most pressing, because RNG-19 tightened the casting gate and
+> **two of the five corpus photos are consequently rejected outright**).
+>
+> **The lesson RNG-19 leaves is about how defects get found here.** Four real
+> defects — including a halo passing the casting gate with a quarter of the
+> minimum metal between stones — sat behind a fully green 3488-test suite. None
+> was found by a test. Every one was found by **comparing a render against a
+> trade reference sketch**. So: `docs/reference/` holds design-target sketches
+> per archetype (semi-mounts — bare metal, no stones, exactly what we render),
+> and it currently has **only `halo.png`**. Getting solitaire / trilogy /
+> side-stone sketches is the highest-leverage non-code task on the board;
+> adding one is a file plus a table row. See `docs/adr/0008`.
 
 **RNG-9 (halo), RNG-10 (trilogy), and RNG-11 (side-stone) complete.**
 
@@ -368,10 +383,57 @@ so a render can be opened beside the photo it came from.
 > and were an anecdote. When deleting a ticket on empirical grounds, note the
 > sample size in the obituary.
 
-**Next:** the pair that moves what you actually see — **RNG-19**
-(proportions/surfaces) and **RNG-27** (material + lighting); the standing
-complaint after RNG-23 is that models still read as parametric rather than as
-jewelry. **RNG-33** is the cheapest fidelity win (the `StoneOutline` seam already
-exists), and **RNG-32** is the one that stops a real photo failing to generate at
-all. **RNG-26** remains unblocked — `length_ratio` is the first ratio vision can
-actually fill. Run the probe before and after each of them.
+**RNG-19 (geometry aesthetic refinement) complete — four checkpoints.** The
+generated rings stopped reading as parametric primitives.
+
+- **CP1 proportions.** The shank flared 70% at the head in *both* width and
+  thickness; it now tapers in width (`SHANK_WIDTH_TAPER` 1.35) with thickness
+  near-constant (1.15). Trilogy side stones were each rotated a full 51° so their
+  tables faced sideways off the finger — span 32.8mm → 27.2mm.
+- **CP2 claw finishing.** Claws were constant-width wire ending in a ball *wider
+  than the claw itself*; now a continuous taper to a domed tip (`docs/adr/0007`).
+- **CP3 channel setting.** Was raised `Torus` collars — halo geometry where its
+  premise does not hold, since channel setting has **no per-stone collar by
+  definition**. Now a groove cut into the band.
+- **CP4 halo plate.** Was N collar tubes 0.7–0.8mm around 1.2mm stones, pinned at
+  the casting floor so no tuning could slim them. Now one continuous plate with
+  the seats bored into it, hanging off the centre claws — **no gallery at all**.
+
+**`docs/adr/0008` is the reusable half:** we render metal only, so a setting *is*
+the negative of its stones — **build the body and cut the stones out** rather
+than assembling setting parts. CP3 and CP4 are both that move. Assembling sizes
+every retaining feature independently at its own floor, so metal accumulates into
+collars nothing can slim; cutting makes the remaining metal whatever the bores
+leave. It is also safer: a cut has no tangency to crack along, and cannot open a
+solid unless it severs it. **Its trap: a bore that fails to OPEN becomes a sealed
+void that still reports watertight, single-solid, all floors met — so assert mesh
+BODY COUNT on subtractive modules** (the sibling of ADR-0005).
+
+**Four latent defects fixed, none visible to the suite:** the castability check
+and the builder disagreed about the shank taper (ADR-0002 drift, so setting the
+field moved the check but not the model); `_halo_overcrowding` only checked that
+accents do not *overlap*, so a halo passed with **0.195mm** between seats;
+`check_gallery` was the halo's in-kernel check and worked by finding rail faces,
+so once the rail went it passed everything; and `compose` subtracted cuts
+iteratively, raising `Null TopoDS_Shape` on a 13-accent halo (one `cut(*tools)`
+fixes it — ADR-0001's single-general-fuse lesson, applied to subtraction).
+
+**Two process notes worth more than the code.** (1) *Numbers set by eye get
+written up as principles.* The halo web rule was relaxed after a visual
+complaint, and researching it confirmed the change but found the stated reason
+was wrong AND that a second number — the plate rim — had been eyeballed to half
+the trade figure. **Look the number up; do not argue it.** (2) *Verify the dev
+server is younger than the edit.* It runs with reload off, so "I see no change"
+was twice a stale process, not a bad build.
+
+**Next:** **RNG-32** is now the most pressing — RNG-19 tightened the casting gate
+and two of the five corpus photos are rejected outright, so vision emitting
+buildable specs stopped being hypothetical. **RNG-27** (material + lighting) is
+still the cheapest large win and touches no geometry; with RNG-19 landed, the
+remaining "models look flat" complaint is presentation, not proportion.
+**RNG-33** remains the cheapest *fidelity* win (the `StoneOutline` seam exists),
+**RNG-26** is unblocked (`length_ratio` is the first ratio vision can fill), and
+**RNG-35** finishes the trilogy spacing RNG-19 CP1 half-did. Run the probe before
+and after each of them — and **get a reference sketch for whichever archetype you
+touch** (`docs/reference/`), because that, not the suite, is what caught every
+RNG-19 defect.
