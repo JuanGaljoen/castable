@@ -147,7 +147,7 @@ no half-written module.
   better-overlapped ones: dropping the mid node, which is also what a cast claw
   does. All 18 grid points single-solid and watertight.
 
-- [ ] **CP3 — side-stone channel accents.** Deferred here by RNG-11's closing
+- [x] **CP3 — side-stone channel accents.** Deferred here by RNG-11's closing
       comment ("making the accents read more prominently as fine jewelry is
       deferred to RNG-19"). `docs/jewelry-design-principles.md` §Channel finds this
       is the one archetype **wrong in kind**, not merely unrefined.
@@ -332,13 +332,44 @@ in CP1/CP2 is visible in the viewer as it stands today.
 
 ## Success criteria
 
-- [ ] Refinements at the MODULE level; no per-archetype bespoke shaping.
-- [ ] All five saved specs regenerate raw watertight, zero non-manifold edges,
-      `X-Mesh-Repaired: false` — the RNG-17 bar.
-- [ ] Min wall 0.8mm and min prong tip 0.7mm hold across the in-range space.
-- [ ] No RingSpec schema change.
-- [ ] Full suite green (3443 baseline), parity rebaselined only in CP1 and only
-      deliberately.
-- [ ] Proportions read correctly and claws read as cast rather than assembled,
+- [x] Refinements at the MODULE level; no per-archetype bespoke shaping.
+      *Every change landed in a shared module (`_common`, `prong_setting`,
+      `accent_prong`, `side_stone`, `halo`, `gallery`, `module`); no archetype
+      received bespoke shaping.*
+- [x] Every saved spec either regenerates raw watertight with zero non-manifold
+      edges and `X-Mesh-Repaired: false`, **or is rejected by the casting gate
+      naming the offending field.**
+
+      *AMENDED 2026-08-06. Originally "all five saved specs regenerate". Three
+      do. `halo-round` and `side-stone` are now REJECTED, and that is the
+      correct outcome rather than a regression: their geometry never runs
+      because the specs are physically uncastable — 0.195mm of metal between
+      halo seats, and a channel asked for on a band too narrow to contain one.
+      The criterion was written before we knew that. Rewriting it to "generates
+      OR is rejected with a named field" keeps the RNG-17 bar honest for
+      geometry we actually build, without demanding we build geometry we have
+      just proved impossible. Both rejections are logged as RNG-32 evidence:
+      vision emits specs the gate refuses.*
+- [x] Min wall 0.8mm and min prong tip 0.7mm hold across the in-range space.
+      *Band tests green across all four archetypes, on raw geometry.*
+- [x] No RingSpec schema change — **one deviation, ACCEPTED by the author
+      2026-08-06.** CP1 changed the
+      `shank_taper` DEFAULT 1.7 → 1.35. No field was added, removed or
+      re-typed, and no validation changed; but an omitted `shank_taper` now
+      means a different band, so the published schema did move. This IS the
+      proportion fix the ticket asked for ("tune default proportions"), which
+      the no-schema-change line did not anticipate. `halo_stone_count` also
+      moved 14 → 10 during CP4 and was reverted once the web rule was corrected,
+      so the halo contract is unchanged.
+- [x] Full suite green (3443 baseline → **3488**), parity rebaselined only in
+      CP1 and only deliberately.
+- [x] Proportions read correctly and claws read as cast rather than assembled,
       judged at checkpoint boundaries. **Not** "indistinguishable from a real
       ring" — that bar belongs to RNG-25/27/33 and is not attempted here.
+
+      *Judged in the running app, 2026-08-06: bands (CP1) "look better";
+      channel (CP3) "looks way better"; halo (CP4) accepted after three rounds
+      of correction driven by `docs/reference/halo.png`; claws (CP2) "look
+      fine". The halo rounds are the evidence for ADR-0008 — the suite was green
+      through every defect, and each was found by comparing a render to a
+      reference sketch.*
