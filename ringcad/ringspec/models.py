@@ -67,12 +67,18 @@ def channel_groove_depth(accent_stone_height: float) -> float:
 # (docs/reference/halo.png), not a ring of collar tubes. Metal outside the
 # outermost bore, giving the plate the crisp rim the sketch shows.
 #
-# Deliberately well under MIN_WALL, and legitimately so: this is how far the
-# plate overhangs its outermost seat, NOT a wall thickness. The plate's actual
-# wall is its THICKNESS, which carries the floor. At 0.8mm the overhang read as
-# a broad flat collar of dead metal around the stones; the reference shows a
-# thin bright edge.
-HALO_PLATE_RIM = 0.25
+# 0.5mm is the TRADE FIGURE, not a taste call: "you will need at least 0.5mm
+# extra on each side of the stone to account for the bright cut"
+# (ganoksin.com/article/step-step-guide-single-row-pave-settings). Below MIN_WALL
+# legitimately, because this is how far the plate overhangs its outermost seat,
+# NOT a wall thickness -- the plate's actual wall is its THICKNESS, which carries
+# the structural floor.
+#
+# It has been wrong in BOTH directions. 0.8mm (MIN_WALL, applied out of caution)
+# read as a broad flat collar of dead metal; 0.25mm was then picked by eye off
+# "that looks beefy" and undershot the trade minimum by half. Looked up rather
+# than eyeballed on the third attempt.
+HALO_PLATE_RIM = 0.5
 # How far the plate reaches INSIDE the centre girdle, so the centre setting's
 # claws are embedded in it rather than grazing its edge. The claws rise through
 # the plate's own height exactly at the girdle radius, so without this the two

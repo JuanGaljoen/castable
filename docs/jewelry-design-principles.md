@@ -57,6 +57,24 @@ tapering *toward* the tip must not go below it.
 | Retention | **small beads between adjacent stones**, not a few large shared claws |
 | Understructure | an **open arched basket**, not a solid hub |
 
+**Metal between adjacent stones is PAPER-THIN, and the 0.8mm floor does not
+apply to it** (researched 2026-08-06, after the RNG-19 CP4 rule was changed on a
+visual judgement and needed checking):
+
+| Quantity | Trade figure |
+|---|---|
+| gap between neighbouring stone girdles | **enough to slide a piece of paper** (~0.1mm) |
+| metal beyond the outermost stone (the rim / bright cut) | **>= 0.5mm each side** |
+| seat bottom | drilled through at ~0.5mm; metal remains beneath |
+
+The casting floors are **classed**, which is the part we had wrong: *"structural
+and external walls ... 0.8mm, with smaller elements such as claws or small
+setting bezels ... 0.5mm"*, and micro-pave features down to 0.35mm. **The metal
+between two stone seats is a setting element, not a structural wall**, so
+applying the 0.8mm structural floor to it was a category error — the same shape
+of mistake as using halo geometry for a channel setting. Our rule now leaves
+0.15mm between stones, which matches the trade.
+
 **The body is a plate, not a ring of collars** (`reference/halo.png`, 2026-08-06).
 Ours builds N `accent_seat` torus collars that happen to overlap into a scalloped
 rim — on the corpus halo that is a 0.7–0.8mm tube around a 1.2mm stone, so the
@@ -132,6 +150,9 @@ not apply.** See `reference/README.md`.
 - [PriceScope — minimum prong size that can be wax cast](https://www.pricescope.com/community/threads/what-is-the-minimum-size-prongs-that-can-be-wax-cast.211740/)
 - [Engagestudio — halo accent stone sizes](https://www.engagestudio.com/pebble/halo-engagement-ring/)
 - [Blue Nile — halo settings](https://www.bluenile.com/engagement-rings/styles/halo)
+- [Ganoksin — step by step guide to single row pave settings](https://www.ganoksin.com/article/step-step-guide-single-row-pave-settings/) (paper-thin girdle spacing; 0.5mm bright-cut allowance)
+- [Cooksongold — top tips for the perfect CAD design](https://www.cooksongold.com/blog/learn/top-tips-for-the-perfect-cad-design/) (0.8mm structural vs 0.5mm setting elements)
+- [Stuller — pave setting](https://www.stuller.com/articles/view/pave-setting/)
 - [Stuller — techniques for channel setting](https://www.stuller.com/articles/view/techniques-for-channel-setting/)
 - [FlashForge — complete channel setting guide](https://enterprise.flashforge.com/blogs/blog-1/what-is-channel-setting-complete-jewelry-stone-setting-guide)
 - [Serendipity Diamonds — shanks and shoulders](https://www.serendipitydiamonds.com/blog/engagement-rings-from-the-shank-up-to-the-shoulders/)
