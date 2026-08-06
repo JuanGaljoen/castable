@@ -16,6 +16,7 @@ import itertools
 import pytest
 
 from ringcad.ringspec import from_params, to_params
+from ringcad.ringspec.models import SHANK_WIDTH_TAPER
 
 # Canonical key order the 7-param dict must round-trip through unchanged.
 CANONICAL_KEYS = [
@@ -74,8 +75,11 @@ def test_to_params_never_emits_shank_taper():
 
 
 def test_from_params_restores_default_shank_taper():
+    """Asserted against the schema constant, not a literal: `shank_taper` is the
+    WIDTH flare and RNG-19 CP1 retuned it (1.7 -> 1.35). Pinning the number here
+    again would just re-break on the next proportion tune."""
     spec = from_params(ALL_PARAMS[0])
-    assert spec.shank.shank_taper == 1.7
+    assert spec.shank.shank_taper == SHANK_WIDTH_TAPER
 
 
 # --- AC1: canonical key order ------------------------------------------------

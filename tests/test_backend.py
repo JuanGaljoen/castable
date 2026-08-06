@@ -501,7 +501,9 @@ def test_real_golden_trilogy_endpoint_watertight_no_repair(client):
 VALID_SIDE_STONE_BODY = {
     "version": "1.0",
     "archetype": "side_stone",
-    "shank": {"inner_diameter": 16.5, "band_width": 2.2, "band_thickness": 1.9},
+    # 3.2mm band: a channel is cut into it, so it must carry the 1.5mm
+    # accent plus a 0.8mm wall each side (RNG-19 CP3).
+    "shank": {"inner_diameter": 16.5, "band_width": 3.2, "band_thickness": 1.9},
     "setting": {"prong_count": 6, "setting_height": 6},
     "stones": {"stone_diameter": 6.5, "stone_height": 4},
     "side_stone": {

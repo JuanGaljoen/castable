@@ -16,7 +16,11 @@ from pydantic import BaseModel
 
 from ringcad.mesh_validator import MIN_PRONG_TIP_MM, MIN_WALL_MM
 
-from .models import HaloSpec, RingSpec, SideStoneSpec, TrilogySpec
+from .models import (
+    SHANK_THICKNESS_TAPER, HaloSpec, RingSpec, SideStoneSpec, TrilogySpec,
+    HALO_WELL_BACK_RATIO, channel_band_width, channel_groove_depth,
+    halo_min_arc,
+)
 
 # Side-stone row: angular clearance off the centre head (A_START) and the
 # angular limit before the ring base (A_MAX) — mirrored by the actual
@@ -188,6 +192,48 @@ def _halo_overcrowding(spec: RingSpec) -> list[Violation]:
     return []
 
 
+def _halo_web(spec: RingSpec) -> list[Violation]:
+    """Metal left BETWEEN adjacent halo seats (RNG-19 CP4).
+
+    `_halo_overcrowding` guards that accents do not overlap each other. This
+    guards what survives between them — the web the seats are bored either side
+    of. They are different questions, and only the first was ever asked: the
+    corpus halo passed the gate with a 0.195mm web, a quarter of the casting
+    floor, because 22 accents of 1.2mm on that ring leave arc for the stones and
+    almost nothing for the metal.
+
+    Measured in arc, matching `_halo_overcrowding`'s own convention rather than
+    the chord the side-stone check uses. The two diverge by <0.5% at these
+    counts (~0.004mm against a 0.8mm floor), so consistency with the halo's
+    existing math is worth more here than the stricter measure.
+    """
+    if not isinstance(spec, HaloSpec):
+        return []
+    halo = spec.halo
+    offset = halo.halo_gap + halo.halo_stone_diameter / 2
+    semi_minor = spec.stones.stone_diameter / 2
+    semi_major = semi_minor * getattr(spec.stones, "length_ratio", 1.0)
+    perimeter = _ring_perimeter(semi_minor + offset, semi_major + offset)
+    arc = perimeter / halo.halo_stone_count
+    needed = halo_min_arc(
+        halo.halo_stone_diameter, MIN_WALL_MM, MIN_PRONG_TIP_MM
+    )
+    if arc < needed:
+        web = arc - halo.halo_stone_diameter * HALO_WELL_BACK_RATIO
+        return [
+            Violation(
+                code="halo_web",
+                field="halo.halo_stone_count",
+                message=f"{halo.halo_stone_count} accents leave {web:.3f}mm of "
+                f"metal between adjacent seats, below the {MIN_WALL_MM}mm "
+                f"minimum wall; at most {int(perimeter // needed)} accents fit.",
+                limit_mm=needed,
+                actual_mm=arc,
+            )
+        ]
+    return []
+
+
 def _trilogy_overcrowding(spec: RingSpec) -> list[Violation]:
     """Side stone placed close enough to collide with the centre stone.
 
@@ -212,7 +258,11 @@ def _trilogy_overcrowding(spec: RingSpec) -> list[Violation]:
         spec.stones, "length_ratio", 1.0
     )
     side_r = trilogy.side_stone_diameter / 2
-    head_r = shank.inner_diameter / 2 + shank.band_thickness * shank.shank_taper
+    # THICKNESS taper, not `shank.shank_taper` (which is the WIDTH flare): the
+    # head radius is how far the band's outer surface stands off the finger, and
+    # the builder derives it the same way (`_common._clamps`). Reading the width
+    # field here is what made this check disagree with the geometry it guards.
+    head_r = shank.inner_diameter / 2 + shank.band_thickness * SHANK_THICKNESS_TAPER
     arc = stone_r + trilogy.side_stone_gap + side_r
     phi = arc / head_r
     chord = 2 * head_r * math.sin(phi / 2)
@@ -333,6 +383,62 @@ def _stone_curvature(spec: RingSpec) -> list[Violation]:
     ]
 
 
+def _side_stone_channel(spec: RingSpec) -> list[Violation]:
+    """The band must be able to HOLD a channel (RNG-19 CP3).
+
+    Channel setting cuts a groove into the band, so unlike the retention modes
+    that sit on the surface it consumes the band's own metal on two axes:
+
+      (a) WIDTH — the groove runs across the band's width, so the band must
+          carry the stone plus a MIN_WALL wall each side. This is the
+          arithmetic that made RNG-11 ship raised beads: a 1.5mm accent needs
+          3.1mm of band and real specs supply 2.0mm.
+      (b) THICKNESS — the groove is cut inward from the outer surface, so the
+          metal left under it must still clear MIN_WALL. Otherwise the cut
+          severs the band, and per docs/adr/0005 a severed band can still
+          report watertight.
+
+    Both are hard geometry, not preference: no construction satisfies them on a
+    band that is simply too small. Returns (a) then (b), matching the shape of
+    the overcrowding checks.
+    """
+    if not isinstance(spec, SideStoneSpec):
+        return []
+    ss = spec.side_stone
+    shank = spec.shank
+
+    needed_w = channel_band_width(ss.accent_stone_diameter, MIN_WALL_MM)
+    if shank.band_width < needed_w:
+        return [
+            Violation(
+                code="side_stone_channel_fit",
+                field="shank.band_width",
+                message=f"a {ss.accent_stone_diameter:.2f}mm channel accent "
+                f"needs a {needed_w:.3f}mm band (stone + {MIN_WALL_MM}mm wall "
+                f"each side); this band is {shank.band_width:.3f}mm.",
+                limit_mm=needed_w,
+                actual_mm=shank.band_width,
+            )
+        ]
+
+    depth = channel_groove_depth(ss.accent_stone_height)
+    needed_t = depth + MIN_WALL_MM
+    if shank.band_thickness < needed_t:
+        return [
+            Violation(
+                code="side_stone_channel_floor",
+                field="shank.band_thickness",
+                message=f"a {ss.accent_stone_height:.2f}mm accent cuts a "
+                f"{depth:.3f}mm groove, needing a {needed_t:.3f}mm band to "
+                f"leave {MIN_WALL_MM}mm of floor; this band is "
+                f"{shank.band_thickness:.3f}mm.",
+                limit_mm=needed_t,
+                actual_mm=shank.band_thickness,
+            )
+        ]
+    return []
+
+
 def validate_castability(spec: RingSpec) -> list[Violation]:
     """Run the full lost-wax gate; [] means the spec is castable."""
     return (
@@ -341,8 +447,10 @@ def validate_castability(spec: RingSpec) -> list[Violation]:
         + _geometric(spec)
         + _stone_curvature(spec)
         + _halo_overcrowding(spec)
+        + _halo_web(spec)
         + _trilogy_overcrowding(spec)
         + _side_stone_overcrowding(spec)
+        + _side_stone_channel(spec)
     )
 
 

@@ -25,9 +25,13 @@ SHANK = {
 }
 SETTING = {"prong_count": 6, "setting_height": 6.0}
 STONES = {"stone_diameter": 6.5, "stone_height": 4.0}
+# Count REBASELINED 14 -> 10 in RNG-19 CP4, matching the model default. 14
+# accents at these dimensions leave 0.675mm of metal between adjacent seats,
+# below the 0.8mm wall floor -- the golden halo was never castable, and nothing
+# checked (docs/adr/0006).
 HALO_GROUP = {
     "halo_stone_diameter": 1.3,
-    "halo_stone_count": 14,
+    "halo_stone_count": 10,
     "halo_gap": 0.5,
     "halo_stone_height": 1.2,
 }

@@ -23,7 +23,7 @@ from .halo import halo, halo_parts
 from .prong_setting import prong_setting
 from .seat import seat
 from .shank import shank
-from .side_stone import side_stone, side_stone_parts
+from .side_stone import side_stone, side_stone_cuts
 from .trilogy import trilogy, trilogy_parts
 
 
@@ -37,6 +37,8 @@ class Module(Protocol):
 
     def parts(self, spec: RingSpec, clamps: dict) -> list: ...
 
+    def cuts(self, spec: RingSpec, clamps: dict) -> list: ...
+
     def check(self, solid, spec: RingSpec, clamps: dict) -> list[Violation]: ...
 
 
@@ -48,12 +50,25 @@ class SimpleModule:
     `compose` can flat-fuse them in one general fuse (robust for heavy modules
     like `halo`; see `halo_parts`). Modules without it contribute one leaf:
     their fused `build` result.
+
+    An optional `_cuts` callable yields solids SUBTRACTED after that fuse.
+    Modules come in both shapes:
+
+      - cut-only — `side_stone` (RNG-19 CP3) declares cuts and no parts, because
+        a channel setting removes metal from the band rather than adding to it;
+      - parts AND cuts — `halo` (RNG-19 CP4) builds a plate and then bores the
+        accent seats out of it.
+
+    So `_parts` and `_cuts` are independent: declaring cuts does not suppress
+    leaves. Only a module with `_cuts` and no `_parts` contributes nothing to
+    the fuse.
     """
 
     name: str
     _build: Callable
     _check: Callable
     _parts: Callable | None = None
+    _cuts: Callable | None = None
 
     def build(self, spec: RingSpec, clamps: dict):
         return self._build(spec, clamps)
@@ -61,7 +76,14 @@ class SimpleModule:
     def parts(self, spec: RingSpec, clamps: dict) -> list:
         if self._parts is not None:
             return self._parts(spec, clamps)
+        if self._cuts is not None:
+            return []
         return [self._build(spec, clamps)]
+
+    def cuts(self, spec: RingSpec, clamps: dict) -> list:
+        if self._cuts is None:
+            return []
+        return self._cuts(spec, clamps)
 
     def check(self, solid, spec: RingSpec, clamps: dict) -> list[Violation]:
         return self._check(solid, spec, clamps)
@@ -107,7 +129,7 @@ MODULES: dict[str, Module] = {
     "halo": SimpleModule(
         name="halo",
         _build=lambda spec, c: halo(spec, c),
-        _check=_ck.check_gallery,
+        _check=_ck.check_halo_plate,
         _parts=lambda spec, c: halo_parts(spec, c),
     ),
     "trilogy": SimpleModule(
@@ -120,7 +142,7 @@ MODULES: dict[str, Module] = {
         name="side_stone",
         _build=lambda spec, c: side_stone(spec, c),
         _check=_ck.check_side_stone,
-        _parts=lambda spec, c: side_stone_parts(spec, c),
+        _cuts=lambda spec, c: side_stone_cuts(spec, c),
     ),
 }
 
@@ -146,7 +168,8 @@ def compose(spec: RingSpec, archetype: str | None = None):
     if name not in ARCHETYPES:
         raise UnknownArchetypeError(f"unknown archetype {name!r}")
     c = clamps(spec)
-    leaves = []
+    leaves: list = []
+    cuts: list = []
     for mod_name in ARCHETYPES[name]:
         module = MODULES.get(mod_name)
         if module is None:
@@ -154,10 +177,25 @@ def compose(spec: RingSpec, archetype: str | None = None):
                 f"archetype {name!r} names unregistered module {mod_name!r}"
             )
         parts = module.parts(spec, c)
-        if (not parts or any(p is None for p in parts)
-                or sum(p.volume for p in parts) <= 0):
+        mod_cuts = module.cuts(spec, c)
+        # A module must contribute SOMETHING: metal, or a cut. Each is checked
+        # for positive volume — a zero-volume cut is as much a silent no-op as
+        # a zero-volume leaf, and docs/adr/0005 is about exactly that class of
+        # nothing-happened bug reporting success.
+        if not parts and not mod_cuts:
             raise DegenerateModuleError(
-                f"module {mod_name!r} produced a degenerate solid"
+                f"module {mod_name!r} produced neither geometry nor a cut"
             )
+        for group, label in ((parts, "solid"), (mod_cuts, "cut")):
+            if group and (any(p is None for p in group)
+                          or sum(p.volume for p in group) <= 0):
+                raise DegenerateModuleError(
+                    f"module {mod_name!r} produced a degenerate {label}"
+                )
         leaves.extend(parts)
-    return leaves[0].fuse(*leaves[1:])
+        cuts.extend(mod_cuts)
+    solid = leaves[0].fuse(*leaves[1:])
+    # ONE cut with every tool, not a subtraction per tool — the same lesson as
+    # the single general fuse above (RNG-17 risk #1), and measured: iterating
+    # raised `Null TopoDS_Shape` on a 13-accent halo that a single cut resolved.
+    return solid.cut(*cuts) if cuts else solid

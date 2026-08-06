@@ -108,7 +108,7 @@
     },
     "Halo": {
       "additionalProperties": false,
-      "description": "Accent-stone ring encircling the centre stone (RNG-9).",
+      "description": "Accent-stone ring encircling the centre stone (RNG-9).\n\nHow many accents actually fit depends on the centre stone the halo rides,\nnot on this range alone: each seat needs metal either side of it. That is\n`_halo_web`'s job (RNG-19 CP4), not the schema's.",
       "properties": {
         "halo_stone_diameter": {
           "default": 1.3,
@@ -253,7 +253,7 @@
     },
     "Shank": {
       "additionalProperties": false,
-      "description": "Band geometry. shank_taper is the SCAD 8th shaping param (default 1.7).",
+      "description": "Band geometry. `shank_taper` is the WIDTH flare toward the head (the SCAD\n8th shaping param); thickness is governed by `SHANK_THICKNESS_TAPER`.",
       "properties": {
         "inner_diameter": {
           "exclusiveMinimum": 0,
@@ -274,7 +274,7 @@
           "type": "number"
         },
         "shank_taper": {
-          "default": 1.7,
+          "default": 1.35,
           "maximum": 3.0,
           "minimum": 1.0,
           "title": "Shank Taper",

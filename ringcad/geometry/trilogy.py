@@ -22,7 +22,7 @@ import math
 
 from build123d import Align, Cylinder, Location, Pos, Rot
 
-from ._common import ACCENT_FUSE_EPS, MIN_WALL, clamps, placement
+from ._common import ACCENT_FUSE_EPS, HEAD_INSET, MIN_WALL, clamps, placement
 from .accent_prong import accent_prong
 from .accent_seat import accent_seat
 
@@ -37,19 +37,46 @@ POST_EMBED = 0.5
 # How far the post's top plunges past the accent seat's bearing floor -- a
 # true transversal overlap, not a graze.
 POST_OVERLAP = 0.2
+# Fraction of the placement angle the side setting's frame is TILTED by (RNG-19).
+# 1.0 is the pre-RNG-19 behaviour (frame fully rotated, tables splayed outward);
+# 0.0 would leave every table exactly parallel to the centre's, which is too
+# rigid for a ring whose shoulders genuinely curve. Chosen from the tilt it
+# produces, not from the ratio: on the corpus trilogy (51-degree offset) this
+# gives ~18 degrees, inside the gentle 15-20 degree lean real side stones take
+# at an offset that wide.
+SIDE_TILT_FRACTION = 0.35
 
 
 def _side_loc(spec, c: dict, sign: float) -> Location:
-    """Rigid placement for one side setting: `placement(c)` rotated by the
-    derived angular offset (specs/RNG-10.md Decision 4). `sign` is +1.0/-1.0."""
+    """Rigid placement for one side setting: positioned at the derived angular
+    offset (specs/RNG-10.md Decision 4) but tilted only a FRACTION of it.
+    `sign` is +1.0/-1.0."""
     # Width-consumer of the outline, not a curve-walker: the side settings flank
     # along the band, which is local Y -- the axis an N-S oval is LONGEST on. Using
     # the short-axis `stone_r` here would seat them inside an oval centre stone.
     # Round returns the same radius on both axes, so this is a no-op for round.
     stone_r = c["outline"].half_width("y")
     side_r = spec.trilogy.side_stone_diameter / 2
-    phi = (stone_r + spec.trilogy.side_stone_gap + side_r) / c["head_r"]
-    return Rot(0, 0, sign * math.degrees(phi)) * placement(c)
+    phi_deg = sign * math.degrees(
+        (stone_r + spec.trilogy.side_stone_gap + side_r) / c["head_r"]
+    )
+    # RNG-19: `Rot(0, 0, phi) * placement(c)` rotated the WHOLE frame, so each
+    # side stone's table faced radially outward at the full offset -- 51 degrees
+    # on a real photo-derived spec, turning the flanking heads into wings. Real
+    # three-stone rings read as one line: the sides tilt gently with the
+    # shoulder, nowhere near the full placement angle
+    # (docs/jewelry-design-principles.md).
+    #
+    # Position keeps the full offset (it is a clearance requirement -- the side
+    # stones must not collide with the centre, which `_trilogy_overcrowding`
+    # guards); only the ORIENTATION is eased.
+    a = math.radians(phi_deg)
+    r = c["head_r"] - HEAD_INSET
+    return (
+        Pos(r * math.cos(a), r * math.sin(a), 0)
+        * Rot(0, 0, phi_deg * SIDE_TILT_FRACTION)
+        * Rot(0, 90, 0)
+    )
 
 
 def _side_locs(spec, c: dict, sign: float) -> tuple[Location, list[Location]]:

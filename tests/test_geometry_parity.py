@@ -29,11 +29,26 @@ CANONICAL_PARAMS = {
     "setting_height": 6.0,
 }
 
-# OpenSCAD reference metrics for CANONICAL_PARAMS (the characterization target).
-REF_BBOX = (27.795, 21.283, 7.500)   # mm, (x, y, z) extents
-REF_VOLUME_MM3 = 383.58              # mm^3
+# Characterization metrics for CANONICAL_PARAMS.
+#
+# REBASELINED in RNG-19 CP1 (2026-08-05). These were the OpenSCAD reference
+# metrics carried since RNG-13; the shank now tapers in WIDTH only, with
+# thickness near-constant (docs/jewelry-design-principles.md), so the geometry
+# has deliberately diverged from the OpenSCAD original and parity against it is
+# no longer the thing being characterized. What these constants pin from here on
+# is "the solitaire has not changed shape UNINTENTIONALLY".
+#
+#   bbox   (27.795, 21.283, 7.500) -> (26.765, 20.501, 7.500)
+#   volume  383.58                 ->  279.51 mm^3   (-27%)
+#
+# The X drop is the thinner head (band thickness at the head 3.23 -> 2.185mm);
+# the volume drop is that plus the width flare easing from 1.7x to 1.35x. Both
+# are the intended change, not a regression — the band was carrying metal a real
+# shank would not.
+REF_BBOX = (26.765, 20.501, 7.500)   # mm, (x, y, z) extents
+REF_VOLUME_MM3 = 279.51              # mm^3
 
-BBOX_TOL_MM = 0.5     # RNG-13: each axis within 0.5mm of OpenSCAD
+BBOX_TOL_MM = 0.5     # RNG-13: each axis within 0.5mm of the baseline
 VOLUME_TOL = 0.05     # RNG-13: volume within 5%
 REPAIR_VOLUME_TOL = 0.005  # repair welds seams; volume must barely move (<0.5%)
 

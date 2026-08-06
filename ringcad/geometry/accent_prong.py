@@ -11,7 +11,7 @@ yields one watertight B-rep body by construction.
 """
 from __future__ import annotations
 
-from build123d import Align, Cylinder, Location, Pos, Sphere
+from build123d import Align, Cone, Cylinder, Location, Pos, Sphere
 
 from ._common import ACCENT_FUSE_EPS as _EPS, MIN_PRONG_TIP
 
@@ -27,8 +27,15 @@ def accent_prong(accent_r: float, height: float, loc: Location):
     tip_r = MIN_PRONG_TIP / 2
     shaft_r = max(tip_r, accent_r * 0.18)
 
-    shaft = Cylinder(
-        shaft_r, height, align=(Align.CENTER, Align.CENTER, Align.MIN)
+    # RNG-19: the shaft TAPERS to the tip radius instead of running straight up
+    # at full width with a dome stuck on top — the accent-scale version of the
+    # centre claw's defect. `Cone` degenerates when the two radii are equal
+    # (a small accent clamps `shaft_r` to `tip_r`), so keep the cylinder there.
+    align = (Align.CENTER, Align.CENTER, Align.MIN)
+    shaft = (
+        Cylinder(shaft_r, height, align=align)
+        if abs(shaft_r - tip_r) < 1e-6
+        else Cone(shaft_r, tip_r, height, align=align)
     )
     tip = Pos(0, 0, height - _EPS) * Sphere(tip_r)
     local = shaft.fuse(tip)
