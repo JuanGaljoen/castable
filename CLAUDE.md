@@ -193,6 +193,7 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 
 - **RNG-35** Trilogy side stones sit too far from the centre to read as one line [Medium] - CP1 fixed the TILT half and deliberately left the SPACING half, which the research calls the primary defect; a trilogy sketch in `docs/reference/` would make it easy to call done
 - **RNG-36** Enforce the 2mm minimum band width at the shank's narrowest point [Low] - flagged unenforced in the research and still unenforced; may be the first legitimate non-`error` `Violation.severity`
+- **RNG-37** Add reference sketches for solitaire, trilogy and side-stone [High] - no code, a file plus a table row each. `docs/reference/` has ONE sketch, and every RNG-19 defect was found by comparing a render against it while the suite stayed green. Trilogy first, since RNG-35 needs a target to judge against
 
 > Removed in the pivot: RNG-7 (cathedral shoulders, OpenSCAD-specific) and RNG-8
 > (style registry over OpenSCAD) were deleted — both are superseded by the
