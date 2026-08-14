@@ -101,10 +101,18 @@ link is asserted castable by test, so the chain cannot end on an uncastable spec
 
 ## Checkpoints
 
-- [ ] **CP1 — the repair engine.** `ringcad/ringspec/coherence.py` + tests. Pure, offline, no
-      key, no network. Every row of the table gets a red test first. Includes the assertion
-      that the defaults spec for all four archetypes is castable (currently RED for
-      side_stone).
+- [x] **CP1 — the repair engine.** `ringcad/ringspec/coherence.py` + `tests/test_ringspec_coherence.py`
+      (24 tests). Pure, offline, no key, no network. `make_coherent(spec, confidence)` assembles
+      → validates → repairs the field each `Violation` names → re-validates, bounded at 6 passes.
+      All 11 gate codes covered. The defaults-castable assertion for all four archetypes passes
+      (side_stone's 2.2mm-band case is repaired to 3.1mm by the same `side_stone_channel_fit`
+      repair a real photo would trigger — Risk #3 resolved by repairing, not by changing
+      `_SHARED_DEFAULTS`). One deviation found empirically: multiplicative scaling
+      (`new = current * limit/actual`) is exact for fields that ARE the measured quantity or
+      scale it linearly, but undershoots badly for a small field feeding a larger trig-derived
+      quantity (`side_stone_gap`/`trilogy.side_stone_gap` feeding a chord) — added an `additive`
+      repair mode with a generous fixed overshoot for those two. Full suite green: 3512 passed
+      (3488 + 24), 668s.
 - [ ] **CP2 — wire into the vision layer.** `to_spec()` calls `make_coherent`; adjustments
       carried on `ClassifyResult`/`to_json`. Verified against the real corpus with the RNG-22
       probe, before and after.
