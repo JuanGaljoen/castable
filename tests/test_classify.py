@@ -21,6 +21,7 @@ from ringcad.classify import (
     classify_available,
     classify_ring,
 )
+from ringcad.ringspec import is_castable, validate_spec
 
 JPEG = "image/jpeg"
 IMG = b"\xff\xd8\xff\xe0fake-jpeg-bytes"
@@ -247,15 +248,28 @@ def test_every_archetype_builds_valid_spec(monkeypatch, archetype):
 
 
 # ---- AC2: group dims clamped to the RingSpec field bounds ------------------
-def test_group_dims_clamped_to_model_bounds(monkeypatch):
+def test_group_dims_clamped_to_model_bounds():
+    # halo_stone_count 99 -> 24 (le), halo_stone_diameter 0.1 -> 0.9 (ge).
+    # Unit-level, BEFORE the RNG-32 coherence pass: `_group_estimates` only
+    # clamps each field to its own schema bound, one field at a time.
+    data = _halo(halo_stone_count=99, halo_stone_diameter=0.1)
+    estimates = classify._group_estimates("halo", data)
+    assert estimates["halo_stone_count"] == 24
+    assert estimates["halo_stone_diameter"] == 0.9
+
+
+def test_group_dims_clamped_then_made_castable(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
-    # halo_stone_count 99 -> 24 (le), halo_stone_diameter 0.1 -> 0.9 (ge)
+    # 24 accents at the clamped 0.9mm minimum overcrowd the halo ring RNG-32
+    # coherence must shrink the count further so the assembled spec is
+    # actually castable, not merely within each field's own bound.
     _install_client(monkeypatch,
                     parsed_output=_halo(halo_stone_count=99,
                                         halo_stone_diameter=0.1))
     spec = classify_ring(IMG, JPEG).to_spec()
-    assert spec["halo"]["halo_stone_count"] == 24
+    assert spec["halo"]["halo_stone_count"] <= 24
     assert spec["halo"]["halo_stone_diameter"] == 0.9
+    assert is_castable(validate_spec(spec))
 
 
 # ---- AC2: integer group counts snapped to int ------------------------------
@@ -322,3 +336,58 @@ def test_not_a_ring_has_no_spec(monkeypatch):
     result = classify_ring(IMG, JPEG)
     assert result.to_spec() is None
     assert result.to_json()["spec"] is None
+
+
+# --- RNG-32: cross-field coherence, wired end-to-end through classify_ring --
+def test_stone_taller_than_head_is_repaired_end_to_end(monkeypatch):
+    """The ticket's own counterexample: probes/corpus/halo-round.png produced
+    stone_height 5.2 inside setting_height 3.0 -- individually defensible,
+    together a stone protruding through the bottom of its own head."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    _install_client(
+        monkeypatch,
+        parsed_output=_ring(stone_height=5.2, setting_height=3.0),
+    )
+    result = classify_ring(IMG, JPEG)
+    spec = result.to_spec()
+    assert is_castable(validate_spec(spec))
+    assert spec["stones"]["stone_height"] < spec["setting"]["setting_height"]
+
+
+def test_adjustments_are_carried_on_to_json(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    _install_client(
+        monkeypatch,
+        parsed_output=_ring(stone_height=5.2, setting_height=3.0),
+    )
+    body = classify_ring(IMG, JPEG).to_json()
+    assert body["adjustments"]
+    assert body["adjustments"][0]["code"] == "stone_exceeds_head"
+    assert is_castable(validate_spec(body["spec"]))
+
+
+def test_coherent_spec_needs_no_adjustments(monkeypatch):
+    # A schema-valid, already-castable estimate set makes zero adjustments --
+    # coherence must not perturb a spec that was already fine.
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    _install_client(monkeypatch, parsed_output=_ring())
+    body = classify_ring(IMG, JPEG).to_json()
+    assert body["adjustments"] == []
+
+
+def test_side_stone_archetype_repairs_the_channel_band(monkeypatch):
+    """The comment-2 counterexample: a 2mm band with a channel setting that
+    needs 3.1mm to hold the stone plus a wall each side."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    _install_client(
+        monkeypatch,
+        parsed_output=_ring(
+            archetype="side_stone", band_width=2.0,
+            accent_stone_diameter=1.5, accent_stone_height=1.2,
+            accent_count_per_side=3, accent_gap=0.3,
+        ),
+    )
+    spec = classify_ring(IMG, JPEG).to_spec()
+    assert spec["archetype"] == "side_stone"
+    assert is_castable(validate_spec(spec))
+    assert spec["shank"]["band_width"] >= 3.1

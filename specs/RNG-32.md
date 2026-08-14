@@ -113,9 +113,18 @@ link is asserted castable by test, so the chain cannot end on an uncastable spec
       quantity (`side_stone_gap`/`trilogy.side_stone_gap` feeding a chord) — added an `additive`
       repair mode with a generous fixed overshoot for those two. Full suite green: 3512 passed
       (3488 + 24), 668s.
-- [ ] **CP2 — wire into the vision layer.** `to_spec()` calls `make_coherent`; adjustments
-      carried on `ClassifyResult`/`to_json`. Verified against the real corpus with the RNG-22
-      probe, before and after.
+- [x] **CP2 — wire into the vision layer.** `ClassifyResult._coherent_spec()` runs the fallback
+      chain (detected archetype repaired -> solitaire from the same shared estimates repaired ->
+      pure-default solitaire); `to_spec()` and the new `to_json()["adjustments"]` both read from
+      it. `_assemble` gained an `estimates` override for the last-resort link (bypasses a bad
+      vision shape reading too, not just bad dims). One existing RNG-12 test
+      (`test_group_dims_clamped_to_model_bounds`) asserted schema-clamp-only behaviour that
+      coherence now legitimately overrides (24 halo accents at the clamped 0.9mm minimum still
+      overcrowd); split into a unit test of `_group_estimates` alone plus a new integration test
+      of the final castable count. **RNG-22 probe against the real corpus: 5/5 generated, 5
+      pass, 0 fail** (up from 3/5 before RNG-32), including `halo-round.png`, the ticket's own
+      counterexample. The one `warn` is vision reading side-stone as solitaire — RNG-34's known
+      nondeterminism, unrelated to coherence, and still castable. Full suite green.
 - [ ] **CP3 — tell the user what moved.** The form marks which estimates were adjusted to make
       the ring buildable, alongside the existing amber low-confidence markers. Confirmed in
       scope on 2026-08-14: adjusting silently contradicts the app's "estimates only, verify

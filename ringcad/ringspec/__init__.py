@@ -13,6 +13,7 @@ from .adapters import (
     to_params,
 )
 from .castability import Violation, is_castable, validate_castability
+from .coherence import Adjustment, make_coherent
 from .models import (
     FieldConfidence,
     Halo,
@@ -56,4 +57,6 @@ __all__ = [
     "validate_castability",
     "is_castable",
     "Violation",
+    "make_coherent",
+    "Adjustment",
 ]
