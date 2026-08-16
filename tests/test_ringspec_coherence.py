@@ -256,3 +256,25 @@ def test_make_coherent_never_raises_on_a_schema_valid_spec():
 def test_make_coherent_requires_schema_valid_input():
     with pytest.raises(ValidationError):
         make_coherent({"archetype": "solitaire"})
+
+
+# --- joint infeasibility: two violations pull the same field in opposite
+# directions and can't both be satisfied (Verify finding, 2026-08-16) --------
+def test_jointly_infeasible_violations_terminate_without_converging():
+    """min_prong_tip wants stone_diameter above ~5.35mm at 6 prongs;
+    stone_exceeds_bore wants it below inner_diameter/length_ratio = 4.85mm
+    for this inner_diameter/ratio. No diameter satisfies both. The loop must
+    still TERMINATE (bounded by MAX_PASSES, never hang) even though it
+    cannot converge -- convergence in this case is the fallback chain's job
+    (ClassifyResult._coherent_spec), not this function's."""
+    spec = _solitaire(**{
+        "shank.inner_diameter": 9.07, "stones.stone_diameter": 3.06,
+        "setting.prong_count": 6,
+    })
+    spec["stones"]["shape"] = "round"
+    spec["stones"]["length_ratio"] = 1.87  # schema allows it; classify.py's
+    # _stone_shape() never produces this combination for a round stone.
+    confidence = {"prong_count": 0.9, "stone_diameter": 0.1}
+    working, adjustments = make_coherent(spec, confidence)
+    assert len(adjustments) == 6  # ran the full budget, did not short-circuit
+    assert not _is_castable(working)  # did not converge -- expected, documented

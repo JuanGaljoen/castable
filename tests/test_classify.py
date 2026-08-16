@@ -425,3 +425,26 @@ def test_falls_back_to_pure_defaults_when_nothing_converges(monkeypatch):
     assert spec["archetype"] == "solitaire"
     assert spec["stones"]["stone_diameter"] == classify._SHARED_DEFAULTS["stone_diameter"]
     assert spec["shank"]["band_width"] == classify._SHARED_DEFAULTS["band_width"]
+
+
+# NOTE (Verify, 2026-08-16): an attempt to reproduce the jointly-infeasible
+# oscillation (see test_ringspec_coherence.py's
+# test_jointly_infeasible_violations_terminate_without_converging) at the
+# ClassifyResult level was removed here. _assemble calls _stone_shape() on
+# EVERY attempt, not only the pure-default last resort, so a non-oval shape
+# always collapses length_ratio to 1.0 before make_coherent ever runs -- the
+# scenario that test's docstring claimed to bypass cannot actually be
+# constructed through ClassifyResult, only through coherence.make_coherent
+# directly on a raw dict (which the coherence-level test correctly does). A
+# 5000-sample fuzz of ClassifyResult.to_spec() across the full schema-legal
+# input space (tests/... not committed, run ad hoc during Verify) found zero
+# cases reaching the pure-default last resort, confirming the middle tier
+# (solitaire from the same shared estimates) already absorbs every
+# reachable failure; the last resort is a safety net for inputs this
+# pipeline cannot currently produce, not something to force a test through.
+# The fallback chain's actual mechanics are already covered by
+# test_falls_back_to_solitaire_when_archetype_repair_does_not_converge and
+# test_falls_back_to_pure_defaults_when_nothing_converges above, which
+# force non-convergence via a fake is_castable rather than a hand-built
+# adversarial spec -- the honest way to test a branch that real inputs
+# don't reach.

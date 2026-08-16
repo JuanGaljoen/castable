@@ -231,8 +231,17 @@ def make_coherent(spec: dict, confidence: dict | None = None
     raises otherwise) -- schema fallback stays the caller's job. Returns the
     (possibly still-violating, if the budget or an unrepairable code was hit)
     working spec as a plain dict, plus every adjustment made, in order. The
-    caller decides what "still violating" means for it (fall back further).
-    """
+    caller decides what "still violating" means for it (fall back further) --
+    ALWAYS re-check `is_castable` on the result rather than trusting that a
+    call returned without error.
+
+    Two constraints on the SAME field can be individually satisfiable but
+    jointly impossible (e.g. `min_prong_tip` wants a stone above some size,
+    `stone_exceeds_bore` wants it below a smaller one) -- the repair loop then
+    oscillates between the two rather than converging, and exhausts the pass
+    budget by design rather than looping forever. `ClassifyResult.to_spec`'s
+    fallback chain is what actually guarantees a castable result in that
+    case; this function alone only guarantees termination, not convergence."""
     confidence = confidence or {}
     model = validate_spec(spec)
     working = model.model_dump(mode="python")
