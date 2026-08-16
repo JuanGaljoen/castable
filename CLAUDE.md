@@ -184,7 +184,7 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 
 **Found by RNG-22's first live corpus run (2026-08-01):**
 
-- **RNG-32** Vision estimates fields independently, producing specs the casting gate rejects [High] - a stone taller than its own head; **revives the premise RNG-20 was deleted for**, now with a real counterexample
+- **RNG-32** Vision estimates fields independently, producing specs the casting gate rejects [Done] - a stone taller than its own head; **revives the premise RNG-20 was deleted for**, now with a real counterexample
 - **RNG-33** Stone cuts beyond round + oval (cushion, emerald, pear, marquise) [High] - vision *said* "cushion cut" and had to write `round`; cashes in the RNG-23 `StoneOutline` seam
 - **RNG-31** Vision intermittently reports no ring for a clear ring photo [Medium] - 1 failure in 4 runs of the same photo; diagnose before fixing
 - **RNG-34** Close the side-stone gap in the fidelity corpus [Low] - needs a photo, no code
@@ -204,15 +204,13 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 
 ## Current Phase
 
-> **Where we stand (2026-08-06):** the archetype catalogue is complete, vision is
+> **Where we stand (2026-08-16):** the archetype catalogue is complete, vision is
 > live, centre stones can be oval end to end (RNG-23), fidelity is measurable
-> (RNG-22), and **the geometry now reads as jewelry rather than as fused
-> primitives** (RNG-19: shank proportions, claw finishing, channel setting, halo
-> plate). What remains in the fidelity block is **presentation** (RNG-27, still
-> the cheapest large win and touches no geometry), **vocabulary** (RNG-33 stone
-> cuts, RNG-25 shank profiles), and **the vision layer emitting buildable specs**
-> (RNG-32 — now the most pressing, because RNG-19 tightened the casting gate and
-> **two of the five corpus photos are consequently rejected outright**).
+> (RNG-22), **the geometry reads as jewelry rather than as fused primitives**
+> (RNG-19), and **the vision layer now emits buildable specs** (RNG-32: 5/5
+> corpus photos generate, up from 3/5). What remains in the fidelity block is
+> **presentation** (RNG-27, still the cheapest large win and touches no
+> geometry) and **vocabulary** (RNG-33 stone cuts, RNG-25 shank profiles).
 >
 > **The lesson RNG-19 leaves is about how defects get found here.** Four real
 > defects — including a halo passing the casting gate with a quarter of the
@@ -427,14 +425,55 @@ the trade figure. **Look the number up; do not argue it.** (2) *Verify the dev
 server is younger than the edit.* It runs with reload off, so "I see no change"
 was twice a stale process, not a bad build.
 
-**Next:** **RNG-32** is now the most pressing — RNG-19 tightened the casting gate
-and two of the five corpus photos are rejected outright, so vision emitting
-buildable specs stopped being hypothetical. **RNG-27** (material + lighting) is
-still the cheapest large win and touches no geometry; with RNG-19 landed, the
-remaining "models look flat" complaint is presentation, not proportion.
+**Next:** **RNG-27** (material + lighting) is now the cheapest large win and
+touches no geometry; with RNG-19 and RNG-32 both landed, the remaining "models
+look flat" complaint is presentation, not proportion or castability.
 **RNG-33** remains the cheapest *fidelity* win (the `StoneOutline` seam exists),
 **RNG-26** is unblocked (`length_ratio` is the first ratio vision can fill), and
 **RNG-35** finishes the trilogy spacing RNG-19 CP1 half-did. Run the probe before
 and after each of them — and **get a reference sketch for whichever archetype you
 touch** (`docs/reference/`), because that, not the suite, is what caught every
 RNG-19 defect.
+
+**RNG-32 (vision cross-field coherence) complete.** A vision-assembled spec can
+now be schema-valid and individually defensible on every field yet physically
+impossible together (a 5.2mm stone in a 3.0mm head); `to_spec()` used to hand
+that straight to the casting gate and let it fail. It no longer does.
+
+- **The repair is driven by the casting gate's own `Violation`s, not a
+  restated table of containment pairs** (`docs/adr/0009`). `ringcad/ringspec/
+  coherence.py`'s `make_coherent(spec, confidence)` assembles → validates →
+  repairs whichever field each `Violation` names, to the value it names → 
+  re-validates, bounded at 6 passes. All 11 current gate codes have a repair;
+  a future gate rule is covered for free, the way a parallel table never
+  would be. Two codes have a genuinely ambiguous victim
+  (`stone_exceeds_head`, `min_prong_tip`); per-field vision confidence
+  (already collected, previously only used for the low-confidence UI marker)
+  picks which sibling moves, defaulting to a fixed victim on a tie.
+- **Fallback chain, not a single repair attempt:** detected archetype
+  repaired → solitaire from the same shared estimates repaired → pure-default
+  solitaire (proven castable for all four archetypes by test). Verify's fuzz
+  testing found a genuine case the repair loop alone cannot converge on —
+  two gate rules pulling the same field in opposite directions, individually
+  satisfiable, jointly impossible (`docs/adr/0009`) — which is exactly why
+  the fallback chain, not the repair function, is what actually guarantees a
+  castable result.
+- **`to_json()` now returns `adjustments`**, and `static/photo.js` marks any
+  field the repair moved with a dashed-indigo border and its own note,
+  visually distinct from the existing amber low-confidence marker (WCAG 2.1
+  AA 1.4.1 — not colour alone). Browser-QA'd against a live dev server:
+  uploaded photo → marker renders → Generate → castable mesh.
+- **RNG-22 probe: 5/5 corpus photos now generate**, up from 3/5, including
+  the ticket's own counterexample (`halo-round.png`). The other two
+  fixed by this ticket had been silently broken by RNG-19 tightening the
+  gate — vision emitting buildable specs had stopped being hypothetical.
+- **`docs/adr/0010`** is the sharper lesson: a regression test written for
+  this ticket, in this session, passed — and was wrong. It claimed to
+  reproduce the jointly-infeasible case above by constructing a
+  `ClassifyResult` directly, but `_assemble` normalises stone shape on
+  *every* attempt, not only the last resort, so the scenario the test's own
+  docstring described never actually occurred; the first attempt converged
+  for an unrelated reason. Caught by tracing the passing test by hand, not
+  by any assertion failing. **A test authored in the same sitting as the
+  code it tests is not exempt from being traced** — the same discipline
+  ADR-0005/6/7 already apply to the gate itself.
