@@ -125,24 +125,38 @@ link is asserted castable by test, so the chain cannot end on an uncastable spec
       pass, 0 fail** (up from 3/5 before RNG-32), including `halo-round.png`, the ticket's own
       counterexample. The one `warn` is vision reading side-stone as solitaire — RNG-34's known
       nondeterminism, unrelated to coherence, and still castable. Full suite green.
-- [ ] **CP3 — tell the user what moved.** The form marks which estimates were adjusted to make
-      the ring buildable, alongside the existing amber low-confidence markers. Confirmed in
-      scope on 2026-08-14: adjusting silently contradicts the app's "estimates only, verify
-      before generating" framing, and the marker machinery already exists. WCAG 2.1 AA, so the
-      marker is announced, not colour-only.
+- [x] **CP3 — tell the user what moved.** `static/photo.js` gains `flagAdjusted`/`clearAdjusted`,
+      a mirror of the existing low-confidence pair, reading `to_json()["adjustments"]` (CP2) and
+      flagging each field's bare id (splitting the dotted RingSpec path). Visually distinct from
+      the low-confidence amber marker rather than reusing its colour: dashed indigo border +
+      its own note text ("Adjusted from X to Y to make this ring castable") + a summary folded
+      into the existing `aria-live="polite"` status line -- WCAG 2.1 AA 1.4.1 (not colour-only).
+      New `tests/test_frontend_adjustments.py` (6 tests, source-contract style matching
+      `test_frontend_stone_shape.py`). **Browser-QA'd for real** (Playwright driving the actual
+      dev server, not just an assertion the endpoint returns JSON): uploaded
+      `probes/corpus/halo-round.png`, watched the amber-equivalent indigo dashed marker and note
+      render on `#halo_stone_count` in both themes, then clicked Generate through to a real
+      "Castable mesh" result. Vision's own nondeterminism showed up between runs (24→20 one
+      call, 24→22 the next) -- expected, already documented (RNG-22/34), not a regression.
 
 ## Success criteria
 
-- [ ] All **5** ring photos in the RNG-22 corpus assemble a castable spec and generate.
+- [x] All **5** ring photos in the RNG-22 corpus assemble a castable spec and generate.
       (The ticket says 4/4; that predates the fifth entry and the RNG-19 rejections. Bar
-      raised deliberately, per the Understand call.)
-- [ ] Coherence is enforced before `/generate-ring` ever sees the spec, so the gate receives an
-      already-consistent spec.
-- [ ] Every gate rule with a repair is covered by an offline test; a rule with no repair
-      degrades to the fallback rather than raising.
-- [ ] The defaults spec is castable for all four archetypes.
-- [ ] The solitaire fallback still applies when coherence cannot be reached.
-- [ ] Full suite green; never-500 discipline preserved.
+      raised deliberately, per the Understand call.) Probe result: 5/5 generated, 5 pass, 0 fail.
+- [x] Coherence is enforced before `/generate-ring` ever sees the spec, so the gate receives an
+      already-consistent spec. `/classify-ring`'s spec is coherent at the point it is handed to
+      the browser, before the normal prefill -> generate flow ever posts it onward.
+- [x] Every gate rule with a repair is covered by an offline test; a rule with no repair
+      degrades to the fallback rather than raising (`_REPAIRS.get(code)` returns `None` ->
+      the pass loop stops -> `_coherent_spec`'s fallback chain takes over).
+- [x] The defaults spec is castable for all four archetypes (`test_defaults_are_castable_after_coherence`).
+- [x] The solitaire fallback still applies when coherence cannot be reached. Covered by two
+      tests that force non-convergence via `is_castable` rather than hand-crafted adversarial
+      geometry: `test_falls_back_to_solitaire_when_archetype_repair_does_not_converge` and
+      `test_falls_back_to_pure_defaults_when_nothing_converges`.
+- [x] Full suite green; never-500 discipline preserved. 3525 passed (3488 baseline + 37 new
+      across CP1-3), 1658s.
 
 ## Out of scope
 

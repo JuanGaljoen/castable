@@ -391,3 +391,37 @@ def test_side_stone_archetype_repairs_the_channel_band(monkeypatch):
     assert spec["archetype"] == "side_stone"
     assert is_castable(validate_spec(spec))
     assert spec["shank"]["band_width"] >= 3.1
+
+
+def test_falls_back_to_solitaire_when_archetype_repair_does_not_converge(monkeypatch):
+    """The fallback chain's middle link: a halo whose repair loop can't reach
+    a castable spec within budget must fall back to a solitaire built from
+    the same shared estimates, not raise or return garbage."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    _install_client(monkeypatch, parsed_output=_halo())
+    calls = {"n": 0}
+    real_is_castable = classify.is_castable
+
+    def fake_is_castable(model):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return False  # the halo attempt never converges
+        return real_is_castable(model)
+
+    monkeypatch.setattr(classify, "is_castable", fake_is_castable)
+    spec = classify_ring(IMG, JPEG).to_spec()
+    assert spec["archetype"] == "solitaire"
+    assert is_castable(validate_spec(spec))
+
+
+def test_falls_back_to_pure_defaults_when_nothing_converges(monkeypatch):
+    """The fallback chain's last link: even the solitaire attempt failing to
+    converge must still return the guaranteed-castable pure defaults, never
+    an uncastable spec or an exception."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    _install_client(monkeypatch, parsed_output=_ring())
+    monkeypatch.setattr(classify, "is_castable", lambda model: False)
+    spec = classify_ring(IMG, JPEG).to_spec()
+    assert spec["archetype"] == "solitaire"
+    assert spec["stones"]["stone_diameter"] == classify._SHARED_DEFAULTS["stone_diameter"]
+    assert spec["shank"]["band_width"] == classify._SHARED_DEFAULTS["band_width"]
