@@ -15,10 +15,13 @@ import anthropic
 from pydantic import BaseModel, ValidationError
 
 from ringcad.ringspec import (
+    Adjustment,
     Halo,
     SideStone,
     Stones,
     Trilogy,
+    is_castable,
+    make_coherent,
     validate_spec,
 )
 
@@ -186,24 +189,59 @@ class ClassifyResult:
     stone_length_ratio: float = 1.0
 
     def to_spec(self) -> dict | None:
-        """Assemble a validated RingSpec (archetype + groups + confidence), or
-        None when no ring was detected. Shared dims come from `estimates` over
-        `_SHARED_DEFAULTS`; inner_diameter is never estimated. If the assembled
-        spec fails schema validation it falls back to a solitaire built from the
-        shared dims, preserving never-500."""
-        if not self.ring_detected:
-            return None
-        spec = self._assemble(self.archetype, self.group_estimates)
-        try:
-            validate_spec(spec)
-            return spec
-        except ValidationError:
-            logger.error("assembled spec failed validation; solitaire fallback",
-                         exc_info=True)
-            return self._assemble("solitaire", {})
+        """Assemble a coherent, castable RingSpec (archetype + groups +
+        confidence), or None when no ring was detected. See `_coherent_spec`
+        for the fallback chain; use `to_json` when the adjustments made along
+        the way are also needed."""
+        return self._coherent_spec()[0]
 
-    def _assemble(self, archetype: str, group: dict) -> dict:
-        est = self.estimates
+    def _coherent_spec(self) -> tuple[dict | None, list[Adjustment]]:
+        """Assemble a spec, then repair it against its own casting-gate
+        violations (RNG-32) rather than trusting vision's per-field
+        estimates to already cohere -- each field is individually clamped to
+        its own range in `_assemble`, but nothing there checks a field
+        against its siblings (a stone taller than its own head is
+        schema-valid on both fields alone).
+
+        Fallback chain, each link a strictly safer bet than the last:
+        detected archetype (repaired) -> solitaire from the same shared
+        estimates (repaired) -> pure-default solitaire, which is guaranteed
+        castable (tests/test_ringspec_coherence.py's
+        test_defaults_are_castable_after_coherence). A schema-invalid
+        assembly (extreme snapped counts, RNG-19's tightened gate) skips
+        straight to the next link rather than repairing garbage."""
+        if not self.ring_detected:
+            return None, []
+        for archetype, group in (
+            (self.archetype, self.group_estimates),
+            ("solitaire", {}),
+        ):
+            try:
+                spec = self._assemble(archetype, group)
+                validate_spec(spec)
+            except ValidationError:
+                logger.error(
+                    "assembled %s spec failed validation; trying next "
+                    "fallback", archetype, exc_info=True,
+                )
+                continue
+            coherent, adjustments = make_coherent(spec, self.confidence)
+            if is_castable(validate_spec(coherent)):
+                return coherent, adjustments
+            logger.error(
+                "%s spec still uncastable after repair; trying next "
+                "fallback", archetype,
+            )
+        return self._assemble("solitaire", {}, estimates={}), []
+
+    def _assemble(self, archetype: str, group: dict,
+                  estimates: dict | None = None) -> dict:
+        """`estimates` defaults to `self.estimates`; the pure-default last
+        resort in `_coherent_spec` passes `{}` explicitly to get the
+        guaranteed-castable defaults (and a round stone -- shape is skipped
+        along with it, since a bad shape reading is exactly the kind of
+        thing that resort exists to shed)."""
+        est = self.estimates if estimates is None else estimates
         spec = {
             "version": "1.0",
             "archetype": archetype,
@@ -224,7 +262,8 @@ class ClassifyResult:
                     "stone_diameter", _SHARED_DEFAULTS["stone_diameter"]),
                 "stone_height": est.get(
                     "stone_height", _SHARED_DEFAULTS["stone_height"]),
-                **_stone_shape(self.stone_shape, self.stone_length_ratio),
+                **({} if estimates is not None else
+                   _stone_shape(self.stone_shape, self.stone_length_ratio)),
             },
         }
         if self.confidence:
@@ -236,11 +275,17 @@ class ClassifyResult:
         return spec
 
     def to_json(self) -> dict:
+        spec, adjustments = self._coherent_spec()
         return {
             "ring_detected": self.ring_detected,
             "detected_style": self.style,
             "note": self.note,
-            "spec": self.to_spec(),
+            "spec": spec,
+            # RNG-32: fields the repair moved to make the spec castable, so
+            # the frontend can flag them alongside the existing low-confidence
+            # markers (CP3) -- "estimates only, verify" extends to "and this
+            # one was adjusted for buildability".
+            "adjustments": [a.model_dump() for a in adjustments],
         }
 
 

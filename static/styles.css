@@ -26,6 +26,9 @@
 
   --warn:     #e8b45e;   /* low-confidence caution (amber) */
   --warn-soft: rgba(232, 180, 94, 0.16);
+  --adjust:      #8aa2ff;  /* RNG-32: adjusted-for-buildability marker (indigo,
+                              distinct from the amber low-confidence one) */
+  --adjust-soft: rgba(138, 162, 255, 0.16);
 
   --ok-text:  #54c79a;   /* valid-mesh text (separate from button bg) */
   --ok-fg:    #04140d;   /* text on the download button */
@@ -66,6 +69,8 @@
 
   --warn:     #8a5a00;   /* low-confidence caution (amber), ~5:1 on white */
   --warn-soft: rgba(138, 90, 0, 0.12);
+  --adjust:      #3a52d6;  /* RNG-32: adjusted-for-buildability marker, ~5:1 on white */
+  --adjust-soft: rgba(58, 82, 214, 0.10);
 
   --btn-bg:   #18181b;
   --btn-fg:   #ffffff;
@@ -275,6 +280,25 @@ fieldset:not(.photo-upload) legend { grid-column: 1 / -1; }
   margin-top: 0.22rem;
   font-size: 0.7rem;
   color: var(--warn);
+}
+
+/* Adjusted for buildability (RNG-32): the estimate vision gave was not
+   physically buildable on its own (e.g. a stone taller than its own head),
+   so the value shown was changed to the nearest castable one. Dashed border
+   (not just a different colour) so the distinction from low-confidence
+   doesn't rely on colour alone -- WCAG 2.1 AA 1.4.1. Takes visual priority
+   over low-confidence if a field is somehow both. */
+.field input.adjusted-for-castability,
+.field select.adjusted-for-castability {
+  border-style: dashed;
+  border-color: var(--adjust);
+  box-shadow: 0 0 0 3px var(--adjust-soft);
+}
+
+.field-adjusted {
+  margin-top: 0.22rem;
+  font-size: 0.7rem;
+  color: var(--adjust);
 }
 
 /* ---------- Buttons ---------- */

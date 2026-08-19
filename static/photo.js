@@ -117,11 +117,68 @@
     );
   }
 
+  // Clear any adjusted-for-castability markers left by a previous estimate
+  // run (RNG-32), mirroring clearLowConfidence.
+  function clearAdjusted() {
+    var inputs = document.querySelectorAll(".adjusted-for-castability");
+    for (var i = 0; i < inputs.length; i++) {
+      inputs[i].classList.remove("adjusted-for-castability");
+    }
+    var notes = document.querySelectorAll(".field-adjusted");
+    for (var j = 0; j < notes.length; j++) {
+      var input = $(notes[j].getAttribute("data-for"));
+      if (input) {
+        var described = (input.getAttribute("aria-describedby") || "")
+          .split(/\s+/)
+          .filter(function (t) { return t && t !== notes[j].id; })
+          .join(" ");
+        if (described) {
+          input.setAttribute("aria-describedby", described);
+        } else {
+          input.removeAttribute("aria-describedby");
+        }
+      }
+      notes[j].parentNode.removeChild(notes[j]);
+    }
+  }
+
+  // Flag a field RNG-32's coherence repair moved to make the spec buildable:
+  // dashed indigo border + an aria-linked note distinct from low-confidence's
+  // amber one, so a user can tell "vision wasn't sure" from "we changed
+  // this so it can be cast" -- both are true estimates-need-verifying states,
+  // but they mean different things.
+  function flagAdjusted(id, from, to) {
+    var input = $(id);
+    if (!input || input.classList.contains("adjusted-for-castability")) {
+      return;
+    }
+    input.classList.add("adjusted-for-castability");
+    var note = document.createElement("span");
+    note.className = "field-adjusted";
+    note.id = id + "-adjusted";
+    note.setAttribute("data-for", id);
+    var fromText = typeof from === "number" ? from : null;
+    var toText = typeof to === "number" ? to : null;
+    note.textContent =
+      fromText !== null && toText !== null
+        ? "Adjusted from " + fromText + " to " + toText + " to make this ring castable."
+        : "Adjusted to make this ring castable.";
+    var field = input.closest ? input.closest(".field") : input.parentNode;
+    (field || input.parentNode).appendChild(note);
+    var described = input.getAttribute("aria-describedby");
+    input.setAttribute(
+      "aria-describedby",
+      described ? described + " " + note.id : note.id
+    );
+  }
+
   // Pre-fill the form from a RingSpec: select the detected archetype (and fire
   // change so app.js toggles the right fieldset), fill shared + group fields,
-  // then flag any low-confidence shared estimate.
-  function applySpec(spec) {
+  // then flag any low-confidence shared estimate and any field RNG-32's
+  // coherence repair adjusted to make the spec buildable.
+  function applySpec(spec, adjustments) {
     clearLowConfidence();
+    clearAdjusted();
 
     var select = $("archetype");
     if (select && spec.archetype) {
@@ -162,6 +219,15 @@
         flagLowConfidence(field);
       }
     });
+
+    (adjustments || []).forEach(function (adjustment) {
+      // adjustment.field is a dotted RingSpec path (e.g. "stones.stone_height");
+      // the form's input ids are the bare field name, same convention `conf`
+      // above already relies on.
+      var parts = (adjustment.field || "").split(".");
+      var id = parts[parts.length - 1];
+      flagAdjusted(id, adjustment.old_value, adjustment.new_value);
+    });
   }
 
   function showDetections(data, spec) {
@@ -179,13 +245,21 @@
 
   function handleSuccess(data) {
     if (data && data.ring_detected && data.spec) {
-      applySpec(data.spec);
+      var adjustments = data.adjustments || [];
+      applySpec(data.spec, adjustments);
       var label = $("estimates-label");
       if (label) {
         label.hidden = false;
       }
       showDetections(data, data.spec);
-      setStatus(data.note || "Estimates applied. Verify before generating.");
+      var note = data.note || "Estimates applied. Verify before generating.";
+      if (adjustments.length) {
+        note +=
+          " " + adjustments.length +
+          (adjustments.length === 1 ? " value was" : " values were") +
+          " adjusted so this ring can be cast (marked below).";
+      }
+      setStatus(note);
     } else {
       setStatus(
         (data && data.note) ||
