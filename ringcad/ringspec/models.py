@@ -18,6 +18,7 @@ from pydantic import (
     Field,
     TypeAdapter,
     ValidationError,
+    model_validator,
 )
 
 SPEC_VERSION = "1.0"
@@ -203,8 +204,30 @@ class Stones(BaseModel):
 
     stone_diameter: float = Field(gt=0, le=24)
     stone_height: float = Field(gt=0, le=12)
-    shape: Literal["round", "oval"] = "round"
+    shape: Literal["round", "oval", "cushion", "emerald", "pear",
+                   "marquise"] = "round"
     length_ratio: float = Field(default=1.0, ge=1.0, le=2.5)
+
+    @model_validator(mode="after")
+    def _ratio_within_the_cuts_band(self):
+        """Raise a ratio that sits BELOW its cut's own band to that cut's
+        conventional default (RNG-33).
+
+        Per-cut proportions are mandatory, not cosmetic: the conventional L:W
+        is ~1.02 for cushion, 1.40 emerald, 1.60 pear, 1.95 marquise, so a
+        single shared default of 1.0 makes three of the four wrong on sight.
+
+        Only cuts whose band STARTS above 1.0 are filled. A marquise at 1.0 is
+        a circle, not a marquise -- there is no meaningful stone there, so this
+        is a repair rather than a surprise. Cushion and oval both legitimately
+        reach 1.0 (a square cushion is 1.00; an oval at 1.0 IS a circle, which
+        is RNG-23's contract) and are left exactly alone.
+        """
+        from .cuts import profile_for
+        profile = profile_for(self.shape)
+        if self.length_ratio < profile.min_ratio:
+            object.__setattr__(self, "length_ratio", profile.default_ratio)
+        return self
 
 
 class Motif(BaseModel):

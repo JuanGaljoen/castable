@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from ringcad.mesh_validator import MIN_PRONG_TIP_MM, MIN_WALL_MM
 
+from .cuts import profile_for
 from .models import (
     SHANK_THICKNESS_TAPER, HaloSpec, RingSpec, SideStoneSpec, TrilogySpec,
     HALO_WELL_BACK_RATIO, channel_band_width, channel_groove_depth,
@@ -77,8 +78,21 @@ def _min_wall(spec: RingSpec) -> list[Violation]:
 
 
 def _min_prong_tip(spec: RingSpec) -> list[Violation]:
-    """Derived prong-tip diameter below MIN_PRONG_TIP_MM (coarse proxy)."""
-    arc = math.pi * spec.stones.stone_diameter / spec.setting.prong_count
+    """Derived prong-tip diameter below MIN_PRONG_TIP_MM (coarse proxy).
+
+    The arc is measured around the girdle the stone ACTUALLY has, not around a
+    circle of its short axis. `pi * stone_diameter` is that circle, so on any
+    elongated cut it under-reported the arc each prong gets and refused rings
+    the geometry can build -- the same defect ADR-0006 records for
+    `_halo_overcrowding`, in a second gate, found by auditing for the pattern
+    rather than by any test. For a round stone `perimeter` IS
+    `pi * stone_diameter`, so nothing about round moves.
+    """
+    stones = spec.stones
+    profile = profile_for(getattr(stones, "shape", "round"))
+    arc = profile.perimeter(
+        stones.stone_diameter / 2, getattr(stones, "length_ratio", 1.0)
+    ) / spec.setting.prong_count
     tip = arc * _PRONG_WIRE_FRACTION
     if tip < MIN_PRONG_TIP_MM:
         return [
@@ -363,8 +377,16 @@ def _stone_curvature(spec: RingSpec) -> list[Violation]:
     ratio = getattr(stones, "length_ratio", 1.0)
     if ratio <= 1.0:
         return []
+    profile = profile_for(stones.shape)
+    # A VERTEX is not a tight curve. It cannot be followed by a swept collar at
+    # any radius, which is why a cornered or pointed cut has its seat BORED
+    # instead (docs/adr/0008). Asking this question of an emerald or a marquise
+    # would reject every one of them outright -- the right answer to the wrong
+    # question -- so the cut is asked whether the question applies at all.
+    if profile.has_vertices:
+        return []
     semi_minor = stones.stone_diameter / 2
-    min_curvature = semi_minor / ratio
+    min_curvature = profile.min_curvature_radius(semi_minor, ratio)
     if min_curvature >= _SEAT_COLLAR_R:
         return []
     return [

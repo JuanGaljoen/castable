@@ -139,9 +139,25 @@ cited number and been wrong.
 
 ## Checkpoints
 
-- [ ] **CP1 — Cut vocabulary (contract + pure math).** `ringcad/ringspec/cuts.py` with four
+- [x] **CP1 — Cut vocabulary (contract + pure math).** `ringcad/ringspec/cuts.py` with four
       `CutProfile`s; `Stones.shape` widened; per-cut `length_ratio` defaults; `_stone_curvature`
       and `_min_prong_tip` rewritten to ask the profile. No geometry change.
+
+      *Landed.* Six profiles over one numeric core: a cut declares only its own `_polyline` and
+      prong rule, and perimeter, curvature, arc spacing and polar lookup all derive from it, so
+      cut #7 is those two methods. Round and oval keep analytic overrides — the round prong-tip
+      arc was checked **bit-identical across all 2400 stone sizes** (`2*pi*(d/2)` and `pi*d` round
+      the same real to the same double). The per-cut ratio fill is a *clamp to the cut's band*
+      rather than a blanket default, which is what preserves RNG-23's "an oval at 1.0 IS a circle"
+      contract while still stopping a marquise from rendering as a lens.
+
+      **Two defects found by tracing, not by tests** (docs/adr/0010): the pear polyline traversed
+      its head arc the wrong way round, so polar angle was non-monotonic at 341 joints and every
+      arc-length lookup off it was scrambled — the silhouette, extents and perimeter were all
+      still correct, and the prong layout put a claw 12 degrees from the V-prong. And a test of
+      mine asserted a marquise clears the prong-tip floor at 1.9mm without doing the arithmetic;
+      it does not, at any prong count. Both are now pinned by symmetry tests, which is the
+      invariant that would have caught the first one.
 - [ ] **CP2 — Outline classes + bored seat.** Four classes wrapping their profiles; `seat()`
       gains `_parts`/`_cuts`, registered in `MODULES`. Body count and volume asserted.
 - [ ] **CP3 — Prong placement and type.** `placements()` replaces `prong_angles()`;

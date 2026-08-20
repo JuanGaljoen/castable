@@ -459,7 +459,11 @@
           "default": "round",
           "enum": [
             "round",
-            "oval"
+            "oval",
+            "cushion",
+            "emerald",
+            "pear",
+            "marquise"
           ],
           "title": "Shape",
           "type": "string"
