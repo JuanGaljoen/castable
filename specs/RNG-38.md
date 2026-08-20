@@ -45,28 +45,31 @@ In `ringcad/classify.py`:
   stepped dimension and every int field is already step-aligned by construction
   (`_snap_prong`/`_group_estimates`'s `int()` cast).
 
-In `ClassifyResult._coherent_spec` (`ringcad/classify.py`), inside the existing per-archetype
-attempt loop, after a `make_coherent` result already passes `is_castable`:
+**Built differently than originally planned here — see "Deviation" below.** The plan called for
+round-then-re-repair via `make_coherent`. Built first, exactly as written; it doesn't terminate.
+`stone_exceeds_head`'s `+0.05` margin against an already-aligned base (e.g. `stone_height=5.2`)
+lands EXACTLY on a half-step tie (`5.25`). Nearest-rounding drops it to `5.2` — equal to
+`stone_height`, still a violation — and re-repairing that reproduces `5.25` again, forever: a real
+period-2 cycle, not a hypothetical (found while wiring this in, then reproduced as
+`test_settle_on_step_grid_falls_back_to_ceil_on_an_exact_tie`).
+
+**What actually ships:** `_settle_on_step_grid(coherent) -> dict | None` in `ringcad/classify.py`,
+called from `_coherent_spec` in place of a bare `is_castable` check:
 
 ```python
 coherent, adjustments = make_coherent(spec, self.confidence)
 if is_castable(validate_spec(coherent)):
-    rounded = _round_to_step(coherent)
-    if rounded != coherent:
-        rounded, more = make_coherent(rounded, self.confidence)
-        adjustments = adjustments + more
-    if is_castable(validate_spec(rounded)):
-        return rounded, adjustments
-    # rounding broke it and re-repair couldn't recover -- fall through,
-    # same as any other non-convergence, to the next fallback tier.
+    stepped = _settle_on_step_grid(coherent)
+    if stepped is not None:
+        return stepped, adjustments
+    # none of nearest/ceil/floor landed castably -- fall through, same as
+    # any other non-convergence, to the next fallback tier.
 ```
 
-`make_coherent` is already proven (RNG-32 Verify: mutation-tested, fuzz-tested) to terminate and,
-when it converges, to fix exactly the violation it's handed — feeding it the *rounded* spec is a
-second ordinary call, not new logic. A rounding-induced violation is marginal (at most half a
-step, 0.05mm, stacked on top of a repair margin already sized to clear its boundary) so it
-converges in one pass in every case found so far; if it somehow doesn't, the existing fallback
-chain (already tested for exactly this shape of failure) absorbs it — nothing new to prove there.
+`_settle_on_step_grid` tries `_round_to_step(coherent, direction)` for `"nearest"`, `"ceil"`,
+`"floor"` in order and returns the first one that's still castable — three direct re-checks, not
+another repair pass, so it provably terminates regardless of why nearest failed. `None` means the
+same "coherence cannot be reached" case `_coherent_spec`'s fallback chain already exists for.
 
 The pure-default last resort (`_SHARED_DEFAULTS`, `DEFAULT_INNER_DIAMETER`) is already step-aligned
 (2.2, 1.9, 6.5, 4.0, 6.0, 16.5 — all exact multiples of 0.1); rounding it is a no-op, included
@@ -75,26 +78,36 @@ produced the spec.
 
 ## Checkpoints
 
-- [ ] **CP1 — `_round_to_step` + wiring.** Pure function, unit tested (float rounds, int/str
-      untouched, nested groups only). Wired into `_coherent_spec`'s per-attempt check. A test
-      proving the "rounding undoes a repair, re-repair recovers" path, not just the common case.
-- [ ] **CP2 — regression test for the reported repro.** `length_ratio` (and the `setting_height`
-      case found during scoping) not landing on 0.1 no longer happens; the exact photo/estimate
-      shape from manual QA reproduced as an offline unit test (no API key needed — this bug lives
-      entirely in `classify.py`'s post-processing, not in what vision returns).
+- [x] **CP1 — `_round_to_step` + `_settle_on_step_grid` + wiring.** Pure functions, unit tested
+      (float rounds, int/str untouched, nested groups only, already-aligned spec unchanged).
+      Wired into `_coherent_spec`'s per-attempt check. The planned "re-repair" test became
+      `test_settle_on_step_grid_falls_back_to_ceil_on_an_exact_tie`, proving the real
+      nearest→ceil→floor mechanism resolves the oscillation the original plan's mechanism could
+      not — mutation-checked (dropping the ceil/floor fallback turns it red) to confirm it
+      exercises the real code path, not a stale one.
+- [x] **CP2 — regression tests for the reported repro.** `length_ratio` (vision's raw estimate)
+      and `setting_height` (a coherence-repaired field, the case found during scoping) both
+      covered as offline unit tests, no API key needed.
 
-Small enough that both may land as one commit if the diff stays this contained; split only if CP1
-turns out to need iteration.
+Landed as two commits (design freeze, then implementation) rather than one — the mid-Forge
+mechanism swap made "everything in one commit" less honest than showing the working state.
 
 ## Success criteria
 
-- [ ] A vision estimate that doesn't land on its field's 0.1 step no longer blocks Generate
-- [ ] A coherence-repaired field that doesn't land on its field's 0.1 step no longer blocks Generate
-- [ ] Every rounded spec that reaches the frontend still passes `validate_castability`
-- [ ] Manual entry (typing an off-grid value by hand) is unaffected — still the browser's own
-      validation, not silently overridden
-- [ ] Arrow-key increment behaviour on the affected inputs is unaffected (no HTML/step changes)
-- [ ] Full suite green
+- [x] A vision estimate that doesn't land on its field's 0.1 step no longer blocks Generate
+      (`test_coherent_spec_length_ratio_lands_on_the_step_grid`; confirmed against the real API,
+      3 live `/classify-ring` calls, zero off-grid dimension fields)
+- [x] A coherence-repaired field that doesn't land on its field's 0.1 step no longer blocks
+      Generate (`test_coherent_spec_repaired_field_also_lands_on_the_step_grid`; confirmed live
+      with a real repaired `setting.setting_height`)
+- [x] Every rounded spec that reaches the frontend still passes `validate_castability` (every
+      `_settle_on_step_grid` return is gated on `is_castable`; `None` on failure, never a
+      silently-uncastable spec)
+- [x] Manual entry (typing an off-grid value by hand) is unaffected — nothing added on the
+      frontend; the browser's own validation on user-typed values is untouched
+- [x] Arrow-key increment behaviour on the affected inputs is unaffected — zero changes to
+      `templates/index.html`
+- [x] Full suite green — 3533 passed (3526 baseline + 7 new)
 
 ## Out of scope
 
