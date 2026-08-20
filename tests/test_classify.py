@@ -448,3 +448,120 @@ def test_falls_back_to_pure_defaults_when_nothing_converges(monkeypatch):
 # force non-convergence via a fake is_castable rather than a hand-built
 # adversarial spec -- the honest way to test a branch that real inputs
 # don't reach.
+
+
+# --- RNG-38: round every dimension to its form field's 0.1 step ------------
+def _on_step_grid(value: float, step: float = 0.1) -> bool:
+    """True iff `value` is within floating-point epsilon of a multiple of
+    `step` -- the actual constraint the browser's number input enforces, not
+    a coincidence of how Python's round() breaks ties near x.05."""
+    nearest = round(value / step) * step
+    return abs(value - nearest) < 1e-6
+
+
+def test_round_to_step_rounds_float_leaves_only():
+    spec = {
+        "version": "1.0", "archetype": "solitaire",
+        "shank": {"inner_diameter": 16.53, "band_width": 2.17, "band_thickness": 1.9},
+        "setting": {"prong_count": 6, "setting_height": 6.05},
+        "stones": {"stone_diameter": 6.5, "stone_height": 4.0,
+                   "shape": "oval", "length_ratio": 1.48},
+    }
+    rounded = classify._round_to_step(spec)
+    assert rounded["shank"]["inner_diameter"] == pytest.approx(16.5)
+    assert rounded["shank"]["band_width"] == pytest.approx(2.2)
+    assert rounded["setting"]["prong_count"] == 6  # int untouched
+    # 6.05 is an exact halfway point; which way it lands is a float-
+    # representation coin flip and doesn't matter -- landing ON the grid does.
+    assert _on_step_grid(rounded["setting"]["setting_height"])
+    assert rounded["stones"]["shape"] == "oval"  # str untouched
+    assert rounded["stones"]["length_ratio"] == pytest.approx(1.5)
+
+
+def test_round_to_step_leaves_an_already_aligned_spec_unchanged():
+    spec = {
+        "version": "1.0", "archetype": "solitaire",
+        "shank": {"inner_diameter": 16.5, "band_width": 2.2, "band_thickness": 1.9},
+        "setting": {"prong_count": 6, "setting_height": 6.0},
+        "stones": {"stone_diameter": 6.5, "stone_height": 4.0},
+    }
+    rounded = classify._round_to_step(spec)
+    assert rounded == spec
+
+
+def test_round_to_step_ignores_confidence_and_meta_keys():
+    spec = {
+        "version": "1.0", "archetype": "solitaire",
+        "shank": {"inner_diameter": 16.5, "band_width": 2.2, "band_thickness": 1.9},
+        "setting": {"prong_count": 6, "setting_height": 6.0},
+        "stones": {"stone_diameter": 6.5, "stone_height": 4.0},
+        "confidence": {"band_width": 0.73333},
+        "motifs": [],
+    }
+    rounded = classify._round_to_step(spec)
+    assert rounded["confidence"]["band_width"] == 0.73333  # untouched
+    assert rounded["motifs"] == []
+
+
+def test_coherent_spec_length_ratio_lands_on_the_step_grid(monkeypatch):
+    """The reported repro: vision's raw length_ratio (e.g. 1.48) reaching the
+    form unrounded, tripping the browser's native step validation."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    _install_client(
+        monkeypatch,
+        parsed_output=_ring(stone_shape="oval", stone_length_ratio=1.48),
+    )
+    spec = classify_ring(IMG, JPEG).to_spec()
+    assert _on_step_grid(spec["stones"]["length_ratio"])
+    assert is_castable(validate_spec(spec))
+
+
+def test_coherent_spec_repaired_field_also_lands_on_the_step_grid(monkeypatch):
+    """The screenshot case found while scoping: a coherence-repaired field
+    (setting_height, moved by the stone_exceeds_head repair's +0.05 margin)
+    must also land on the step grid, not just vision's raw estimate."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    _install_client(
+        monkeypatch,
+        parsed_output=_ring(stone_height=5.2, setting_height=3.0),
+    )
+    spec = classify_ring(IMG, JPEG).to_spec()
+    assert _on_step_grid(spec["setting"]["setting_height"])
+    assert is_castable(validate_spec(spec))
+
+
+def test_settle_on_step_grid_falls_back_to_ceil_on_an_exact_tie():
+    """The real oscillation found while wiring this in: repairing
+    stone_exceeds_head against a 0.1-aligned stone_height (5.2) with the
+    +0.05 margin lands EXACTLY on a half-step tie (5.25). Nearest-rounding
+    it drops back to 5.2 -- equal to stone_height, still a violation -- and
+    re-repairing that reproduces 5.25 again, forever: a genuine period-2
+    cycle, not a hypothetical. _settle_on_step_grid's ceil/floor escape
+    hatch is what actually resolves it; assert it lands on 5.3, not that a
+    generic re-repair loop eventually converges (it provably cannot)."""
+    from ringcad.ringspec.coherence import make_coherent
+
+    spec = {
+        "version": "1.0", "archetype": "solitaire",
+        "shank": {"inner_diameter": 16.5, "band_width": 2.2, "band_thickness": 1.9},
+        "setting": {"prong_count": 6, "setting_height": 3.0},
+        "stones": {"stone_diameter": 6.5, "stone_height": 5.2},
+    }
+    coherent, _ = make_coherent(spec)
+    assert coherent["setting"]["setting_height"] == pytest.approx(5.25)  # the tie
+
+    stepped = classify._settle_on_step_grid(coherent)
+    assert stepped is not None
+    assert _on_step_grid(stepped["setting"]["setting_height"])
+    assert is_castable(validate_spec(stepped))
+
+
+def test_settle_on_step_grid_prefers_nearest_when_it_is_already_castable():
+    coherent = {
+        "version": "1.0", "archetype": "solitaire",
+        "shank": {"inner_diameter": 16.5, "band_width": 2.2, "band_thickness": 1.94},
+        "setting": {"prong_count": 6, "setting_height": 6.0},
+        "stones": {"stone_diameter": 6.5, "stone_height": 4.0},
+    }
+    stepped = classify._settle_on_step_grid(coherent)
+    assert stepped["shank"]["band_thickness"] == pytest.approx(1.9)

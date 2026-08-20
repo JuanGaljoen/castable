@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import math
 import os
 from dataclasses import dataclass, field
 
@@ -42,6 +43,17 @@ CLAMP_BOUNDS = {
 # always complete and castable. inner_diameter (finger size) is NEVER guessed
 # from a photo (RNG-6 rule) -- it stays at this default with confidence None.
 DEFAULT_INNER_DIAMETER = 16.5  # ~US6
+
+# RNG-38: every stepped dimension input in templates/index.html uses step="0.1"
+# (counts use step="1", already satisfied since they're int by construction).
+# Nothing before this rounded a value to that grid, so the browser's native
+# number-input validation silently blocked Generate whenever an estimate --
+# or a coherence-repaired value -- wasn't an exact multiple of 0.1.
+DIMENSION_STEP = 0.1
+# Groups that can carry stepped dimension fields; confidence/motifs/version/
+# archetype are left alone by _round_to_step.
+_DIMENSION_GROUPS = ("shank", "setting", "stones", "halo", "trilogy", "side_stone")
+
 _SHARED_DEFAULTS = {
     "band_width": 2.2,
     "band_thickness": 1.9,
@@ -227,7 +239,14 @@ class ClassifyResult:
                 continue
             coherent, adjustments = make_coherent(spec, self.confidence)
             if is_castable(validate_spec(coherent)):
-                return coherent, adjustments
+                stepped = _settle_on_step_grid(coherent)
+                if stepped is not None:
+                    return stepped, adjustments
+                logger.error(
+                    "%s spec did not settle on the step grid castably; "
+                    "trying next fallback", archetype,
+                )
+                continue
             logger.error(
                 "%s spec still uncastable after repair; trying next "
                 "fallback", archetype,
@@ -287,6 +306,59 @@ class ClassifyResult:
             # one was adjusted for buildability".
             "adjustments": [a.model_dump() for a in adjustments],
         }
+
+
+def _settle_on_step_grid(coherent: dict) -> dict | None:
+    """Land `coherent` on the form's 0.1 step grid without breaking
+    castability, or return None if none of the three tries manage it (RNG-38).
+
+    Nearest is right almost always. "ceil"/"floor" are a direct castability
+    re-check, not another repair pass -- deliberately, since a repair margin
+    that ties exactly on a half-step (see _round_to_step) makes
+    round-then-re-repair oscillate forever between the same two values,
+    where a static "try the other neighbour" terminates in one step. None
+    means the caller should fall back further rather than return an
+    uncastable spec -- the same "coherence cannot be reached" case
+    `_coherent_spec`'s fallback chain already exists for."""
+    for direction in ("nearest", "ceil", "floor"):
+        stepped = _round_to_step(coherent, direction)
+        if is_castable(validate_spec(stepped)):
+            return stepped
+    return None
+
+
+_STEP_ROUNDERS = {"nearest": round, "ceil": math.ceil, "floor": math.floor}
+
+
+def _round_to_step(spec: dict, direction: str = "nearest") -> dict:
+    """Round every float dimension in `spec` to DIMENSION_STEP (RNG-38).
+
+    A generic type-driven walk, not a per-field allowlist: every float leaf
+    in a dimension group IS a stepped form field, and every int leaf is
+    already step=1 aligned by construction (_snap_prong / _group_estimates's
+    int() cast), so there is nothing to special-case. confidence/motifs/
+    version/archetype are untouched -- they don't back a stepped input.
+
+    `direction="nearest"` (the default) is right almost always; see
+    `_settle_on_step_grid` for why "ceil"/"floor" exist.
+
+    Returns a new dict; does not mutate `spec`."""
+    step_round = _STEP_ROUNDERS[direction]
+    out = dict(spec)
+    for group_key in _DIMENSION_GROUPS:
+        group = spec.get(group_key)
+        if not isinstance(group, dict):
+            continue
+        out[group_key] = {
+            # round() twice: once to the step count (an integer), once more
+            # on the result to clean up the binary-float noise that
+            # `n * 0.1` reintroduces (1.9 -> 1.9000000000000001) even when
+            # n is exact -- 0.1 has no exact binary representation.
+            k: (round(step_round(v / DIMENSION_STEP) * DIMENSION_STEP, 1)
+                if isinstance(v, float) else v)
+            for k, v in group.items()
+        }
+    return out
 
 
 def _stone_shape(shape: str, ratio: float) -> dict:
