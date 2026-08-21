@@ -195,6 +195,17 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 - **RNG-36** Enforce the 2mm minimum band width at the shank's narrowest point [Low] - flagged unenforced in the research and still unenforced; may be the first legitimate non-`error` `Violation.severity`
 - **RNG-37** Add reference sketches for solitaire, trilogy and side-stone [High] - no code, a file plus a table row each. `docs/reference/` has ONE sketch, and every RNG-19 defect was found by comparing a render against it while the suite stayed green. Trilogy first, since RNG-35 needs a target to judge against
 
+**Found by RNG-33's archetype sweep (2026-08-21):**
+
+- **RNG-39** Side-stone channel cut leaves degenerate geometry with an elongated
+  centre stone [Medium] - **pre-existing, not caused by RNG-33**: an `oval` at
+  `length_ratio` 2.5 on a channel band gives 2982 mesh bodies / 2712 non-manifold
+  edges on the pre-RNG-33 tree, and the gate calls it castable. A `pear` at its
+  conventional 1.60 leaves a zero-thickness double shell (bodies of -4.5236 and
+  +4.5255mm3) at the groove tool's outer boundary. Non-monotonic in stone reach,
+  so no `length_ratio` threshold can express it honestly - the fix belongs in
+  `side_stone.py`, not in a gate rule
+
 > Removed in the pivot: RNG-7 (cathedral shoulders, OpenSCAD-specific) and RNG-8
 > (style registry over OpenSCAD) were deleted — both are superseded by the
 > RingSpec + module-library foundation. **RNG-20** (vision spec castable by
