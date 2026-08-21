@@ -26,9 +26,31 @@ from __future__ import annotations
 import math
 from typing import Protocol, runtime_checkable
 
-from build123d import Circle, Ellipse, Plane, Torus, Vector, Wire, sweep
+from build123d import (
+    CenterArc, Circle, Ellipse, Face, Line, Plane, Pos, Spline, Torus,
+    Vector, Wire, extrude, sweep,
+)
+
+from ringcad.ringspec.cuts import (
+    ArcSeg, LineSeg, ProngType, SplineSeg, profile_for,
+)
 
 TWO_PI = 2 * math.pi
+
+# How far the bored seat's OUTER wall stands proud of the collar radius, so that
+# anything sitting ON the girdle -- the claws, whose node sphere is centred there
+# -- is embedded in the plate volumetrically rather than grazing its wall.
+#
+# Not a designed dimension; a construction margin, the same kind as
+# `prong_setting.NODE_OVERLAP` and `halo.BEAD_SINK`. Measured: the claw's girdle
+# sphere has radius 0.46 against a 0.45 collar, so it protruded 0.01mm through a
+# flat extruded wall and OCCT resolved that graze as a zero-volume lamina -- 323
+# faces, 183 non-manifold edges, a second mesh "body" of exactly 0.000mm3, off a
+# B-rep that was a single valid solid (docs/adr/0007). A swept torus never showed
+# it because its doubly-curved surface cuts the sphere in a clean circle; a flat
+# extruded wall does not. Only the OUTER wall moves: the bore stays exactly the
+# stone's negative, which is the whole point of docs/adr/0008.
+GIRDLE_EMBED = 0.06
 
 # The tips of an elongated stone are the ends of the major axis: local +Y / -Y.
 _TIP_ANGLE = math.pi / 2
@@ -47,7 +69,30 @@ class StoneOutline(Protocol):
         """The closed girdle path, for sweeping a seat or bezel along."""
 
     def prong_angles(self, n: int) -> list[float]:
-        """Where N prongs sit, in radians of the local frame."""
+        """Where N prongs sit, in radians of the local frame.
+
+        Retained as the angle-only view of `placements`; CP3's
+        `prong_setting` reads `placements` so it can honour the prong TYPE.
+        """
+
+    def placements(self, n: int) -> list[tuple[float, "ProngType"]]:
+        """Where N prongs sit AND what kind each one is.
+
+        The type is geometric, not stylistic: `V` is the prong that wraps a
+        vertex -- an emerald's cut corner, a pear's point, a marquise's two
+        points. That makes it reusable for every cornered or pointed cut we
+        add later rather than being a per-cut special case.
+        """
+
+    def seat_solid(self, minor_r: float):
+        """The seat collar as a finished solid, centred on z = 0.
+
+        The OUTLINE builds it, not `seat()`, because how a seat is made depends
+        on the girdle: a smooth curve can have a collar swept along it, while a
+        girdle with vertices cannot be swept at ANY section radius and has its
+        seat bored out of a plate instead (docs/adr/0008). `seat()` stays
+        shape-blind either way.
+        """
 
     def frame_at(self, theta: float) -> tuple[Vector, Vector]:
         """(point on the girdle, outward unit normal) at angle `theta`."""
@@ -110,9 +155,15 @@ class RoundOutline:
     def min_curvature_radius(self) -> float:
         return self.radius
 
+    def placements(self, n: int) -> list[tuple[float, ProngType]]:
+        return [(t, ProngType.ROUND) for t in self.prong_angles(n)]
+
     def tube(self, minor_r: float):
         # The pre-RNG-23 seat call, unchanged: `Torus(stone_r, collar_tr)`.
         return Torus(self.radius, minor_r)
+
+    def seat_solid(self, minor_r: float):
+        return self.tube(minor_r)
 
     def expanded(self, distance: float) -> "RoundOutline":
         return RoundOutline(self.radius + distance)
@@ -228,6 +279,158 @@ class OvalOutline:
         ) * Circle(minor_r)
         return sweep(section, self.wire(), is_frenet=True)
 
+    def placements(self, n: int) -> list[tuple[float, ProngType]]:
+        return [(t, ProngType.CLAW) for t in self.prong_angles(n)]
+
+    def seat_solid(self, minor_r: float):
+        return self.tube(minor_r)
+
+
+class ProfileOutline:
+    """One kernel adapter over ANY `CutProfile` (RNG-33).
+
+    RNG-23 promised that a new cut would be a new outline class rather than an
+    edit to six modules. CP1 went one better: every shape-specific fact -- the
+    girdle construction, the prong rule, the proportions -- lives in the
+    profile, so the kernel side is written once and a new cut needs no geometry
+    code at all.
+
+    Round and oval deliberately do NOT come through here. Their construction is
+    pinned bit-identical by the parity and golden suites, and routing them
+    through a generic adapter would move them for no gain.
+    """
+
+    def __init__(self, profile, half_short: float, ratio: float) -> None:
+        self.profile = profile
+        self.half_short = float(half_short)
+        self.ratio = float(ratio)
+
+    # --- the girdle path --------------------------------------------------
+
+    def wire(self) -> Wire:
+        """Build the girdle from the profile's EXACT segments.
+
+        Not from a sampled spline: an emerald's corners and a marquise's points
+        are the identity of those cuts, and sampling them away still yields a
+        closed, faceable, watertight wire that merely looks wrong -- the kind of
+        failure that passes every structural assertion.
+        """
+        edges = []
+        for seg in self.profile.segments(self.half_short, self.ratio):
+            if isinstance(seg, LineSeg):
+                shape = Line((seg.a[0], seg.a[1], 0), (seg.b[0], seg.b[1], 0))
+            elif isinstance(seg, ArcSeg):
+                shape = Pos(seg.centre[0], seg.centre[1], 0) * CenterArc(
+                    (0, 0, 0), seg.radius,
+                    math.degrees(seg.start),
+                    math.degrees(seg.end - seg.start))
+            elif isinstance(seg, SplineSeg):
+                shape = Spline(*[(x, y, 0) for x, y in seg.points],
+                               periodic=True)
+            else:                                     # pragma: no cover
+                raise TypeError(f"unknown girdle segment {seg!r}")
+            # Every builder here returns a Curve (a compound), never a bare
+            # Edge, so collect edges uniformly rather than special-casing the
+            # single-segment cut.
+            edges.extend(shape.edges())
+        return Wire(edges)
+
+    def frame_at(self, theta: float) -> tuple[Vector, Vector]:
+        """(point, outward unit normal) at POLAR angle `theta`.
+
+        The normal is the mean of the two adjacent sampled tangent normals, so
+        at a vertex it is the angle BISECTOR -- which is exactly the direction a
+        V-prong has to come from to wrap that corner.
+        """
+        p = self.profile
+        eps = 1e-3
+        point = p.point_at(theta, self.half_short, self.ratio)
+        before = p.point_at(theta - eps, self.half_short, self.ratio)
+        after = p.point_at(theta + eps, self.half_short, self.ratio)
+        tangent = Vector(after[0] - before[0], after[1] - before[1], 0)
+        normal = Vector(tangent.Y, -tangent.X, 0)
+        if normal.length < 1e-12:                     # pragma: no cover
+            normal = Vector(point[0], point[1], 0)
+        normal = normal.normalized()
+        if normal.dot(Vector(point[0], point[1], 0)) < 0:
+            normal = normal * -1                      # keep it pointing out
+        return Vector(point[0], point[1], 0), normal
+
+    # --- width-consumers --------------------------------------------------
+
+    def half_width(self, axis: str) -> float:
+        return self.profile.half_width(self.half_short, self.ratio, axis)
+
+    def min_curvature_radius(self) -> float:
+        return self.profile.min_curvature_radius(self.half_short, self.ratio)
+
+    # --- prongs -----------------------------------------------------------
+
+    def prong_angles(self, n: int) -> list[float]:
+        return [t for t, _ in self.placements(n)]
+
+    def placements(self, n: int) -> list[tuple[float, ProngType]]:
+        return self.profile.prong_layout(n)
+
+    # --- derived curves ---------------------------------------------------
+
+    def expanded(self, distance: float) -> "ProfileOutline":
+        """Grow both semi-axes by `distance`.
+
+        Deliberately NOT the true parallel curve, exactly as `OvalOutline`
+        already chooses: the offset of any of these outlines is a higher-degree
+        curve that the kernel cannot sweep or face as cleanly, the error is
+        largest at the tips and small at the scale of a halo gap, and a jeweller
+        lays a halo out this way. Keeping the SAME approximation as oval also
+        means the halo plate and its bore stay the same kind of curve.
+        """
+        p = self.half_short + distance
+        q = self.half_short * self.ratio + distance
+        return ProfileOutline(self.profile, p, q / p if p else 1.0)
+
+    def angles_by_arc(self, n: int, offset: float = 0.0) -> list[float]:
+        return self.profile.angles_by_arc(
+            n, self.half_short, self.ratio, offset)
+
+    # --- the seat ---------------------------------------------------------
+
+    def tube(self, minor_r: float):
+        """Kept for interface compatibility; the seat is BORED, not swept."""
+        return self.seat_solid(minor_r)
+
+    def seat_solid(self, minor_r: float):
+        """A bearing plate with the stone's own negative cut out of it.
+
+        docs/adr/0008, third customer. A collar tube swept along this girdle is
+        not merely hard, it is impossible: a vertex has no radius, so the sweep
+        self-intersects at ANY section radius. Cutting instead makes the
+        remaining metal whatever the bore leaves, which is what a metal-only
+        semi-mount should show anyway.
+
+        The bore is cut OVERSIZE in height so it breaks through both faces. A
+        bore landing flush with a face leaves a lid, and that seat becomes a
+        sealed internal cavity that still reports watertight, single-solid and
+        all-floors-met -- the trap ADR-0008 names and ADR-0005 was written for.
+        """
+        if self.half_short <= minor_r + GIRDLE_EMBED:
+            # Below this the inner bore inverts. Pear and marquise raise out of
+            # OCCT, but cushion and emerald quietly return a plausible SOLID
+            # with no opening at all -- wrong metal, no error, and every
+            # structural assertion still green. That is the ADR-0008 trap with
+            # the sealed void replaced by a mirrored one, so it is refused here
+            # rather than left to be noticed. The casting gate already rejects
+            # stones this small on the prong-tip floor; this guards the module
+            # against being called directly.
+            raise ValueError(
+                f"stone half-width {self.half_short:.3f}mm is not larger than "
+                f"the {minor_r:.3f}mm seat collar: no seat can be bored"
+            )
+        h = 2 * minor_r
+        body = extrude(
+            Face(self.expanded(minor_r + GIRDLE_EMBED).wire()), amount=h)
+        bore = extrude(Face(self.expanded(-minor_r).wire()), amount=h + 1.0)
+        return Pos(0, 0, -h / 2) * (body - Pos(0, 0, -0.5) * bore)
+
 
 def outline_for(shape: str, half_width: float, length_ratio: float) -> StoneOutline:
     """Build the outline for a RingSpec stone group.
@@ -235,7 +438,14 @@ def outline_for(shape: str, half_width: float, length_ratio: float) -> StoneOutl
     `half_width` is stone_diameter/2 (the SHORT axis); `length_ratio` is
     long/short, so 1.0 is round and the round path is taken whenever the stone is
     effectively circular -- keeping existing geometry bit-identical.
+
+    Round and oval keep their own classes; every other cut goes through the
+    shared `ProfileOutline`, which needs no per-cut kernel code.
     """
-    if shape == "oval" and length_ratio > 1.0:
+    if length_ratio <= 1.0 and shape in ("round", "oval"):
+        return RoundOutline(half_width)
+    if shape == "round":
+        return RoundOutline(half_width)
+    if shape == "oval":
         return OvalOutline(half_width, half_width * length_ratio)
-    return RoundOutline(half_width)
+    return ProfileOutline(profile_for(shape), half_width, length_ratio)

@@ -49,6 +49,31 @@ _SAMPLES = 2048
 _VERTEX_TURN = 0.15
 
 
+@dataclass(frozen=True)
+class LineSeg:
+    """A straight girdle run, from `a` to `b`."""
+
+    a: tuple[float, float]
+    b: tuple[float, float]
+
+
+@dataclass(frozen=True)
+class ArcSeg:
+    """A circular girdle run, swept CCW from `start` to `end` (radians)."""
+
+    centre: tuple[float, float]
+    radius: float
+    start: float
+    end: float
+
+
+@dataclass(frozen=True)
+class SplineSeg:
+    """A smooth girdle run through `points`, for cuts with no exact primitive."""
+
+    points: tuple[tuple[float, float], ...]
+
+
 class ProngType(str, Enum):
     """What kind of prong sits at a placement.
 
@@ -96,6 +121,18 @@ class CutProfile:
 
     def prong_layout(self, n: int) -> list[tuple[float, ProngType]]:
         raise NotImplementedError
+
+    def segments(self, half_short: float, ratio: float) -> list:
+        """The girdle as EXACT pieces, for the kernel to build a wire from.
+
+        Defaults to one spline through a coarse sampling, which is right for a
+        smooth cut and wrong for a cornered one: sampling a vertex into a spline
+        rounds it off, and the result still closes, still faces, still reads
+        watertight and still looks roughly right. Cuts with vertices override
+        this and say exactly where their edges are.
+        """
+        pts = self._polyline(half_short, ratio, samples=192)
+        return [SplineSeg(tuple(pts))]
 
     # --- shared numeric core ----------------------------------------------
 
@@ -414,6 +451,10 @@ class EmeraldProfile(CutProfile):
             out.append(_polar((a[0] + b[0]) / 2, (a[1] + b[1]) / 2))
         return out
 
+    def segments(self, half_short, ratio):
+        vs = self._vertices(half_short, ratio)
+        return [LineSeg(vs[i], vs[(i + 1) % len(vs)]) for i in range(len(vs))]
+
     def prong_layout(self, n):
         """Prongs clasp the CUT CORNERS.
 
@@ -479,6 +520,17 @@ class PearProfile(CutProfile):
                         tip[1] + f * (end[1] - tip[1])))
         return out
 
+    def segments(self, half_short, ratio):
+        p, q, y0, d = self._geometry(half_short, ratio)
+        ty = p * p / d
+        tx = p * math.sqrt(max(1.0 - (p * p) / (d * d), 0.0))
+        a0 = math.atan2(ty, tx)
+        return [
+            ArcSeg((0.0, y0), p, math.pi - a0, TWO_PI + a0),
+            LineSeg((tx, y0 + ty), (0.0, q)),
+            LineSeg((0.0, q), (-tx, y0 + ty)),
+        ]
+
     def prong_layout(self, n):
         """One V on the point, the rest shared by arc length.
 
@@ -532,6 +584,16 @@ class MarquiseProfile(CutProfile):
             a = half - 2 * half * i / half_n
             out.append((cx - r * math.cos(a), r * math.sin(a)))
         return out
+
+    def segments(self, half_short, ratio):
+        p, q = half_short, half_short * ratio
+        r = self.arc_radius(half_short, ratio)
+        cx = r - p
+        half = math.asin(min(q / r, 1.0))
+        return [
+            ArcSeg((-cx, 0.0), r, -half, half),
+            ArcSeg((cx, 0.0), r, math.pi - half, math.pi + half),
+        ]
 
     def prong_layout(self, n):
         """A V on each point, the rest shared by arc length between them.
