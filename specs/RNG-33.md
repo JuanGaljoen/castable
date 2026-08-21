@@ -158,8 +158,31 @@ cited number and been wrong.
       mine asserted a marquise clears the prong-tip floor at 1.9mm without doing the arithmetic;
       it does not, at any prong count. Both are now pinned by symmetry tests, which is the
       invariant that would have caught the first one.
-- [ ] **CP2 — Outline classes + bored seat.** Four classes wrapping their profiles; `seat()`
+- [x] **CP2 — Outline classes + bored seat.** Four classes wrapping their profiles; `seat()`
       gains `_parts`/`_cuts`, registered in `MODULES`. Body count and volume asserted.
+
+      *Landed, with two design corrections to the plan.* (1) It is **one** adapter,
+      `ProfileOutline`, not four classes — CP1 put every shape-specific fact in the profile, so a
+      new cut needs no geometry code at all. (2) `seat()` needed no `_parts`/`_cuts` split: the
+      outline returns a finished `seat_solid`, built as body-minus-bore, which keeps `seat()`
+      shape-blind and leaves round/oval on their `Torus` and swept ellipse untouched.
+
+      Girdles build from **exact segments** (emerald 8 lines, marquise 2 arcs, pear 1 arc + 2
+      tangents, cushion 1 periodic spline). Sampling a vertex into a spline yields a wire that is
+      closed, faceable and watertight and is quietly the wrong cut, so the test asserts edge COUNT.
+
+      **Three defects found by tracing and sweeping, none by a test.** The bore inverts below a
+      0.9mm stone — pear and marquise raise, but cushion and emerald silently returned a plausible
+      solid with no opening. `compose`'s single n-ary `cut(*tools)` failed silently on a side-stone
+      band, taking a marquise from a 376.95mm3 single solid to 9.25mm3 in 8 pieces while the gate
+      said castable; it now checks the result and falls back to iterative (docs/adr/0005 as a
+      recovery, not just an assertion). And a claw's girdle sphere grazed the bored seat's flat
+      outer wall by 0.01mm, which OCCT resolved as a zero-volume lamina — 323 faces, 183
+      non-manifold edges, a second mesh "body" off a single valid B-rep (docs/adr/0007). Fixed with
+      a 0.06mm margin on the outer wall only; the bore stays exactly the stone's negative.
+
+      **Verified by parameter sweep, not by spot checks:** 90/90 combinations clean across
+      solitaire, halo and trilogy for all five elongated cuts at six ratios each.
 - [ ] **CP3 — Prong placement and type.** `placements()` replaces `prong_angles()`;
       `prong_setting()` builds a V-prong where the placement says V.
 - [ ] **CP4 — Vision + UI wire-up.** `classify.py` schema/prompt/`_stone_shape`; the shape
@@ -202,6 +225,28 @@ Forge is not blocked; Verify is. Adding either is a file plus a table row, no co
   pointed cuts are hardest to judge by eye). Bare metal, no stones — what we actually render.
 
 CP4 needs them. If they are not ready, Verify runs degraded and says so explicitly.
+
+## Known limitation: side-stone band with an elongated centre (RNG-39)
+
+A channel side-stone band plus an elongated centre stone tessellates into disconnected pieces. It
+is **pre-existing**: `oval` at 2.5 fails identically on the pre-RNG-33 tree (2982 bodies, 2712
+non-manifold edges) with the gate calling it castable. RNG-33 makes it reachable at a *default*
+ratio because pear's conventional L:W is 1.60.
+
+**No gate rule on `length_ratio` can express it honestly**, because the failures are a scatter
+rather than a region:
+
+    marquise  1.50:OK  1.70:XX  1.90:OK  2.10:XX  2.30:OK  2.50:OK
+    pear      1.15:OK  1.34:OK  1.53:OK  1.72:XX  1.91:OK  2.10:XX
+    oval      1.00:OK  ...  2.20:OK  2.50:XX
+
+A threshold would reject working rings and admit broken ones while looking principled — the drift
+docs/adr/0002 exists for. So the guard **measures the artifact instead**: `/generate-ring` returns
+400 when the mesh comes back in pieces. That cannot drift and stops firing by itself once RNG-39
+lands. Deliberately narrower than "not castable" — a thin wall or an open edge still downloads,
+preserving the documented behaviour.
+
+Confined to the channel cut: the same oval at 2.5 builds cleanly on solitaire, halo and trilogy.
 
 ## Out of scope
 
