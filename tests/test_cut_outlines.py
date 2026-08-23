@@ -223,10 +223,16 @@ def test_a_stone_narrower_than_its_collar_is_refused_not_built(shape):
 def test_the_smallest_buildable_seat_still_opens(shape):
     """Just above the guard the seat must be a real rim, not a slab.
 
-    0.55 rather than 0.50: the guard sits at `minor_r + GIRDLE_EMBED`, not at
-    `minor_r`, because the outer wall has to clear the claw node too.
+    The size is DERIVED from the guard rather than written out, because the
+    guard sits at `minor_r + GIRDLE_EMBED` and that constant moves: RNG-33 CP3
+    raised it from 0.06 to 0.15 to keep a marquise's tip out of the grazing
+    band, which silently invalidated a hardcoded 0.55 that had been "just
+    above" a 0.51 guard.
     """
-    o = outline_for(shape, 0.55, profile_for(shape).default_ratio)
+    from ringcad.geometry.outline import GIRDLE_EMBED
+
+    o = outline_for(shape, 0.45 + GIRDLE_EMBED + 0.04,
+                    profile_for(shape).default_ratio)
     solid = o.seat_solid(0.45)
     assert len(solid.solids()) == 1
     assert solid.volume > 0

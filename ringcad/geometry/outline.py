@@ -8,7 +8,7 @@ of those would scatter the same `if` six ways. Instead the shape answers
 questions and the modules stay shape-blind:
 
   * **Curve-walkers** (seat / bezel / prong_setting / halo) place geometry AROUND
-    the girdle -- they need `wire()`, `prong_angles()` and `frame_at()`.
+    the girdle -- they need `wire()`, `placements()` and `frame_at()`.
   * **Width-consumers** (trilogy placement, overcrowding checks) need only one
     number, `half_width(axis)`. Handing them a curve would be a fake dependency.
 
@@ -50,7 +50,22 @@ TWO_PI = 2 * math.pi
 # it because its doubly-curved surface cuts the sphere in a clean circle; a flat
 # extruded wall does not. Only the OUTER wall moves: the bore stays exactly the
 # stone's negative, which is the whole point of docs/adr/0008.
-GIRDLE_EMBED = 0.06
+#
+# **Raised from 0.06 to 0.15 in RNG-33 CP3, and the reason is a defect in
+# `expanded` rather than in this number.** `expanded` grows the two semi-axes
+# rather than offsetting the curve (see its own docstring, which calls the
+# approximation out and says the error is largest AT THE TIPS). At a marquise's
+# point that error is not small: the wall's true clearance from the girdle is
+# 0.426mm at length_ratio 1.95 and 0.388 at 2.30, against a nominal 0.51 and a
+# 0.46 node sphere -- so the sphere grazed the wall by a few hundredths and the
+# ring tessellated into two bodies with 184 non-manifold edges, while the B-rep
+# stayed a single valid solid of the right volume. 0.15 puts every vertex of
+# every cut back outside that grazing band.
+#
+# It is a workaround, and a narrow one: it widens the safe band, it does not
+# make the offset true. The honest fix is a real parallel curve, which also
+# owns the halo plate -- filed as RNG-40.
+GIRDLE_EMBED = 0.15
 
 # The tips of an elongated stone are the ends of the major axis: local +Y / -Y.
 _TIP_ANGLE = math.pi / 2
@@ -67,13 +82,6 @@ class StoneOutline(Protocol):
 
     def wire(self) -> Wire:
         """The closed girdle path, for sweeping a seat or bezel along."""
-
-    def prong_angles(self, n: int) -> list[float]:
-        """Where N prongs sit, in radians of the local frame.
-
-        Retained as the angle-only view of `placements`; CP3's
-        `prong_setting` reads `placements` so it can honour the prong TYPE.
-        """
 
     def placements(self, n: int) -> list[tuple[float, "ProngType"]]:
         """Where N prongs sit AND what kind each one is.
@@ -140,9 +148,6 @@ class RoundOutline:
     def wire(self) -> Wire:
         return Circle(self.radius).wire()
 
-    def prong_angles(self, n: int) -> list[float]:
-        # Even spacing -- identical to prong_setting's original `i * 360/n`.
-        return [k * TWO_PI / n for k in range(n)]
 
     def frame_at(self, theta: float) -> tuple[Vector, Vector]:
         direction = Vector(math.cos(theta), math.sin(theta), 0)
@@ -156,7 +161,8 @@ class RoundOutline:
         return self.radius
 
     def placements(self, n: int) -> list[tuple[float, ProngType]]:
-        return [(t, ProngType.ROUND) for t in self.prong_angles(n)]
+        # Even spacing -- identical to prong_setting's original `i * 360/n`.
+        return [(k * TWO_PI / n, ProngType.ROUND) for k in range(n)]
 
     def tube(self, minor_r: float):
         # The pre-RNG-23 seat call, unchanged: `Torus(stone_r, collar_tr)`.
@@ -186,7 +192,7 @@ class OvalOutline:
         # build123d's Ellipse takes (x_radius, y_radius) -- minor on X, major on Y.
         return Ellipse(self.semi_minor, self.semi_major).wire()
 
-    def prong_angles(self, n: int) -> list[float]:
+    def placements(self, n: int) -> list[tuple[float, ProngType]]:
         """Place prongs so the TIPS fall exactly midway between adjacent claws.
 
         The apex of the major axis is both the highest-curvature point (worst
@@ -196,7 +202,8 @@ class OvalOutline:
         30 degrees from any claw at n=6 -- one formula, no per-count casing.
         """
         step = TWO_PI / n
-        return [_TIP_ANGLE + (k + 0.5) * step for k in range(n)]
+        return [(_TIP_ANGLE + (k + 0.5) * step, ProngType.CLAW)
+                for k in range(n)]
 
     def frame_at(self, theta: float) -> tuple[Vector, Vector]:
         p, q = self.semi_minor, self.semi_major
@@ -278,9 +285,6 @@ class OvalOutline:
             origin=(self.semi_minor, 0, 0), x_dir=(1, 0, 0), z_dir=(0, 1, 0)
         ) * Circle(minor_r)
         return sweep(section, self.wire(), is_frenet=True)
-
-    def placements(self, n: int) -> list[tuple[float, ProngType]]:
-        return [(t, ProngType.CLAW) for t in self.prong_angles(n)]
 
     def seat_solid(self, minor_r: float):
         return self.tube(minor_r)
@@ -365,9 +369,6 @@ class ProfileOutline:
         return self.profile.min_curvature_radius(self.half_short, self.ratio)
 
     # --- prongs -----------------------------------------------------------
-
-    def prong_angles(self, n: int) -> list[float]:
-        return [t for t, _ in self.placements(n)]
 
     def placements(self, n: int) -> list[tuple[float, ProngType]]:
         return self.profile.prong_layout(n)

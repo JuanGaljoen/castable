@@ -206,6 +206,21 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
   so no `length_ratio` threshold can express it honestly - the fix belongs in
   `side_stone.py`, not in a gate rule
 
+**Found by RNG-33 CP3 (2026-08-23):**
+
+- **RNG-40** `expanded()` is not a true parallel curve, so offsets are short at
+  sharp tips [Medium] - it grows the semi-axes instead of offsetting the girdle
+  (both `OvalOutline` and `ProfileOutline` document the approximation and say
+  the error is largest at the tips). At a marquise point the seat wall's true
+  clearance is **0.426mm at `length_ratio` 1.95 and 0.388 at 2.30** against a
+  nominal 0.51 and a 0.46mm claw node sphere, so the sphere GRAZED the wall and
+  OCCT resolved it as a zero-volume lamina: 2 mesh bodies, 184 non-manifold
+  edges, off a single valid B-rep of the right volume (docs/adr/0007). CP3
+  worked around it by raising `GIRDLE_EMBED` 0.06 -> 0.15, which is not a fix:
+  pear is safe by passing fully THROUGH the wall (0.159mm) while marquise is
+  safe by clearing it, so **no single constant states the requirement
+  honestly**. Also owns the halo plate, which uses the same `expanded()`
+
 > Removed in the pivot: RNG-7 (cathedral shoulders, OpenSCAD-specific) and RNG-8
 > (style registry over OpenSCAD) were deleted — both are superseded by the
 > RingSpec + module-library foundation. **RNG-20** (vision spec castable by

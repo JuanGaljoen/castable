@@ -183,8 +183,61 @@ cited number and been wrong.
 
       **Verified by parameter sweep, not by spot checks:** 90/90 combinations clean across
       solitaire, halo and trilogy for all five elongated cuts at six ratios each.
-- [ ] **CP3 — Prong placement and type.** `placements()` replaces `prong_angles()`;
+- [x] **CP3 — Prong placement and type.** `placements()` replaces `prong_angles()`;
       `prong_setting()` builds a V-prong where the placement says V.
+
+      *Landed.* `prong_angles()` is GONE from `StoneOutline` and all three
+      implementations, not merely superseded: after CP3 it had no production caller,
+      which is the exact drift docs/adr/0002 records for `min_curvature_radius`. A
+      V-prong is one shaft to the vertex plus one arm laid back along each of the two
+      girdle runs meeting there, and the arms are found by WALKING the outline via
+      `frame_at`, so the wrap angle is a consequence of the cut's geometry rather than
+      a guessed rotation of the bisector — and no new method is added to the protocol,
+      which is what keeps round and oval free of a code path nothing calls.
+
+      **The fork is not two tips.** On an emerald's obtuse corner the arms stay
+      separate; on a pear or marquise point they MERGE into one piece of metal, which
+      is what a V-prong at a point is. The first version of `tests/test_v_prong.py`
+      asserted `prong_count + one per V` tips and was therefore measuring the wedge
+      angle, not the fork. The invariants that hold either way: the fork weighed by
+      boolean against the same ring with the fork suppressed, its added metal equal on
+      both sides of the bisector, and mirror-image placements giving mirror-image metal.
+
+      **Three defects, none found by a passing test.** (1) Built as a fan of cones off
+      one node, OCCT's n-ary fuse silently DROPPED a whole arm from ONE of a marquise's
+      two mirror-image V-prongs — 4.866mm3 against its twin's 6.524, single-solid,
+      watertight, no warning (docs/adr/0005, third sighting). Fixed by building each arm
+      as a complete claw chain and fusing those; the SYMMETRY test is what sees it, and
+      nothing else in the suite looks for asymmetry. (2) The 0.88 tip lean is radial,
+      which on a fork pulls both arms TOGETHER — a marquise's 100 degree girdle wedge
+      closed to a 33 degree fork and a pear's to 17, two rods lying against each other.
+      Arms now lean along the girdle's own outward normal; claws keep the literal radial
+      0.88 so round and oval do not move. (3) The seat wall GRAZED the claw node sphere
+      at the marquise tip, tessellating into 2 bodies / 184 non-manifold edges off a
+      single valid B-rep of the right volume — see the note below.
+
+      **`GIRDLE_EMBED` 0.06 -> 0.15, and it is a workaround.** `expanded()` grows the
+      semi-axes instead of offsetting the curve, so at a marquise point the wall's true
+      clearance is 0.426mm at ratio 1.95 and 0.388 at 2.30 against a nominal 0.51 and a
+      0.46 node sphere. 0.15 puts every vertex of every cut outside the grazing band
+      (verified 40/40: four cuts x five ratios across each band x both prong counts).
+      It widens the safe band; it does not make the offset true — pear is safe by being
+      fully THROUGH the wall (0.159mm clearance) while marquise is safe by being clear
+      of it, so no single constant states the requirement honestly. Root cause filed as
+      **RNG-40**, which also owns the halo plate.
+
+      **Two stale tests fixed, both authored elsewhere.**
+      `test_the_smallest_buildable_seat_still_opens` hardcoded a stone size "just above"
+      a guard that moves with `GIRDLE_EMBED`; it now derives it. And
+      `test_multibody_stl_sets_repaired_invalid_headers` had been left RED by the
+      disconnected-geometry commit on this branch — it asserted the 200 the guard was
+      written to remove. Rewritten to assert the 400, which is the contract this spec
+      froze under "Known limitation".
+
+      **Owed to CP4:** `_min_prong_tip` still divides the girdle perimeter by
+      `prong_count`, but a V puts TWO tips at one placement, so a 4-prong marquise
+      really has 6 tips competing for that arc. Same class as the ADR-0006 audit below
+      — a gate measuring something the geometry no longer does.
 - [ ] **CP4 — Vision + UI wire-up.** `classify.py` schema/prompt/`_stone_shape`; the shape
       `<select>` and per-cut ratio default; `coherence.py` identity guard.
 
@@ -197,7 +250,8 @@ decided in writing:
 |---|---|---|
 | `castability.py:81` `_min_prong_tip` — `stone_diameter` alone, ignores `length_ratio` | **Live; wrong for every new cut** | Fix in CP1 |
 | `bezel.py:35` — bore is `c["stone_r"] + _CLEARANCE`, a circle on the short axis | Latent: `bezel` is in `MODULES` but named by **no** archetype, so unreachable | File separately |
-| `_castability.py:187` `check_gallery` — rail faces at a constant radius off `stone_r` | Latent: `halo` dropped its gallery; only tests call `gallery()` | File separately; revisit if CP3 uses a gallery rail for cushion |
+| `_castability.py:187` `check_gallery` — rail faces at a constant radius off `stone_r` | Latent: `halo` dropped its gallery; only tests call `gallery()` | File separately; CP3 used no gallery rail, so unrevisited |
+| `castability.py:81` `_min_prong_tip` — arc per PRONG, but a V places two tips | **Live; under-reports crowding for every V cut as of CP3** | Fix in CP4 |
 | `prong_setting.py:48`, `halo.py:147` — peg / hub radii from `stone_r` | Legitimate scale values | Considered, keep |
 
 ## Verification

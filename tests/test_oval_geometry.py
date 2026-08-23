@@ -142,7 +142,7 @@ def test_oval_prongs_avoid_the_tips_in_the_built_geometry():
     stopped consulting the outline, claws would drift back onto the apex."""
     from ringcad.geometry.outline import OvalOutline as _O
 
-    angles = _O(3.0, 5.4).prong_angles(4)
+    angles = [t for t, _ in _O(3.0, 5.4).placements(4)]
     for theta in angles:
         for tip in (math.pi / 2, 3 * math.pi / 2):
             gap = abs((theta % (2 * math.pi)) - tip)
