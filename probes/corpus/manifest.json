@@ -32,6 +32,30 @@
       "note": "round centre, six prongs, shared-prong accents down both shoulders and no halo -- the reading that distinguishes side-stone from halo"
     },
     {
+      "file": "solitaire-cushion.png",
+      "expect_ring": true,
+      "expected_archetype": "solitaire",
+      "note": "four-prong solitaire, cushion centre at L:W ~1.0 -- rounded corners and outward-bowed sides. The cut vision NAMED on RNG-22's first run and had to write `round`, which is why RNG-33 exists"
+    },
+    {
+      "file": "solitaire-emerald.png",
+      "expect_ring": true,
+      "expected_archetype": "solitaire",
+      "note": "four-prong solitaire, emerald step cut at L:W ~1.45 -- straight sides, cut corners, parallel steps rather than brilliant facets; prongs grip the cut corners"
+    },
+    {
+      "file": "solitaire-pear.png",
+      "expect_ring": true,
+      "expected_archetype": "solitaire",
+      "note": "six-prong solitaire, pear at L:W ~1.55 with a clearly visible V-PRONG at the point -- the retention feature RNG-33 CP3 builds, so this photo is also the check that we read it"
+    },
+    {
+      "file": "solitaire-marquise.jpg",
+      "expect_ring": true,
+      "expected_archetype": "solitaire",
+      "note": "six-prong solitaire, marquise at L:W ~1.9, points at both ends. YELLOW gold on a busy textured background in natural light -- the only corpus entry that is not a clean studio shot, so it exercises metal colour and background clutter as well as the cut"
+    },
+    {
       "file": "negative-puppies.jpg",
       "expect_ring": false,
       "expected_archetype": null,

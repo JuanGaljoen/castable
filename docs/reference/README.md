@@ -14,6 +14,34 @@ concrete to be judged against instead of resting on memory or taste.
 **Adding one is a file plus a table row.** No code change, same rule as the
 fidelity corpus.
 
+### Per-cut sketches
+
+RNG-33 extended the convention: a *cut* changes the setting as much as an
+archetype does, because the seat and the prongs both follow the girdle. These
+are solitaire semi-mounts, so they double as the first `solitaire.png` we have.
+
+| File | Cut | L:W drawn | our default | Status |
+|---|---|---|---|---|
+| `pear.png` | pear | 14.00 × 8.50 = **1.65** | 1.60 | ✅ added 2026-08-24 |
+| `marquise.png` | marquise | 18.00 × 9.00 = **2.00** | 1.95 | ✅ added 2026-08-24 |
+| `cushion.png` | cushion | — | 1.02 | — wanted |
+| `emerald.png` | emerald | — | 1.40 | — wanted |
+
+**Both confirm CP3's prong rules**, which is the first time a reference has
+agreed with geometry rather than contradicted it:
+
+- six prongs, not four, on both cuts;
+- a **V-prong at every point** — one on the pear, two on the marquise — each
+  labelled explicitly, which is the field a photo hides most easily;
+- the marquise's four side claws **straddle** the widest point rather than
+  sitting on it, which is what our arc-length distribution produces at n=6.
+
+**And one thing they contradict.** Both front elevations show the understructure
+as an **open arched basket** — cusped arches springing from the shank up to the
+seat. We build a plain conical peg (`prong_setting`). That gap is not RNG-33's:
+it applies to every solitaire we generate and predates this ticket. Recorded
+here so it is judged, not smuggled.
+
 ## Not the same thing as `probes/corpus/`
 
 Easy to conflate, and the distinction is load-bearing:

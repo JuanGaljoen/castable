@@ -268,17 +268,34 @@ decided in writing:
 5. Compare each render against `docs/reference/`. No RNG-19 defect was found by a test; all
    four came from a sketch comparison.
 
-## Assets required before Verify (supplied by Juan)
+## Assets required before Verify (supplied by Juan) — ✅ SUPPLIED 2026-08-24
 
-Forge is not blocked; Verify is. Adding either is a file plus a table row, no code change.
+Forge was not blocked; Verify was. Both sets are now in the tree, so Verify runs at full
+strength rather than degraded.
 
-- `probes/corpus/` — one real photo per cut (`solitaire-cushion.jpg`, `-emerald`, `-pear`,
-  `-marquise`) plus a manifest entry each. Without these, the "cushion photo -> cushion model"
-  criterion rests on `solitaire-round.jpg`, which vision happens to read as cushion.
-- `docs/reference/` — semi-mount sketches, `pear.png` and `marquise.png` at minimum (the
-  pointed cuts are hardest to judge by eye). Bare metal, no stones — what we actually render.
+- `probes/corpus/` — one photo per cut, plus a manifest entry each. Extensions follow the
+  ACTUAL format rather than the `.jpg` this spec first wrote, because `_sniff_media_type`
+  reads magic bytes and a PNG named `.jpg` would mislead a reader for no gain:
+  `solitaire-cushion.png`, `solitaire-emerald.png`, `solitaire-pear.png`,
+  `solitaire-marquise.jpg`. The manifest now loads 10 entries with no declared gaps.
+  The marquise is the only one that is not a clean studio shot — yellow gold, natural light,
+  busy textured background — so it exercises metal colour and clutter as well as the cut.
+- `docs/reference/` — `pear.png` and `marquise.png`, both proper semi-mounts: empty seat,
+  bare metal, plan view plus front elevation, dimensioned, with the V-prongs called out by
+  name.
 
-CP4 needs them. If they are not ready, Verify runs degraded and says so explicitly.
+**The sketches agree with CP3, which is worth recording because no reference has agreed with
+our geometry before** — every previous one (RNG-19's `halo.png`) contradicted it. Both drawings
+show six prongs rather than four; a V-prong at every point (one on the pear, two on the
+marquise); and the marquise's four side claws STRADDLING the widest point rather than sitting
+on it, which is exactly what `_place_between`'s arc-length distribution produces at n=6. Their
+drawn proportions also sit inside the bands CP1 chose: pear 14.00 x 8.50 = 1.65 against our
+1.60 default, marquise 18.00 x 9.00 = 2.00 against our 1.95.
+
+**One thing they contradict, and it is not RNG-33's.** Both front elevations draw the
+understructure as an open arched basket — cusped arches springing from the shank to the seat.
+We build a plain conical peg. That applies to every solitaire we generate and predates this
+ticket; recorded in `docs/reference/README.md` so it is judged rather than smuggled.
 
 ## Known limitation: side-stone band with an elongated centre (RNG-39)
 
