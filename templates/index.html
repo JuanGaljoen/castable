@@ -116,18 +116,23 @@
           <div class="field">
             <label for="shape">Stone shape</label>
             <select id="shape" name="shape" aria-describedby="shape-hint">
-              <option value="round" selected>Round</option>
-              <option value="oval">Oval</option>
+              {% for cut in cuts %}
+              <option value="{{ cut.name }}"{% if cut.name == 'round' %} selected{% endif %}
+                      data-default-ratio="{{ cut.default_ratio }}"
+                      data-min-ratio="{{ cut.min_ratio }}"
+                      data-max-ratio="{{ cut.max_ratio }}"
+                      data-elongated="{{ 'true' if cut.elongated else 'false' }}">{{ cut.label }}</option>
+              {% endfor %}
             </select>
-            <span class="hint" id="shape-hint">Other cuts are coming later</span>
+            <span class="hint" id="shape-hint">Stone diameter is the width; length ratio sets the length</span>
           </div>
 
           <div class="field">
             <label for="length_ratio">Length ratio</label>
             <input type="number" id="length_ratio" name="length_ratio"
-                   value="1" min="1" max="2.5" step="0.1"
+                   value="1" min="1" max="2.5" step="0.01"
                    inputmode="decimal" aria-describedby="length_ratio-hint" />
-            <span class="hint" id="length_ratio-hint">Oval only: length ÷ width, 1–2.5. Stone diameter is the width.</span>
+            <span class="hint" id="length_ratio-hint">Length ÷ width. Each cut has its own usual range; a round stone is always 1.</span>
           </div>
 
           <div class="field">

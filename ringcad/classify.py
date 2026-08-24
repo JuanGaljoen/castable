@@ -11,10 +11,12 @@ import logging
 import math
 import os
 from dataclasses import dataclass, field
+from typing import get_args
 
 import anthropic
 from pydantic import BaseModel, ValidationError
 
+from ringcad.ringspec.cuts import profile_for
 from ringcad.ringspec import (
     Adjustment,
     Halo,
@@ -50,6 +52,16 @@ DEFAULT_INNER_DIAMETER = 16.5  # ~US6
 # number-input validation silently blocked Generate whenever an estimate --
 # or a coherence-repaired value -- wasn't an exact multiple of 0.1.
 DIMENSION_STEP = 0.1
+# `length_ratio` is a RATIO, not a millimetre, and it needs a finer grid than
+# one (RNG-33 CP4). At step 0.1 the per-cut conventional defaults CP1 researched
+# do not survive the round trip: cushion's 1.02 lands on 1.00 and marquise's
+# 1.95 on 2.00 -- which is exactly the "one shared default makes three of four
+# wrong on sight" failure the per-cut bands exist to prevent, reintroduced by a
+# rounding rule rather than by a wrong number. The form input carries
+# step="0.01" to match; the invariant that every float leaf is rounded to ITS
+# OWN form step is what keeps the browser from silently blocking Generate.
+RATIO_STEP = 0.01
+_FIELD_STEPS = {"length_ratio": RATIO_STEP}
 # Groups that can carry stepped dimension fields; confidence/motifs/version/
 # archetype are left alone by _round_to_step.
 _DIMENSION_GROUPS = ("shank", "setting", "stones", "halo", "trilogy", "side_stone")
@@ -82,6 +94,16 @@ _MAX_LENGTH_RATIO = next(
     2.5,
 )
 
+# The buildable cuts, read off the RingSpec Literal rather than restated, for
+# the same reason as `_MAX_LENGTH_RATIO` above: a second hand-written list is a
+# second thing to forget when cut #7 lands (docs/adr/0002). `_stone_shape`
+# degrades anything not in here to round, so a stale copy would silently throw
+# away a cut the geometry can already build -- which is precisely the bug
+# RNG-33 exists to fix, reintroduced one layer up.
+_BUILDABLE_SHAPES = frozenset(
+    get_args(Stones.model_fields["shape"].annotation)
+)
+
 DEFAULT_MODEL = "claude-haiku-4-5"
 DEFAULT_NOTE = "Estimates are rough; verify before generating."
 
@@ -98,13 +120,21 @@ _SYSTEM = (
     "EVERY field is required: fill in a number for every dimension, and use "
     "0 for any dimension you cannot estimate or that does not apply to the "
     "chosen archetype (e.g. the halo_* fields on a solitaire). Set "
-    "`stone_shape` to 'oval' when the centre stone is visibly longer than it "
-    "is wide, otherwise 'round' -- those are the only two shapes that can be "
-    "built, so answer 'round' for any other cut (emerald, pear, cushion, "
-    "marquise) and for anything you are unsure of. Set `stone_length_ratio` to "
+    "`stone_shape` to the centre stone's CUT, one of exactly these six: "
+    "'round' (a circle), 'oval' (a smooth ellipse, no corners or points), "
+    "'cushion' (a square or slightly oblong outline with ROUNDED corners and "
+    "sides that bow outward), 'emerald' (a rectangle with STRAIGHT sides and "
+    "small angled cut-off corners, showing a large flat table and concentric "
+    "rectangular steps rather than sparkling triangular facets), 'pear' (a "
+    "teardrop: one round end tapering to a single sharp POINT), or 'marquise' "
+    "(a narrow boat or eye shape with sharp POINTS at BOTH ends). Answer "
+    "'round' for any other cut (princess, trillion, heart, asscher, radiant) "
+    "and for anything you are unsure of. Set `stone_length_ratio` to "
     "the stone's length divided by its width as it appears in the photo (1.0 "
-    "for a round stone, about 1.5 for a typical oval); this is a ratio you can "
-    "see directly, unlike absolute millimetres. Give a "
+    "for a round stone, about 1.5 for a typical oval, 2.0 for a marquise); "
+    "this is a ratio you can see directly, unlike absolute millimetres, so "
+    "measure it from the image rather than recalling a typical value for the "
+    "cut -- use 0 only if the stone is too obscured to measure. Give a "
     "per-field `confidence` in [0,1] for each shared dimension (0 when you "
     "did not estimate it). If the image does not clearly show a single ring, "
     "set ring_detected to false and set every dimension to 0. Never "
@@ -330,6 +360,13 @@ def _settle_on_step_grid(coherent: dict) -> dict | None:
 _STEP_ROUNDERS = {"nearest": round, "ceil": math.ceil, "floor": math.floor}
 
 
+def _to_step(value: float, step: float, step_round) -> float:
+    """Snap `value` onto the `step` grid, then clean up the binary-float noise
+    that multiplying back by a non-representable step reintroduces."""
+    return round(step_round(value / step) * step,
+                 max(0, -math.floor(math.log10(step) + 1e-9)))
+
+
 def _round_to_step(spec: dict, direction: str = "nearest") -> dict:
     """Round every float dimension in `spec` to DIMENSION_STEP (RNG-38).
 
@@ -354,8 +391,8 @@ def _round_to_step(spec: dict, direction: str = "nearest") -> dict:
             # on the result to clean up the binary-float noise that
             # `n * 0.1` reintroduces (1.9 -> 1.9000000000000001) even when
             # n is exact -- 0.1 has no exact binary representation.
-            k: (round(step_round(v / DIMENSION_STEP) * DIMENSION_STEP, 1)
-                if isinstance(v, float) else v)
+            k: _to_step(v, _FIELD_STEPS.get(k, DIMENSION_STEP), step_round)
+            if isinstance(v, float) else v
             for k, v in group.items()
         }
     return out
@@ -364,26 +401,47 @@ def _round_to_step(spec: dict, direction: str = "nearest") -> dict:
 def _stone_shape(shape: str, ratio: float) -> dict:
     """Normalise the vision layer's stone shape into RingSpec's stones fields.
 
-    Degrades rather than fails: RNG-23 builds round and oval only, so a cut we
-    cannot build yet (emerald, pear, marquise) becomes a round stone of the same
-    size instead of a spec that fails validation. That keeps the never-500 rule
-    and leaves the field editable, which the "estimates only" framing already
-    promises.
+    Degrades rather than fails: a cut we cannot build (princess, trillion,
+    heart) becomes a round stone of the same size instead of a spec that fails
+    validation. That keeps the never-500 rule and leaves the field editable,
+    which the "estimates only" framing already promises. RNG-33 widened the
+    buildable set from two shapes to six, so the degrade path is now for genuine
+    strangers rather than for most of the catalogue.
 
-    A ratio of 1.0 IS a circle, so an "oval" that thin is recorded as round --
-    calling it oval would be a claim the geometry then has to special-case.
+    The ratio answers two DIFFERENT questions, and conflating them is what makes
+    a marquise render as a lens:
+
+      * **"I could not estimate it"** -- the 0 sentinel (docs/adr/0004 requires
+        every schema field, so 0 means absent). That takes the cut's
+        CONVENTIONAL default, because a marquise nobody measured is still a
+        marquise and 1.0 would hand back a circle wearing the name.
+      * **"I estimated it, and it is outside what this cut can be"** -- that
+        takes the nearest value the cut CAN be. Vision looked and said "very
+        elongated"; snapping to the textbook default would throw that reading
+        away, where the band edge keeps it.
+
+    A ratio of 1.0 IS a circle for an OVAL, so an oval that thin is recorded as
+    round -- calling it oval would be a claim the geometry then has to
+    special-case (RNG-23). That rule is about oval, not about 1.0: a square
+    cushion is genuinely 1.00 and still has rounded corners and outward-bowed
+    sides, so it stays a cushion.
     """
     name = (shape or "").strip().lower()
     try:
         value = float(ratio)
     except (TypeError, ValueError):
-        value = 1.0
-    # 0.0 is the schema's "not estimated" sentinel; below 1.0 is the same stone
-    # rotated, not a new shape.
-    value = max(1.0, min(_MAX_LENGTH_RATIO, value))
-    if name != "oval" or value <= 1.0:
+        value = 0.0
+    if name not in _BUILDABLE_SHAPES:
         return {"shape": "round", "length_ratio": 1.0}
-    return {"shape": "oval", "length_ratio": value}
+    if name == "round":
+        return {"shape": "round", "length_ratio": 1.0}
+    profile = profile_for(name)
+    if value <= 0:                      # not estimated
+        value = profile.default_ratio
+    value = max(profile.min_ratio, min(profile.max_ratio, value))
+    if name == "oval" and value <= 1.0:
+        return {"shape": "round", "length_ratio": 1.0}
+    return {"shape": name, "length_ratio": value}
 
 
 def _model() -> str:

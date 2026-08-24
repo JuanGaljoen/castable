@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from functools import lru_cache
 from enum import Enum
 
 TWO_PI = 2 * math.pi
@@ -119,8 +120,37 @@ class CutProfile:
                   samples: int = _SAMPLES) -> list[tuple[float, float]]:
         raise NotImplementedError
 
-    def prong_layout(self, n: int) -> list[tuple[float, ProngType]]:
+    def _prong_layout(self, n: int) -> list[tuple[float, ProngType]]:
+        """Where this cut's prongs sit and what kind each one is. Per cut."""
         raise NotImplementedError
+
+    @lru_cache(maxsize=None)
+    def _layout_cached(self, n: int) -> tuple[tuple[float, ProngType], ...]:
+        """The memo itself, held as a TUPLE.
+
+        `prong_layout` hands out a fresh list built from this, so a caller that
+        mutates what it got cannot reach back into the cache and corrupt every
+        later reader -- the classic hazard of memoising a mutable return.
+        """
+        return tuple(self._prong_layout(n))
+
+    def prong_layout(self, n: int) -> list[tuple[float, ProngType]]:
+        """`_prong_layout`, memoised on (cut, n).
+
+        A layout depends on nothing but the cut and the prong count -- the
+        pointed cuts distribute their side prongs by ARC at a fixed reference
+        size, so the answer is a per-cut constant. It is not cheap, though:
+        pear and marquise walk a 2048-point polyline to build an arc table,
+        which measures at 2.7ms.
+
+        That did not matter while only the geometry layer asked. RNG-33 CP4 put
+        it in `castability._min_prong_tip`, which every spec validation and every
+        one of `coherence.make_coherent`'s repair passes calls -- so an
+        uncached 2.7ms landed in the hot path of the gate. Profiles are frozen
+        singletons, so caching on the instance is safe and the entries are
+        bounded by the six cuts times the two legal prong counts.
+        """
+        return list(self._layout_cached(n))
 
     def segments(self, half_short: float, ratio: float) -> list:
         """The girdle as EXACT pieces, for the kernel to build a wire from.
@@ -325,7 +355,7 @@ class RoundProfile(CutProfile):
     def min_curvature_radius(self, half_short, ratio):
         return half_short
 
-    def prong_layout(self, n):
+    def _prong_layout(self, n):
         # Identical to prong_setting's original `i * 360/n`.
         return [(k * TWO_PI / n, ProngType.ROUND) for k in range(n)]
 
@@ -344,7 +374,7 @@ class OvalProfile(CutProfile):
         # Tightest bend at the apex of the major axis: p^2 / q.
         return half_short / ratio if ratio else half_short
 
-    def prong_layout(self, n):
+    def _prong_layout(self, n):
         """Tips fall midway between adjacent claws -- the 10-2-4-8 layout at
         n=4 (RNG-23). The apex is the worst place to hold a min tip AND the
         classic snag point, so no claw belongs there."""
@@ -390,7 +420,7 @@ class CushionProfile(CutProfile):
                               ratio * math.copysign(abs(s) ** e, s)))
         return out
 
-    def prong_layout(self, n):
+    def _prong_layout(self, n):
         """Corners, not compass points.
 
         Stuller's production standards state the failure mode outright:
@@ -455,7 +485,7 @@ class EmeraldProfile(CutProfile):
         vs = self._vertices(half_short, ratio)
         return [LineSeg(vs[i], vs[(i + 1) % len(vs)]) for i in range(len(vs))]
 
-    def prong_layout(self, n):
+    def _prong_layout(self, n):
         """Prongs clasp the CUT CORNERS.
 
         Universal across the trade: the corner is the likeliest impact site and
@@ -531,7 +561,7 @@ class PearProfile(CutProfile):
             LineSeg((0.0, q), (-tx, y0 + ty)),
         ]
 
-    def prong_layout(self, n):
+    def _prong_layout(self, n):
         """One V on the point, the rest shared by arc length.
 
         At n=4 the arc split lands the third prong exactly on the round end and
@@ -595,7 +625,7 @@ class MarquiseProfile(CutProfile):
             ArcSeg((cx, 0.0), r, math.pi - half, math.pi + half),
         ]
 
-    def prong_layout(self, n):
+    def _prong_layout(self, n):
         """A V on each point, the rest shared by arc length between them.
 
         Both points get V-prongs -- stated as standard practice, and sold as
@@ -634,3 +664,30 @@ def profile_for(shape: str) -> CutProfile:
             f"unknown stone shape {shape!r}; supported: "
             f"{', '.join(CUT_NAMES)}"
         ) from None
+
+
+def cut_catalogue() -> list[dict]:
+    """Every buildable cut with the numbers a chooser needs, in menu order.
+
+    For layers that must OFFER the choice rather than validate it -- today the
+    form's shape `<select>`, whose `<option>`s carry these as data attributes so
+    `static/app.js` can default and bound the ratio box per cut.
+
+    It exists so those numbers are SERVED rather than retyped. A JS copy of the
+    bands would be a second source of truth for a set of values this ticket
+    already had to correct once, and it would drift silently the first time a
+    band moved -- the failure docs/adr/0002 is about. `label` is here for the
+    same reason: the alternative is a template that hardcodes six names and
+    quietly omits cut #7.
+    """
+    return [
+        {
+            "name": name,
+            "label": name.capitalize(),
+            "default_ratio": _PROFILES[name].default_ratio,
+            "min_ratio": _PROFILES[name].min_ratio,
+            "max_ratio": _PROFILES[name].max_ratio,
+            "elongated": _PROFILES[name].max_ratio > 1.0,
+        }
+        for name in CUT_NAMES
+    ]

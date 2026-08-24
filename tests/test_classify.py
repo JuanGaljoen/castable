@@ -475,7 +475,10 @@ def test_round_to_step_rounds_float_leaves_only():
     # representation coin flip and doesn't matter -- landing ON the grid does.
     assert _on_step_grid(rounded["setting"]["setting_height"])
     assert rounded["stones"]["shape"] == "oval"  # str untouched
-    assert rounded["stones"]["length_ratio"] == pytest.approx(1.5)
+    # length_ratio rounds on its OWN finer grid (RNG-33 CP4): a ratio needs
+    # 0.01, because at 0.1 the per-cut conventional defaults do not survive
+    # (cushion 1.02 -> 1.00, marquise 1.95 -> 2.00).
+    assert rounded["stones"]["length_ratio"] == pytest.approx(1.48)
 
 
 def test_round_to_step_leaves_an_already_aligned_spec_unchanged():
@@ -512,7 +515,7 @@ def test_coherent_spec_length_ratio_lands_on_the_step_grid(monkeypatch):
         parsed_output=_ring(stone_shape="oval", stone_length_ratio=1.48),
     )
     spec = classify_ring(IMG, JPEG).to_spec()
-    assert _on_step_grid(spec["stones"]["length_ratio"])
+    assert _on_step_grid(spec["stones"]["length_ratio"], classify.RATIO_STEP)
     assert is_castable(validate_spec(spec))
 
 

@@ -3,19 +3,19 @@ Classification: feature
 
 ## Success criteria (the bar Verify checks)
 
-- [ ] RingSpec expresses cushion, emerald, pear and marquise; specs without a `shape`
+- [x] RingSpec expresses cushion, emerald, pear and marquise; specs without a `shape`
       remain valid and still mean round (no breaking change, no v2)
-- [ ] Each cut generates a single **raw** watertight manifold, zero non-manifold edges
+- [x] Each cut generates a single **raw** watertight manifold, zero non-manifold edges
       (the RNG-17 bar: castable by construction, not repair-reliant)
-- [ ] **Body count == 1 and volume > 0** asserted per cut, not only watertightness
+- [x] **Body count == 1 and volume > 0** asserted per cut, not only watertightness
       (ADR-0005: a dropped body reports watertight; ADR-0008: so does a sealed void)
-- [ ] Casting invariants hold across the in-range parameter space for every cut:
+- [x] Casting invariants hold across the in-range parameter space for every cut:
       min wall 0.8mm, min prong tip 0.7mm
-- [ ] Prong placement is appropriate to each cut, not a circle stretched: emerald and
+- [x] Prong placement is appropriate to each cut, not a circle stretched: emerald and
       cushion grip the corners; pear and marquise take a V-prong at each point
-- [ ] An uploaded photo of a cushion-cut ring produces a cushion-cut model
-- [ ] Frontend control present, editable, WCAG 2.1 AA
-- [ ] **No regression:** parity, watertightness and golden tests green for round and oval
+- [x] An uploaded photo of a cushion-cut ring produces a cushion-cut model
+- [x] Frontend control present, editable, WCAG 2.1 AA
+- [x] **No regression:** parity, watertightness and golden tests green for round and oval
 
       *Deliberately "green", not "bit-identical".* RNG-23 had to correct exactly this
       criterion mid-flight: building claws at girdle points replaced a rotation matrix
@@ -238,8 +238,65 @@ cited number and been wrong.
       `prong_count`, but a V puts TWO tips at one placement, so a 4-prong marquise
       really has 6 tips competing for that arc. Same class as the ADR-0006 audit below
       — a gate measuring something the geometry no longer does.
-- [ ] **CP4 — Vision + UI wire-up.** `classify.py` schema/prompt/`_stone_shape`; the shape
+- [x] **CP4 — Vision + UI wire-up.** `classify.py` schema/prompt/`_stone_shape`; the shape
       `<select>` and per-cut ratio default; `coherence.py` identity guard.
+
+      *Landed, and proved on the real path.* `probes/fidelity_probe.py` against the live
+      endpoints: **9/9 generated, every one raw watertight with no repair**, and each new
+      cut read from its OWN photo -- cushion, emerald 1.35, pear 1.47, marquise 2.1. None
+      of those ratios is the cut's default (1.40 / 1.60 / 1.95), so vision is MEASURING the
+      image rather than reciting genre averages, which is the premise RNG-26 rests on.
+      The probe row now prints the built cut beside the archetype, because until CP4 the
+      ticket's own success criterion could only be checked by opening the spec JSON by hand.
+
+      **The guard this checkpoint was asked for does not exist, and should not.** The
+      Approach section expected REPAIR to break identity: `coherence.py` scales
+      `stones.length_ratio` down for a `stone_curvature` violation, so a marquise at 1.95
+      could in principle come back at 1.05 still called a marquise. That is unreachable --
+      CP1's `_stone_curvature` returns early for any cut that `has_vertices`, so it cannot
+      fire on emerald, pear or marquise at all. Fuzzed over 7500 in-band specs: repair
+      moves the ratio 12 times and NEVER out of band. The first two identity tests written
+      here PASSED against unfixed code, and tracing them showed they were exercising
+      `min_prong_tip` rather than `stone_curvature` -- docs/adr/0010's trap, in tests
+      written minutes earlier.
+
+      **The real hole was the INPUT side.** CP1's band validator was one-sided: it raised a
+      below-band ratio to the cut's default and never capped an above-band one, so a
+      `cushion` at 2.38 validated, built, and was called a cushion. Now two-sided, clamping
+      silently for symmetry with the fill (Juan's call; the alternative considered was a
+      400). These are preference bands, not standards, so the honest framing is "that is
+      not what this cut is called", not "that stone is invalid".
+
+      **Three defects found that were on nobody's list.**
+      (1) `length_ratio` was being rounded onto the 0.1 form grid, which DESTROYED the
+      per-cut defaults CP1 researched -- cushion 1.02 -> 1.00, marquise 1.95 -> 2.00. That
+      is "one shared default makes three of four wrong on sight" reintroduced by a rounding
+      rule rather than by a wrong number. It has its own `RATIO_STEP` of 0.01 now, the form
+      input moved with it, and a test ties the two together because nothing did.
+      (2) The `0` "not estimated" sentinel was clamped up to the 1.0 floor and then read as
+      "a 1.0 oval is a circle", so vision saying OVAL while failing to measure the
+      elongation produced a ROUND model -- the exact RNG-22 complaint RNG-23 exists to fix,
+      reproduced through a sentinel. It now fills with the cut's conventional ratio.
+      (3) `applyShapeState` would have DISCARDED vision's measurement: `photo.js` pre-fills
+      every field and then dispatches `change` on the shape select, so an unconditional
+      reset to the cut default would have replaced the measured elongation with a textbook
+      number on every upload -- and the form would have looked like it worked. The reset is
+      conditional on the value being outside the new cut's band.
+
+      **A performance regression, introduced and fixed here.** Putting `prong_layout()` in
+      `_min_prong_tip` put 2.7ms (a 2048-point polyline walk, for pear and marquise) into a
+      function every spec validation and every one of `make_coherent`'s six repair passes
+      calls. Memoised on (cut, n) -- a layout is a per-cut constant -- for 2.7ms -> 0.33us.
+      The memo holds a TUPLE and hands out a fresh list, so a caller that mutates what it
+      got cannot corrupt every later reader.
+
+      **Two corpus findings, both attributed rather than assumed.** `side-stone.jpg` reads
+      as solitaire on the pre-CP4 prompt 3/3 and the post-CP4 prompt 3/3, describing "pave
+      accent band" in free text both ways -- so the amber is pre-existing and is RNG-24's
+      complaint, not a vision failure: those shoulders are PAVE and `side_stone` expresses
+      `retention="channel"` only. And `solitaire-round.jpg` is MISNAMED -- the stone is a
+      square step cut with rounded corners and four corner prongs, so the cushion CP4 now
+      produces is the more faithful reading. Both recorded in the manifest notes.
 
 ## The ADR-0006 audit (owed by this ticket)
 
@@ -254,7 +311,17 @@ decided in writing:
 | `castability.py:81` `_min_prong_tip` — arc per PRONG, but a V places two tips | **Live; under-reports crowding for every V cut as of CP3** | Fix in CP4 |
 | `prong_setting.py:48`, `halo.py:147` — peg / hub radii from `stone_r` | Legitimate scale values | Considered, keep |
 
-## Verification
+## Verification — done 2026-08-24
+
+**Result: all four checkpoints landed; 3844 passed, 1 skipped, 0 failed.** The parameter
+sweep is 40/40 clean (four cuts x five ratios across each band x both prong counts), and the
+live probe is 9/9 generated, raw watertight, no repairs, each cut read from its own photo.
+
+Two things this ticket did NOT verify, stated plainly rather than left implied: the geometry
+was judged against `docs/reference/` for pear and marquise only (cushion and emerald sketches
+are still wanted), and the browser UI was exercised by test and by the probe's real endpoints
+but not by a human clicking through a live dev server.
+
 
 1. Offline suite green; parity and golden green for round and oval.
 2. Raw watertight per cut on `to_stl_bytes(compose(spec))` *without* `validate_and_repair`;

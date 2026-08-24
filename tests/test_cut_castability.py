@@ -102,13 +102,19 @@ def test_an_elongated_cut_is_not_rejected_on_a_circles_arc():
     """The stone has more girdle than a circle of its short axis, so each prong
     gets more arc. Measuring the circle refused rings the geometry can build.
 
-    The numbers, so the choice of 4.5mm is not a magic constant: at 6 prongs the
+    The numbers, so the choice of 5.1mm is not a magic constant: at 6 prongs the
     tip floor needs a 5.348mm stone if the girdle is read as a circle, but a
     marquise at its conventional 1.95 carries 1.449x that girdle and clears the
-    same floor at 3.691mm. 4.5mm sits between the two, which is the only band
+    same floor at 4.921mm. 5.1mm sits between the two, which is the only band
     where the old rule and the new one disagree.
+
+    **Was 4.5mm until RNG-33 CP3.** A marquise's two V-prongs FORK, so at 6
+    prongs it now puts 8 tips on that girdle rather than 6, and the size at
+    which it clears the floor rose by exactly that ratio -- 3.691 x 8/6 =
+    4.921. The window narrowed; the principle did not move, which is why this
+    test kept its name and its point.
     """
-    between = 4.5
+    between = 5.1
     assert "min_prong_tip" in _codes(
         _spec("round", 1.0, stone=between, prongs=6))
     assert "min_prong_tip" not in _codes(

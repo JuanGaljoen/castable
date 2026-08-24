@@ -5,7 +5,7 @@
       "file": "solitaire-round.jpg",
       "expect_ring": true,
       "expected_archetype": "solitaire",
-      "note": "four-prong solitaire, plain shank, round/step-cut centre"
+      "note": "MISNAMED, kept for continuity: the centre is a square step cut with rounded corners and four corner prongs, not a round brilliant. Pre-RNG-33 vision said so in its free text and was forced to write `round`; since CP4 it produces a CUSHION, which is the more faithful reading. The archetype expectation below is what this entry actually pins"
     },
     {
       "file": "halo-oval.jpg",
@@ -29,7 +29,7 @@
       "file": "side-stone.jpg",
       "expect_ring": true,
       "expected_archetype": "side_stone",
-      "note": "round centre, six prongs, shared-prong accents down both shoulders and no halo -- the reading that distinguishes side-stone from halo"
+      "note": "round centre, six prongs, accents down both shoulders. Vision reads it SOLITAIRE, 3/3 on both the pre- and post-RNG-33 prompts, describing 'pave accent band' / 'diamond-set shoulders' in free text -- so the mismatch is pre-existing and is RNG-24's complaint, not a vision failure: these shoulders are PAVE and our side_stone archetype expresses `retention='channel'` only (pave deferred in RNG-11). The expectation here is arguably the thing that is wrong; left as-is so the amber keeps pointing at RNG-24"
     },
     {
       "file": "solitaire-cushion.png",

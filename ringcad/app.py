@@ -12,6 +12,7 @@ from flask import Flask, Response, jsonify, render_template, request
 from pydantic import ValidationError as PydanticValidationError
 
 from ringcad.classify import classify_available, classify_ring
+from ringcad.ringspec.cuts import cut_catalogue
 from ringcad.geometry import build_solitaire, compose, to_step_bytes, to_stl_bytes
 from ringcad.mesh_validator import validate_and_repair
 from ringcad.params import ValidationError, validate_params
@@ -49,7 +50,11 @@ def create_app() -> Flask:
 
     @app.get("/")
     def index():
-        return render_template("index.html")
+        # The cut bands are SERVED, not retyped in the template or in JS: the
+        # shape options carry each cut's own ratio band as data attributes so
+        # the form can default and bound the ratio box without a second copy
+        # of numbers RingSpec already owns (docs/adr/0002).
+        return render_template("index.html", cuts=cut_catalogue())
 
     @app.get("/health")
     def health():
