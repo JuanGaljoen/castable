@@ -162,6 +162,12 @@ def body_solid(v1, r1, v2, r2):
 MIN_WALL = MIN_WALL_MM
 MIN_PRONG_TIP = MIN_PRONG_TIP_MM
 
+# Section radius of the seat collar, and so the half-height of the seat plate.
+# Shared because `prong_setting`'s V-cup rises out of that plate and has to
+# start at its underside: two copies of this number would drift the first time
+# one moved, which is the failure docs/adr/0002 is about.
+SEAT_COLLAR_R = max(MIN_WALL_MM / 2, 0.45)
+
 # Volumetric overlap for accent-primitive fuses: >> OCCT Precision::Confusion
 # (clean single watertight B-rep body) yet << MIN_WALL (no castability impact).
 ACCENT_FUSE_EPS = 0.05

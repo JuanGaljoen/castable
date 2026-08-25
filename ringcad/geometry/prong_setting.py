@@ -9,85 +9,118 @@ from __future__ import annotations
 
 import math
 
-from build123d import Align, Cone, Pos, Sphere, Vector
+from build123d import (
+    Align, Cone, Cylinder, Face, Pos, Sphere, Vector, extrude,
+)
 
 from ringcad.ringspec import RingSpec
 from ringcad.ringspec.cuts import ProngType
 
 from ._common import (
-    MIN_PRONG_TIP, MIN_WALL, body_solid, clamps, placement,
+    ACCENT_FUSE_EPS, MIN_PRONG_TIP, MIN_WALL, SEAT_COLLAR_R, body_solid,
+    clamps, placement,
 )
+from .outline import GIRDLE_EMBED
 
 # How far each claw segment is extended PAST its end nodes, so its rim sits
 # inside the node spheres rather than tangent to them. Far below anything the
 # viewer or the STL resolves, and it changes no designed radius.
 NODE_OVERLAP = 0.03
 
-# How far each arm of a V-prong reaches back along the girdle from the vertex
-# it wraps, as a fraction of that vertex's own reach from centre, with a floor
-# in units of the claw's wire radius so a small stone still gets a V that reads
-# as one rather than as a thickened claw.
+# How far the V-cup reaches back along the girdle either side of the point it
+# wraps, as a fraction of that point's own distance from centre, with a floor in
+# units of the cup's own wall so a small stone still gets a cup wider than it is
+# thick rather than a lump.
 #
-# **Ours, and the spec says so.** The V-prong's WRAP ANGLE is not a choice --
-# it is whatever the outline's own girdle does either side of the vertex, which
-# is why the arms are found by walking the girdle rather than by rotating a
-# bisector through a guessed angle. The wrap LENGTH has no published trade
-# figure (see specs/RNG-33.md, "Invented"), so it is pinned to the metal's own
-# scale and the next reader may move it freely.
-V_ARM_REACH_FRACTION = 0.28
-V_ARM_REACH_FLOOR = 2.2          # x wire_r
-
-# Raised from 0.20 in the 2026-08-24 research pass, and NOT for looks. Giving
-# the pear a convex wing (see `PearProfile`) flattens the girdle either side of
-# its point, which narrows the angle the two arms of the V leave at. Below a
-# certain fork angle the arms lie against each other and OCCT resolves the
-# node sphere's tangency as a crack rather than a surface: measured at
-# length_ratio 2.10, 15 non-manifold edges in a single watertight-reporting
-# body, every one of them within 0.001mm of the tip's node sphere equator --
-# the exact tangency failure RNG-19 documents in the claw comment below.
+# **Ours, and unpublished.** Two research passes across eight angles found no
+# figure for how far a V-tip wraps -- see docs/research/v-prong-wall-thickness.md
+# and the pear/marquise note. The wrap ANGLE is not a choice, being whatever the
+# girdle does either side of the vertex, but the wrap LENGTH is.
 #
-# 0.26 is where it clears; 0.28 is that with margin, and 0.32 is also clean, so
-# this is a floor with room above it rather than a fitted value. Marquise and
-# emerald are unaffected either way -- their forks were already wide enough.
+# Was 0.28 while the V was built as two cone arms: below a certain fork angle
+# those arms lay against each other and OCCT cracked the node sphere's tangency,
+# and widening the reach was what opened the fork. The cup construction has no
+# arms and no node sphere at the point, so that constraint died with it -- 0.28
+# was left behind as a saddle running a quarter of the way down the stone. At
+# 0.15 the cup wraps ~15% of the length instead of ~28%, which is a V on the
+# point rather than a collar around the end.
+V_CUP_REACH_FRACTION = 0.15
+V_CUP_REACH_FLOOR = 1.2          # x V_CUP_WALL
 
-# How far a tip leans in over the stone, as a fraction of its girdle reach.
-# The round setting's original figure, now shared by every tip including a
-# V-prong's two arms.
+# The V-cup's metal, as ONE wall of one thickness positioned across the girdle
+# -- not an outer thickness with a lip stacked on top of it.
+#
+# That distinction is the research finding, and it is structural rather than
+# numeric (docs/research/v-prong-wall-thickness.md). No source publishes a V-tip
+# wall thickness; two passes across eight angles agree, and the absence is the
+# result rather than a gap to fill. What the sources DO show is how the closest
+# analogue is made: a bezel -- which is what a V-cup is, a wall wrapping part of
+# the girdle with an inward fold -- is ONE continuous strip at ONE gauge, folded
+# over. Never a wall thickness plus a separately-sized lip added to it. We built
+# it additively (0.65mm outside the girdle PLUS 0.30mm inside = 0.95mm) and it
+# read as chunky, which no amount of tuning either number would have fixed.
+#
+# `V_CUP_WALL` is the TOTAL; `V_CUP_LIP` is how much of it sits inside the
+# girdle as the retaining fold, so the outer face falls out as `WALL - LIP`.
+#
+# **0.70mm is the PRONG floor, not the wall floor.** A V-tip is a prong -- a
+# discrete retaining feature -- rather than a structural wall, so MIN_PRONG_TIP
+# governs it and MIN_WALL does not. That distinction is the only thing licensing
+# a value below 0.80mm, and it is worth stating because the two floors are easy
+# to confuse and only one applies here.
+#
+# It does not go lower. Stuller allows 0.2mm for polishing, so 0.70 modelled
+# finishes near 0.50 -- already close to their 0.45mm prong minimum, and the
+# reason specs/RNG-33.md set our tip floor at 0.70 rather than at theirs. The
+# trade's own bezel gauges (28-24ga, 0.25-0.51mm) are thinner still, but those
+# are hand-fabricated from sheet, not cast.
+V_CUP_WALL = 0.70
+V_CUP_LIP = 0.22
+
+# How far the cup rises above the girdle, as a fraction of the claw rise. OURS,
+# and unpublished like every other V-tip dimension. 0.70 puts it 1.75mm up
+# against claws reaching 2.50mm: clearly a prong rather than a rim, without
+# competing with the claws.
+V_CUP_RISE = 0.70
+
+# How far a CLAW's tip leans in over the stone, as a fraction of its girdle
+# reach -- the round setting's original figure, unchanged since RNG-15. It no
+# longer applies to a V, which is a cup wrapping the point rather than a tip
+# folding over it.
 TIP_LEAN = 0.88
 
-# Widest polar sweep the girdle walk will consider when looking for an arm end.
-# Comfortably past any arm length the fraction above can ask for, and short of
-# the neighbouring prong on every cut in the catalogue.
-_WALK_LIMIT = math.pi / 3
 
 
-def _along_girdle(outline, theta: float, reach: float, sign: int) -> float:
-    """The girdle ANGLE `reach` mm (straight-line) from the vertex at `theta`,
-    walking in direction `sign`.
+def _v_cup(outline, theta: float, reach: float, ring_z: float,
+           claw_rise: float):
+    """The chevron cup that cradles a point, as metal minus the stone.
 
-    Found by walking the OUTLINE rather than by rotating the vertex normal
-    through some wrap angle, and that is the whole point: on a marquise or a
-    pear the two runs meeting at a point are ARCS, so a V built off a rotated
-    bisector would lift away from the stone the further out it reached. Walking
-    the girdle makes the wrap angle a consequence of the cut's own geometry --
-    the one thing specs/RNG-33.md insists must not be guessed -- and needs no
-    new method on `StoneOutline`, which is what keeps the round and oval
-    outlines free of a code path nothing calls (docs/adr/0002).
+    One wall of `V_CUP_WALL`, straddling the girdle with `V_CUP_LIP` of it
+    inside as the fold that retains the stone. Trimmed to a cylinder about the
+    vertex so only the point is wrapped and the rest of the girdle is left to
+    the claws.
 
-    Bisection rather than a closed form because `frame_at` is all the protocol
-    offers, and chord distance from the vertex rises monotonically with polar
-    offset over `_WALK_LIMIT` on every outline in the catalogue.
+    The outer face lands INSIDE the seat plate's rim, which also happens to be
+    what keeps the boolean honest. An earlier version put it exactly flush with
+    that rim, making the two the SAME surface -- and a coincident face is not a
+    fuse OCCT can resolve: at length_ratio 2.50 it left a 0.0008mm3 lamina of
+    357 faces and 205 non-manifold edges, every one just past the tip at the
+    girdle plane. Thinning the wall removed the coincidence outright rather than
+    nudging it apart with a tolerance.
     """
     vertex, _ = outline.frame_at(theta)
-    lo, hi = 0.0, _WALK_LIMIT
-    for _ in range(40):
-        mid = (lo + hi) / 2
-        p, _ = outline.frame_at(theta + sign * mid)
-        if (p - vertex).length < reach:
-            lo = mid
-        else:
-            hi = mid
-    return theta + sign * hi
+    base = ring_z - SEAT_COLLAR_R
+    amount = SEAT_COLLAR_R + claw_rise * V_CUP_RISE
+    outer = extrude(
+        Face(outline.expanded(V_CUP_WALL - V_CUP_LIP).wire()), amount=amount)
+    # Cut oversize in height so the bore breaks through both faces: a bore that
+    # lands flush leaves a lid, and a lid here is a sealed void that still
+    # reports watertight (docs/adr/0008's trap, docs/adr/0005's sibling).
+    bore = extrude(Face(outline.expanded(-V_CUP_LIP).wire()), amount=amount + 1.0)
+    wall = Pos(0, 0, base) * (outer - Pos(0, 0, -0.5) * bore)
+    region = Pos(vertex.X, vertex.Y, base - 0.5) * Cylinder(
+        reach, amount + 1.0, align=(Align.CENTER, Align.CENTER, Align.MIN))
+    return wall & region
 
 
 def _seg(p, r_p, q, r_q):
@@ -135,23 +168,40 @@ def prong_setting(spec: RingSpec, c: dict | None = None):
         # meet at the vertex, so the tips are a LIST and a claw is simply the
         # one-tip case.
         if kind is ProngType.V:
-            arm = max(V_ARM_REACH_FLOOR * wire_r,
-                      V_ARM_REACH_FRACTION * reach_r)
-            # Each arm leans in along the girdle's OWN outward normal, not
-            # along the radial. On a circle those are the same direction, which
-            # is why the claw below can keep the literal 0.88 the round setting
-            # has always used; at a point they are not, and leaning both arms
-            # radially pulls them TOGETHER -- measured, a marquise V closed from
-            # a 100 degree girdle wedge to a 33 degree fork and a pear's to 17,
-            # which is two rods lying against each other rather than a V.
-            lean = (1 - TIP_LEAN) * reach_r
-            tips = []
-            for sign in (1, -1):
-                end, out = outline.frame_at(
-                    _along_girdle(outline, theta, arm, sign))
-                tips.append(Vector(end.X - out.X * lean,
-                                   end.Y - out.Y * lean,
-                                   ring_z + claw_rise))
+            # A V-prong is a CUP, not a fork. Built as the negative of the
+            # stone's own point (docs/adr/0008 again): a wall of metal following
+            # the girdle, rising out of the seat plate and folding inward over
+            # the stone, kept only within reach of the vertex. In plan view that
+            # is a chevron whose inside face IS the stone's outline, so the
+            # point beds into it exactly.
+            #
+            # It replaced two tapering cones fanned off the girdle node. That
+            # built a V in plan and read as a tuning fork in metal -- two rods
+            # meeting in mid-air with nothing between them for the point to sit
+            # ON, where a real V-tip is a solid trough the corner drops into.
+            # Caught by looking at a render beside a photograph.
+            reach = max(V_CUP_REACH_FLOOR * V_CUP_WALL,
+                        V_CUP_REACH_FRACTION * reach_r)
+            # No shaft. The cup welds into the seat plate, and the plate is
+            # already carried to the peg by the CLAWS at the other placements --
+            # every cut in the catalogue has at least one (a marquise at four
+            # prongs is 2 V + 2 claws; emerald went to all-claws in CP4).
+            #
+            # It used to run one, and the shaft was where the pimple came from.
+            # At a sharp point `expanded` under-offsets (RNG-40), so a pear's cup
+            # front face sits only 0.288mm beyond the girdle against a nominal
+            # 0.48 -- and the metal band there is THINNER THAN THE SHAFT, so
+            # neither the claw's 0.460 node sphere (0.172mm proud) nor a 0.400
+            # cone end could fit inside it. Aiming the shaft at the cup's centre
+            # of mass instead of the girdle helped and did not fix it. The band
+            # is the constraint, and the answer was that nothing needed to be
+            # threaded through it.
+            #
+            # `test_a_v_prong_is_carried_by_the_seat_not_by_its_own_shaft` pins
+            # the connectivity this leans on, so a future all-V cut fails loudly
+            # rather than shipping in pieces.
+            local.append(_v_cup(outline, theta, reach, ring_z, claw_rise))
+            continue
         else:
             # The tip leans inward over the stone: pull it along the radial by
             # the same 0.88 fraction the round setting used.

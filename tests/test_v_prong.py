@@ -15,9 +15,11 @@ V-prong at a point physically IS. So counting tips is NOT the invariant, and a
 first draft of this file that counted them was measuring the wedge angle rather
 than the fork. The invariants that hold for both are:
 
-  * a V is strictly MORE metal than the claw it replaces (measured against the
-    same ring built with the fork suppressed -- no threshold pulled from the
-    output);
+  * a V builds something other than the claw it replaces (measured against the
+    same ring with the fork suppressed);
+  * the cup FOLLOWS THE GIRDLE either side of the point and leaves the stone's
+    own space empty -- a solid lump over the point would pass every other test
+    here and leave nowhere for the stone to sit;
   * the metal a fork ADDS lands on both sides of the vertex bisector, in equal
     amounts -- weighed by boolean against the same ring built with the fork
     suppressed;
@@ -39,12 +41,13 @@ from __future__ import annotations
 import math
 
 import pytest
-from build123d import Box, Plane, Pos
+from build123d import Box, Plane, Pos, Sphere
 
 from ringcad.geometry import prong_setting
 from ringcad.geometry._common import HEAD_INSET, clamps
-from ringcad.geometry.prong_setting import TIP_LEAN, _along_girdle
+from ringcad.geometry.prong_setting import TIP_LEAN
 from ringcad.mesh_validator import MIN_PRONG_TIP_MM
+from ringcad.geometry.module import compose
 from ringcad.ringspec import validate_spec
 from ringcad.ringspec.cuts import ProngType, profile_for
 
@@ -76,6 +79,15 @@ def _tips(solid, c, fraction=0.92):
     return section.faces()
 
 
+def _has_metal(solid, c, local_xy, z) -> bool:
+    """Is there metal at local (x, y, z)? Local +z is global +X."""
+    probe = Pos(c["head_r"] - HEAD_INSET + z, local_xy[1], -local_xy[0]) \
+        * Sphere(0.02)
+    hit = solid & probe
+    # An empty boolean comes back as None, not a zero-volume shape.
+    return hit is not None and hit.volume > 0
+
+
 class _ForcedClaws:
     """The same outline with every V demoted to a claw -- the counterfactual."""
 
@@ -93,15 +105,60 @@ class _ForcedClaws:
 
 @pytest.mark.parametrize("shape", VERTEX_CUTS)
 @pytest.mark.parametrize("prongs", [4, 6])
-def test_a_v_prong_is_more_metal_than_the_claw_it_replaces(shape, prongs):
-    """Built against the same ring with the fork suppressed, so the bar is
-    'strictly more', not a number read off the output."""
+def test_a_v_placement_builds_something_other_than_a_claw(shape, prongs):
+    """The V code path actually runs, measured against the same ring with the
+    fork suppressed.
+
+    Asserted 'strictly MORE metal' until the V became a cup. That was true of
+    the two-armed fork and is not true of a cup: measured, a marquise's cup is
+    +6% but a pear's is -0.5%, because a pear's point is sharp enough that the
+    wall wrapping it encloses less metal than the claw tip it replaces. A V-tip
+    on a sharp point genuinely IS a small piece of metal, so the old assertion
+    was a property of one construction rather than of a V-prong.
+
+    What survives is the weaker, true claim: the geometry differs. The SHAPE of
+    that difference is pinned by the two tests below -- the cup follows the
+    girdle without plugging the point, and the metal it adds lands on both sides
+    of the bisector.
+    """
     spec = _spec(shape, prongs=prongs)
     c = clamps(spec)
     forked = prong_setting(spec, c)
     plain = prong_setting(spec, dict(c, outline=_ForcedClaws(c["outline"])))
-    assert len(forked.solids()) == 1 and len(plain.solids()) == 1
-    assert forked.volume > plain.volume
+    # Not `len(solids()) == 1` for the forked build: a cup is joined to the rest
+    # by the SEAT, so `prong_setting` alone legitimately comes back in pieces.
+    # The test below pins that, and the composed ring is what has to be one body.
+    assert len(plain.solids()) == 1
+    assert forked.volume != pytest.approx(plain.volume, abs=0.01)
+
+
+@pytest.mark.parametrize("shape", VERTEX_CUTS)
+@pytest.mark.parametrize("prongs", [4, 6])
+def test_a_v_prong_is_carried_by_the_seat_not_by_its_own_shaft(
+        shape, prongs, raw_validate):
+    """The cup has no shaft to the peg, and does not need one.
+
+    It welds into the seat plate, and the plate is already carried to the peg by
+    the CLAWS at the other placements -- every cut in the catalogue has at least
+    one. So `prong_setting` on its own comes back in PIECES for a V cut, and the
+    composed ring is nonetheless a single watertight body.
+
+    Both halves are asserted because the second depends on the first being
+    deliberate. A future all-V cut would have no claw to carry the seat and
+    would ship in pieces; this is what makes that fail loudly here rather than
+    quietly downstream.
+    """
+    spec = _spec(shape, prongs=prongs)
+    c = clamps(spec)
+    assert len(prong_setting(spec, c).solids()) > 1, (
+        "the cup is expected to be a separate solid until the seat joins it"
+    )
+    assert any(k is ProngType.CLAW
+               for _, k in c["outline"].placements(prongs)), (
+        f"{shape} at {prongs} prongs has no claw to carry the seat"
+    )
+    mesh = raw_validate(compose(spec))
+    assert mesh.body_count == 1 and mesh.is_watertight
 
 
 @pytest.mark.parametrize("shape", ["cushion", "emerald", "round", "oval"])
@@ -153,25 +210,39 @@ def test_the_metal_a_fork_adds_lands_on_both_sides_of_the_point(shape, prongs):
 
 
 @pytest.mark.parametrize("shape", VERTEX_CUTS)
-def test_the_arms_are_laid_along_the_girdle_not_across_the_bisector(shape):
-    """The arm ends must sit ON the stone's own outline.
+def test_the_cup_follows_the_girdle_rather_than_plugging_across_the_point(shape):
+    """The cup's inner face IS the stone's outline, so the point beds into it.
 
-    A V built by rotating the vertex normal through a wrap angle is right on an
-    emerald, whose runs are straight, and wrong on a pear or a marquise, whose
-    runs are ARCS -- the arms would lift away from the girdle the further out
-    they reached. Walking the outline is what makes the wrap angle a
-    consequence of the cut rather than a guess (specs/RNG-33.md).
+    This is what separates a cup from a blob: metal must sit ON the girdle
+    either side of the vertex, and must NOT fill the space the stone occupies.
+    A solid lump over the point would satisfy every other test in this file --
+    more metal than a claw, symmetric, both sides of the bisector -- and would
+    leave nowhere for the stone to go.
+
+    Replaced a test that asserted `_along_girdle` returned a point 1.2mm from
+    the vertex. That exercised a helper rather than the geometry, and the helper
+    went with the fork construction it was written for.
     """
-    c = clamps(_spec(shape))
+    spec = _spec(shape, prongs=6)
+    c = clamps(spec)
     outline = c["outline"]
+    solid = prong_setting(spec, c)
+    z = c["ring_z"] + 0.3 * c["claw_rise"]      # inside the cup's own height
+
     for theta, kind in outline.placements(int(c["prong_n"])):
         if kind is not ProngType.V:
             continue
-        vertex, _ = outline.frame_at(theta)
-        for sign in (1, -1):
-            end, _ = outline.frame_at(_along_girdle(outline, theta, 1.2, sign))
-            assert math.dist((end.X, end.Y), (vertex.X, vertex.Y)) == \
-                pytest.approx(1.2, abs=0.05)
+        for delta in (0.0, 0.08, -0.08):
+            point, _ = outline.frame_at(theta + delta)
+            assert _has_metal(solid, c, (point.X, point.Y), z), (
+                f"{shape}: no metal on the girdle {delta:+.2f}rad from the "
+                "point -- the cup does not follow the outline there"
+            )
+        # Well inside the stone: the cup must leave that space empty.
+        inside, _ = outline.frame_at(theta)
+        assert not _has_metal(solid, c, (inside.X * 0.55, inside.Y * 0.55), z), (
+            f"{shape}: metal where the stone sits -- that is a plug, not a cup"
+        )
 
 
 # --- symmetry: the assertion that caught the silent body drop --------------

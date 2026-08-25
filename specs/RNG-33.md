@@ -170,6 +170,53 @@ dimensions. Those stay ours. GIA's Fall 2024 G&G fancy-shape study has now defea
   and our superellipse degrades continuously to the ellipse at n = 2 where a two-radius blend
   would introduce curvature discontinuities into a bored seat. Recorded, not ticketed.
 
+### The V-prong, rebuilt from a photograph (2026-08-25)
+
+CP3 built a V-prong as two tapering cones fanned off the girdle node. In plan view
+that is a V; in metal it is a tuning fork -- two rods meeting in mid-air with **nothing
+between them for the point to sit on**. Juan's photographs settled it: a real V-tip is a
+solid trough the corner beds INTO, and his phrase for the gap was exact -- "a base for
+where the corners of the stone fits in".
+
+It is now the negative of the stone's own point (docs/adr/0008, fourth customer): a wall
+following the girdle, rising out of the seat plate, folding `V_CUP_LIP` inward to retain
+the stone, trimmed to a cylinder about the vertex. In plan view the inner face IS the
+outline, so the point beds into it exactly.
+
+**Wall thickness came from research, and the finding was structural rather than numeric.**
+No source publishes a V-tip wall thickness -- two passes over eight angles agree, and the
+absence is the result (`docs/research/v-prong-wall-thickness.md`). What the sources show is
+how the nearest analogue is MADE: a bezel is one continuous strip at ONE gauge, folded
+over, never a wall thickness plus a separately-sized lip. We were building it additively --
+0.65mm outside the girdle PLUS 0.30mm inside -- so the metal was 0.95mm, thicker than every
+bezel figure found bar one anecdotal outlier. `V_CUP_WALL` is now the TOTAL and `V_CUP_LIP`
+is how much of it sits inside, at **0.70mm**: the PRONG floor, not the wall floor, because
+a V-tip is a discrete retaining feature rather than a structural wall. Metal at each point
+fell 6.13mm2 -> 2.23mm2.
+
+**Two numbers were stale rather than chosen.** The reach was 0.28 because the old fork
+cracked at the node sphere below a certain angle; the cup has no arms and no node sphere,
+so that constraint died with the fork and 0.28 was left behind as a saddle wrapping a
+quarter of the stone. Now 0.15. And the SHAFT to the peg turned out to be redundant
+entirely: the cup welds into the seat plate, which the claws at the other placements
+already carry. Removing it removed the stub hanging below the seat at a pear's point --
+the "imperfection" Juan spotted.
+
+**Three wrong turns, all found by measuring.** (1) A coincident face: the cup's outer wall
+built exactly flush with the seat rim is the SAME surface, and OCCT left a 0.0008mm3 lamina
+of 357 faces and 205 non-manifold edges at length_ratio 2.50. (2) A confident, wrong
+diagnosis: the node sphere was reported protruding 0.172mm through the cup's front, and it
+was not -- the measurement used nearest-point distance to the offset curve instead of
+measuring along the ray. Measured properly, metal ends flush. (3) A test that outlived its
+premise: "a V is strictly MORE metal than the claw it replaces" is true of a fork and false
+of a cup (a pear's is -0.5%, a marquise's +6%), so it was rewritten rather than the geometry
+inflated to satisfy it.
+
+**A contract change, stated rather than papered over.** `prong_setting` alone now returns a
+V cut in PIECES -- the cup is joined by the seat during `compose`. The new test asserts both
+halves, because the composed ring being whole depends on that separation being deliberate:
+a future all-V cut would have no claw to carry the seat and would ship in pieces.
+
 ### Invented — no trade or standards figure found
 
 The GIA G&G Fall 2024 study on these outlines proved unreachable (fetch timed out,

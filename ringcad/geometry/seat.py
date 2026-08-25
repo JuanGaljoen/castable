@@ -10,7 +10,7 @@ from build123d import Pos
 
 from ringcad.ringspec import RingSpec
 
-from ._common import MIN_WALL, clamps, placement
+from ._common import SEAT_COLLAR_R, clamps, placement
 
 
 def seat(spec: RingSpec, c: dict | None = None):
@@ -26,6 +26,6 @@ def seat(spec: RingSpec, c: dict | None = None):
     """
     c = c if c is not None else clamps(spec)
     ring_z = c["ring_z"]
-    collar_tr = max(MIN_WALL / 2, 0.45)
+    collar_tr = SEAT_COLLAR_R
     local = Pos(0, 0, ring_z) * c["outline"].seat_solid(collar_tr)
     return placement(c) * local
