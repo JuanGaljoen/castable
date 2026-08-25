@@ -14,6 +14,52 @@ concrete to be judged against instead of resting on memory or taste.
 **Adding one is a file plus a table row.** No code change, same rule as the
 fidelity corpus.
 
+### Per-cut sketches
+
+RNG-33 extended the convention: a *cut* changes the setting as much as an
+archetype does, because the seat and the prongs both follow the girdle. These
+are solitaire semi-mounts, so they double as the first `solitaire.png` we have.
+
+| File | Cut | L:W drawn | our default | Status |
+|---|---|---|---|---|
+| `pear.png` | pear | 14.00 × 8.50 = **1.65** | 1.60 | ✅ added 2026-08-24 |
+| `marquise.png` | marquise | 18.00 × 9.00 = **2.00** | 1.95 | ✅ added 2026-08-24 |
+| `emerald.png` | emerald | — | 1.40 | ✅ added 2026-08-25 |
+| `oval.png` | oval | — | 1.40 | ✅ added 2026-08-25 |
+| `cushion.png` | cushion | — | 1.02 | — wanted |
+
+**`emerald.png` immediately earned its place, which is the point of this
+directory.** It is captioned "4 PRONG SOLITAIRE SETTING" and draws a single
+rounded claw at each cut corner. We were building a V-PRONG at all four — eight
+arms on a stone that wants four claws — because CP1 reasoned that a cut corner
+is a vertex and "V is the prong that wraps a vertex". A vertex turns out to be
+necessary but not sufficient: an emerald's corner is a short FLAT facet, wide
+enough for a claw to sit on squarely, where a pear's point has no width at all
+and genuinely needs metal from both sides. The research note had already said
+"no source explicitly names emerald-cut corners" — the V there was an inference,
+and this sketch is what caught it. A fully green suite did not, because every
+test encoded the same inference.
+
+`oval.png` corroborates rather than corrects: four prongs at the 10-2-4-8
+positions, tips falling midway between claws, which is exactly the rule
+`OvalOutline.placements` has followed since RNG-23.
+
+**Both confirm CP3's prong rules**, which is the first time a reference has
+agreed with geometry rather than contradicted it:
+
+- six prongs, not four, on both cuts;
+- a **V-prong at every point** — one on the pear, two on the marquise — each
+  labelled explicitly, which is the field a photo hides most easily;
+- the marquise's four side claws **straddle** the widest point rather than
+  sitting on it, which is what our arc-length distribution produces at n=6.
+
+**And one thing they contradict.** Every front elevation here — pear, marquise,
+emerald and oval — shows the understructure as an **open arched basket** (the
+emerald and oval sheets name it outright: "OPEN GALLERY"). We build a plain
+conical peg (`prong_setting`). Four independent sketches now agree against us.
+That gap is not RNG-33's: it applies to every solitaire we generate and predates
+this ticket. Recorded here so it is judged, not smuggled.
+
 ## Not the same thing as `probes/corpus/`
 
 Easy to conflate, and the distinction is load-bearing:

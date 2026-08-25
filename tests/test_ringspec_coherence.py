@@ -261,20 +261,41 @@ def test_make_coherent_requires_schema_valid_input():
 # --- joint infeasibility: two violations pull the same field in opposite
 # directions and can't both be satisfied (Verify finding, 2026-08-16) --------
 def test_jointly_infeasible_violations_terminate_without_converging():
-    """min_prong_tip wants stone_diameter above ~5.35mm at 6 prongs;
-    stone_exceeds_bore wants it below inner_diameter/length_ratio = 4.85mm
-    for this inner_diameter/ratio. No diameter satisfies both. The loop must
-    still TERMINATE (bounded by MAX_PASSES, never hang) even though it
-    cannot converge -- convergence in this case is the fallback chain's job
-    (ClassifyResult._coherent_spec), not this function's."""
+    """Two gate rules pulling the SAME field in opposite directions.
+
+    `min_prong_tip` wants `stone_diameter` bigger (more girdle to share out
+    between the tips); `stone_exceeds_bore` wants it smaller (the long axis has
+    to pass through the finger hole). Individually satisfiable, jointly
+    impossible in this narrow band, so the loop OSCILLATES: the two codes
+    alternate for all six passes and the spec is still violating at the end. It
+    must TERMINATE anyway -- convergence here is the fallback chain's job
+    (`ClassifyResult._coherent_spec`), not this function's. That is the whole
+    argument of docs/adr/0009.
+
+    **Rebuilt in RNG-33 CP4, and the replacement is better evidence.** The
+    original scenario was a ROUND stone carrying `length_ratio` 1.87, which its
+    own comment admitted "classify.py's _stone_shape() never produces". CP4 made
+    the ratio band two-sided, so a round stone is now held at 1.0 and that
+    combination cannot exist -- which DISSOLVED the conflict rather than fixing
+    it, and would have quietly retired the only test guarding ADR-0009's
+    premise. Fuzzing 30000 schema-valid specs for the same alternating
+    signature found 192 still-live cases, every one of them in-band and
+    reachable; this is one of them. The phenomenon is real, still reachable, and
+    no longer rests on a spec the pipeline could never emit.
+    """
     spec = _solitaire(**{
-        "shank.inner_diameter": 9.07, "stones.stone_diameter": 3.06,
+        "shank.inner_diameter": 9.1, "stones.stone_diameter": 5.54,
         "setting.prong_count": 6,
     })
-    spec["stones"]["shape"] = "round"
-    spec["stones"]["length_ratio"] = 1.87  # schema allows it; classify.py's
-    # _stone_shape() never produces this combination for a round stone.
+    spec["stones"]["shape"] = "marquise"
+    spec["stones"]["length_ratio"] = 1.66
     confidence = {"prong_count": 0.9, "stone_diameter": 0.1}
     working, adjustments = make_coherent(spec, confidence)
+
     assert len(adjustments) == 6  # ran the full budget, did not short-circuit
+    # The signature of an OSCILLATION rather than of slow progress: the same two
+    # codes, alternating, neither ever satisfied.
+    codes = [a.code for a in adjustments]
+    assert set(codes) == {"min_prong_tip", "stone_exceeds_bore"}, codes
+    assert all(a != b for a, b in zip(codes, codes[1:])), codes
     assert not _is_castable(working)  # did not converge -- expected, documented

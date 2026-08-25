@@ -64,10 +64,14 @@ def test_round_is_the_default_and_forces_ratio_one():
     assert spec["stones"]["length_ratio"] == 1.0
 
 
-@pytest.mark.parametrize("shape", ["emerald", "pear", "marquise", "", "OVAL!"])
+@pytest.mark.parametrize("shape", ["princess", "trillion", "heart", "", "OVAL!"])
 def test_unsupported_shapes_fall_back_to_round(shape):
-    """RNG-23 builds round and oval only. Anything else must degrade to a
-    buildable spec rather than fail validation, preserving the never-500 rule."""
+    """Anything we cannot build must degrade to a buildable spec rather than
+    fail validation, preserving the never-500 rule.
+
+    **`emerald`, `pear` and `marquise` left this list in RNG-33 CP4** -- they
+    are buildable now, and are covered by `tests/test_classify_cuts.py`. The
+    rule is unchanged; only the set of strangers shrank."""
     spec = _result(shape=shape, ratio=1.5).to_spec()
     assert spec["stones"]["shape"] == "round"
 
@@ -81,7 +85,6 @@ def test_case_and_whitespace_are_tolerated():
 # --- ratios are clamped to what is castable --------------------------------
 
 @pytest.mark.parametrize("raw,expected", [
-    (0.0, 1.0),    # "not estimated" sentinel
     (0.5, 1.0),    # below 1 is the same stone rotated
     (1.0, 1.0),
     (2.5, 2.5),
@@ -90,6 +93,25 @@ def test_case_and_whitespace_are_tolerated():
 def test_ratio_is_clamped_into_the_schema_range(raw, expected):
     spec = _result(shape="oval", ratio=raw).to_spec()
     assert spec["stones"]["length_ratio"] == pytest.approx(expected)
+
+
+def test_an_oval_nobody_could_measure_is_still_an_oval():
+    """The 0 sentinel means "not estimated", NOT "ratio 1.0" (RNG-33 CP4).
+
+    It used to mean the latter by accident: 0 was clamped up to the 1.0 floor
+    and then read as "a 1.0 oval is a circle", so vision saying *oval* while
+    failing to measure the elongation produced a ROUND model. That is the exact
+    complaint RNG-22 raised and RNG-23 was written to fix -- two of three corpus
+    photos had oval centres and we built round ones -- so reproducing it through
+    a sentinel would undo the ticket by the back door.
+
+    It now fills with oval's conventional proportion, the same rule every other
+    cut gets: a stone nobody measured is still the cut vision recognised."""
+    from ringcad.ringspec.cuts import profile_for
+    spec = _result(shape="oval", ratio=0.0).to_spec()
+    assert spec["stones"]["shape"] == "oval"
+    assert spec["stones"]["length_ratio"] == pytest.approx(
+        profile_for("oval").default_ratio)
 
 
 def test_a_ratio_of_one_means_round_even_if_the_model_said_oval():

@@ -102,6 +102,11 @@ class RepairOutcome:
     mesh_repaired: bool
     detail: str
     stl_bytes: bytes
+    # How many disjoint bodies the mesh ended up as. Carried STRUCTURALLY rather
+    # than only inside `detail`, so a caller can act on it without parsing a
+    # display string. > 1 means generation produced disconnected geometry: not a
+    # thin wall or an open edge, but pieces that are not one object.
+    body_count: int = 1
 
 
 def _load_mesh_from_bytes(stl_bytes: bytes) -> trimesh.Trimesh:
@@ -164,7 +169,8 @@ def validate_and_repair(stl_bytes: bytes) -> RepairOutcome:
         mesh = _load_mesh_from_bytes(stl_bytes)
         before = validate_mesh(mesh)
         if before.is_castable:
-            return RepairOutcome(True, False, "", stl_bytes)
+            return RepairOutcome(True, False, "", stl_bytes,
+                                 before.body_count)
 
         repair_mesh(mesh)
         if len(mesh.faces) == 0:
@@ -192,7 +198,8 @@ def validate_and_repair(stl_bytes: bytes) -> RepairOutcome:
                 before,
                 after,
             )
-        return RepairOutcome(after.is_castable, True, detail, repaired_bytes)
+        return RepairOutcome(after.is_castable, True, detail, repaired_bytes,
+                             after.body_count)
     except ValueError:
         logger.error("could not load mesh (empty)", exc_info=True)
         return RepairOutcome(False, False, "empty mesh", stl_bytes)

@@ -11,6 +11,7 @@ register at runtime without editing any existing module file (AC6).
 """
 from __future__ import annotations
 
+import functools
 from dataclasses import dataclass
 from typing import Callable, Protocol, runtime_checkable
 
@@ -195,7 +196,43 @@ def compose(spec: RingSpec, archetype: str | None = None):
         leaves.extend(parts)
         cuts.extend(mod_cuts)
     solid = leaves[0].fuse(*leaves[1:])
-    # ONE cut with every tool, not a subtraction per tool — the same lesson as
-    # the single general fuse above (RNG-17 risk #1), and measured: iterating
-    # raised `Null TopoDS_Shape` on a 13-accent halo that a single cut resolved.
-    return solid.cut(*cuts) if cuts else solid
+    if not cuts:
+        return solid
+    return _subtract(solid, cuts)
+
+
+def _subtract(solid, cuts):
+    """Apply every cut tool, and CHECK that the subtraction did what it claimed.
+
+    Neither cutting strategy is universally safe, and each fails in the way the
+    other survives:
+
+      * ONE n-ary `cut(*tools)` is what RNG-19 adopted, because iterating raised
+        `Null TopoDS_Shape` on a 13-accent halo. It is still the default here.
+      * But on a side-stone band with an ELONGATED centre stone the n-ary cut
+        fails SILENTLY and catastrophically: measured, a marquise centre went
+        from a 376.95mm3 single solid to 9.25mm3 in 8 pieces -- the tools
+        removed 98% of the ring -- and a pear shattered into 13 solids while
+        removing LESS metal than it should have. Cutting iteratively returned a
+        correct single solid in every one of those cases.
+
+    So the strategy is chosen by RESULT rather than by guess: take the n-ary
+    cut, and if it did not leave exactly one solid, try iteratively and keep
+    that instead if it did better. This is docs/adr/0005's rule (assert what the
+    boolean produced, do not trust that it succeeded) turned into a recovery
+    rather than only an assertion.
+
+    NOT introduced by the new cuts: an `oval` at length_ratio 2.5 on a
+    side-stone band fails identically on the pre-RNG-33 tree (2982 mesh bodies,
+    2712 non-manifold edges) and the casting gate calls it castable. The new
+    cuts only made it reachable at a DEFAULT ratio rather than at the extreme of
+    the oval range.
+    """
+    result = solid.cut(*cuts)
+    if len(result.solids()) == 1:
+        return result
+    try:
+        alt = functools.reduce(lambda body, tool: body.cut(tool), cuts, solid)
+    except Exception:                                   # pragma: no cover
+        return result
+    return alt if len(alt.solids()) == 1 else result

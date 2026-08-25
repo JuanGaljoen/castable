@@ -58,11 +58,16 @@ def test_oval_shape_round_trips():
 
 
 def test_unsupported_shape_is_rejected_naming_the_field():
-    """Emerald / pear / marquise are deliberately out of scope for RNG-23: the
-    cornered and pointed families need a different prong primitive. They must be
-    rejected loudly, not silently treated as round."""
+    """A shape the geometry cannot build must be rejected loudly, not silently
+    treated as round.
+
+    RNG-23 asserted this with `emerald`, which RNG-33 then made buildable along
+    with cushion, pear and marquise. The invariant is unchanged and still worth
+    pinning -- only the example had to move to a cut that is genuinely still out
+    of scope.
+    """
     with pytest.raises(ValidationError) as exc:
-        validate_spec(_spec(shape="emerald"))
+        validate_spec(_spec(shape="princess"))
     assert "shape" in str(exc.value)
 
 

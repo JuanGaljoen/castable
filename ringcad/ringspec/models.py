@@ -18,6 +18,7 @@ from pydantic import (
     Field,
     TypeAdapter,
     ValidationError,
+    model_validator,
 )
 
 SPEC_VERSION = "1.0"
@@ -203,8 +204,49 @@ class Stones(BaseModel):
 
     stone_diameter: float = Field(gt=0, le=24)
     stone_height: float = Field(gt=0, le=12)
-    shape: Literal["round", "oval"] = "round"
+    shape: Literal["round", "oval", "cushion", "emerald", "pear",
+                   "marquise"] = "round"
     length_ratio: float = Field(default=1.0, ge=1.0, le=2.5)
+
+    @model_validator(mode="after")
+    def _ratio_within_the_cuts_band(self):
+        """Hold `length_ratio` inside its cut's own band, BOTH ways (RNG-33).
+
+        Per-cut proportions are mandatory, not cosmetic: the conventional L:W
+        is ~1.02 for cushion, 1.40 emerald, 1.60 pear, 1.95 marquise, so a
+        single shared default of 1.0 makes three of the four wrong on sight.
+
+        **Below the band, fill with the cut's default.** Only cuts whose band
+        STARTS above 1.0 are filled. A marquise at 1.0 is a circle, not a
+        marquise -- there is no meaningful stone there, so this is a repair
+        rather than a surprise. Cushion and oval both legitimately reach 1.0 (a
+        square cushion is 1.00; an oval at 1.0 IS a circle, which is RNG-23's
+        contract) and are left exactly alone.
+
+        **Above the band, clamp to its ceiling** (CP4). This half was missing,
+        and the asymmetry was the real identity hole -- not the one the frozen
+        spec anticipated. The spec expected REPAIR to break identity, by scaling
+        `length_ratio` down for a `stone_curvature` violation until a marquise
+        rendered as a lens; measured over 7500 in-band specs, repair moves the
+        ratio 12 times and never once out of band, because CP1's
+        `_stone_curvature` returns early on any cut `has_vertices` and so cannot
+        fire on emerald, pear or marquise at all. Nothing was guarding the INPUT
+        instead: a `cushion` at 2.38 validated, built, and was called a cushion.
+
+        Clamping silently is the deliberate choice, for symmetry with the fill
+        above -- a value that is not the cut is corrected the same way at either
+        end, rather than being repaired at one end and refused at the other.
+        These are preference bands, not standards (GIA assigns no cut grade to
+        fancy shapes), so the honest framing is "that is not what this cut is
+        called", not "that stone is invalid".
+        """
+        from .cuts import profile_for
+        profile = profile_for(self.shape)
+        if self.length_ratio < profile.min_ratio:
+            object.__setattr__(self, "length_ratio", profile.default_ratio)
+        elif self.length_ratio > profile.max_ratio:
+            object.__setattr__(self, "length_ratio", profile.max_ratio)
+        return self
 
 
 class Motif(BaseModel):

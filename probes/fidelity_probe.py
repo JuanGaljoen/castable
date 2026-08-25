@@ -345,6 +345,23 @@ MARKS = {
 }
 
 
+def _cut_of(rec: Record) -> str:
+    """The centre stone's cut, as the spec that was actually built records it.
+
+    Reported because "did this photo produce its OWN cut" is the question RNG-33
+    exists to answer, and until CP4 the row showed only the archetype -- so
+    checking it meant opening the saved spec JSON by hand. Read off the spec
+    rather than tracked separately: the row must say what was BUILT, not what
+    the classifier was asked for.
+    """
+    stones = (rec.spec or {}).get("stones") or {}
+    shape = stones.get("shape")
+    if not shape:
+        return ""
+    ratio = stones.get("length_ratio")
+    return f"{shape} {ratio:g}" if isinstance(ratio, (int, float)) else shape
+
+
 def format_row(result: Result) -> str:
     """One photo, one line."""
     rec = result.record
@@ -356,7 +373,8 @@ def format_row(result: Result) -> str:
             mesh += f" (REPAIRED: {rec.repair_detail or 'unspecified'})"
         else:
             mesh += ", no repair"
-        parts.append(f"{rec.archetype:<10} {mesh}  {rec.seconds:.1f}s")
+        parts.append(f"{rec.archetype:<10} {_cut_of(rec):<15} {mesh}  "
+                     f"{rec.seconds:.1f}s")
     elif rec is not None:
         parts.append(result.detail)
     else:

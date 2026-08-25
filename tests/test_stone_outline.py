@@ -49,7 +49,7 @@ def test_unknown_axis_is_rejected():
 @pytest.mark.parametrize("n", [4, 6])
 def test_round_prongs_keep_todays_even_spacing(n):
     """Round must be unchanged from the pre-RNG-23 geometry: k * 2pi/n."""
-    angles = RoundOutline(3.0).prong_angles(n)
+    angles = [t for t, _ in RoundOutline(3.0).placements(n)]
     assert angles == pytest.approx([k * TWO_PI / n for k in range(n)])
 
 
@@ -58,7 +58,7 @@ def test_oval_prongs_never_sit_on_a_tip(n):
     """The tips (ends of the major axis, at pi/2 and 3pi/2) are the highest-
     curvature points and the worst place for a claw. No prong may land there."""
     o = OvalOutline(semi_minor=2.5, semi_major=4.0)
-    for theta in o.prong_angles(n):
+    for theta, _ in o.placements(n):
         for tip in (math.pi / 2, 3 * math.pi / 2):
             gap = abs(_norm(theta) - tip)
             gap = min(gap, TWO_PI - gap)
@@ -67,19 +67,19 @@ def test_oval_prongs_never_sit_on_a_tip(n):
 
 def test_oval_four_prongs_are_the_conventional_quarters():
     """The 10-2-4-8 oval layout: tips fall midway between adjacent claws."""
-    angles = sorted(_norm(a) for a in OvalOutline(2.5, 4.0).prong_angles(4))
+    angles = sorted(_norm(a) for a, _ in OvalOutline(2.5, 4.0).placements(4))
     assert angles == pytest.approx([math.radians(d) for d in (45, 135, 225, 315)])
 
 
 def test_oval_six_prongs_clear_the_tips_by_thirty_degrees():
-    angles = sorted(_norm(a) for a in OvalOutline(2.5, 4.0).prong_angles(6))
+    angles = sorted(_norm(a) for a, _ in OvalOutline(2.5, 4.0).placements(6))
     assert angles == pytest.approx(
         [math.radians(d) for d in (0, 60, 120, 180, 240, 300)]
     )
 
 
 def test_prong_count_is_respected():
-    assert len(OvalOutline(2.5, 4.0).prong_angles(6)) == 6
+    assert len(OvalOutline(2.5, 4.0).placements(6)) == 6
 
 
 # --- frames (a claw needs to know which way to lean) -----------------------

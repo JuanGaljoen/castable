@@ -121,25 +121,59 @@ function gatherStructuredBody(name) {
   return body;
 }
 
-// Centre-stone shape (RNG-23). `stone_diameter` is the WIDTH; the long axis is
-// width * length_ratio. A round stone is always ratio 1.0 whatever the ratio box
-// happens to hold, so a stale value can never elongate a round stone.
+// Centre-stone shape (RNG-23, widened to six cuts in RNG-33). `stone_diameter`
+// is the WIDTH; the long axis is width * length_ratio. A round stone is always
+// ratio 1.0 whatever the ratio box happens to hold, so a stale value can never
+// elongate a round stone.
+//
+// An OVAL at ratio 1.0 is sent as round, because it IS a circle and recording it
+// as oval would be a claim the geometry then has to special-case. That rule is
+// about oval, not about 1.0: a square cushion is genuinely 1.00 and still has
+// rounded corners and bowed sides, so it stays a cushion.
 function stoneShapeFields() {
   const shape = document.getElementById("shape").value;
   const ratio = Number(document.getElementById("length_ratio").value);
-  if (shape !== "oval" || !(ratio > 1)) {
+  if (shape === "round" || !(ratio > 0)) {
     return { shape: "round", length_ratio: 1 };
   }
-  return { shape: "oval", length_ratio: ratio };
+  if (shape === "oval" && !(ratio > 1)) {
+    return { shape: "round", length_ratio: 1 };
+  }
+  return { shape: shape, length_ratio: ratio };
 }
 
-// The ratio only means anything for an oval, so it is disabled (and reset) for a
-// round stone rather than left as a live control with no effect.
+// Each cut carries its own ratio band as data attributes on its <option>, served
+// from `ringcad.ringspec.cuts.cut_catalogue()` so the numbers are not retyped
+// here (docs/adr/0002). A round stone has no ratio to set, so the box is
+// disabled rather than left live with no effect.
+function selectedCut() {
+  const select = document.getElementById("shape");
+  return select.options[select.selectedIndex];
+}
+
 function applyShapeState() {
-  const isOval = document.getElementById("shape").value === "oval";
+  const cut = selectedCut();
   const ratio = document.getElementById("length_ratio");
-  ratio.disabled = !isOval;
-  if (!isOval) ratio.value = "1";
+  const elongated = cut.dataset.elongated === "true";
+  ratio.disabled = !elongated;
+  ratio.min = cut.dataset.minRatio;
+  ratio.max = cut.dataset.maxRatio;
+  if (!elongated) {
+    ratio.value = "1";
+    return;
+  }
+  // Only reach for the cut's conventional default when the value in the box is
+  // not something this cut can be. Overwriting unconditionally would DISCARD the
+  // ratio the photo flow just measured: `photo.js` pre-fills every field and
+  // then dispatches `change` here precisely so this state is recomputed, so an
+  // unconditional reset would silently replace vision's reading with a textbook
+  // number on every upload -- and the form would look like it had worked.
+  const current = Number(ratio.value);
+  const lo = Number(cut.dataset.minRatio);
+  const hi = Number(cut.dataset.maxRatio);
+  if (!(current >= lo && current <= hi)) {
+    ratio.value = cut.dataset.defaultRatio;
+  }
 }
 
 function gatherRequestBody() {

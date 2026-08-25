@@ -12,6 +12,7 @@ from flask import Flask, Response, jsonify, render_template, request
 from pydantic import ValidationError as PydanticValidationError
 
 from ringcad.classify import classify_available, classify_ring
+from ringcad.ringspec.cuts import cut_catalogue
 from ringcad.geometry import build_solitaire, compose, to_step_bytes, to_stl_bytes
 from ringcad.mesh_validator import validate_and_repair
 from ringcad.params import ValidationError, validate_params
@@ -49,7 +50,11 @@ def create_app() -> Flask:
 
     @app.get("/")
     def index():
-        return render_template("index.html")
+        # The cut bands are SERVED, not retyped in the template or in JS: the
+        # shape options carry each cut's own ratio band as data attributes so
+        # the form can default and bound the ratio box without a second copy
+        # of numbers RingSpec already owns (docs/adr/0002).
+        return render_template("index.html", cuts=cut_catalogue())
 
     @app.get("/health")
     def health():
@@ -129,6 +134,31 @@ def create_app() -> Flask:
 
         raw = to_stl_bytes(solid)
         outcome = validate_and_repair(raw)
+        if outcome.body_count > 1:
+            # Disconnected geometry is not "an invalid mesh you may still want":
+            # it is not one object, so it cannot be cast and cannot be repaired
+            # (`validate_and_repair` already calls this case not auto-repairable).
+            # Returning it with X-Mesh-Valid:false would hand back an STL that
+            # looks downloadable and fails in the slicer.
+            #
+            # Deliberately narrower than "not castable": a thin wall or an open
+            # edge still ships, preserving the documented behaviour that download
+            # works regardless of validation status. Only a mesh in PIECES 400s.
+            #
+            # Checked on the artifact rather than predicted from the spec. The one
+            # combination that reaches this (a channel side-stone band with an
+            # elongated centre, RNG-39) fails in a scatter across length_ratio --
+            # marquise breaks at 1.70 and 2.10 while building cleanly at 1.50,
+            # 1.90, 2.30 and 2.50 -- so no gate rule on the ratio could be written
+            # honestly. Measuring what was built cannot drift, and stops firing on
+            # its own once RNG-39 lands.
+            return _validation_response(
+                "Generation produced disconnected geometry",
+                f"the model came out as {outcome.body_count} separate pieces "
+                "rather than one solid object, so it cannot be cast. Try a "
+                "different centre stone shape or ring style.",
+                None,
+            )
         return Response(
             outcome.stl_bytes,
             mimetype="model/stl",

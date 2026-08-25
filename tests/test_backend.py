@@ -239,14 +239,26 @@ def test_castable_stl_sets_valid_headers(client, monkeypatch):
     assert len(mesh.faces) > 0
 
 
-# ---- multi-body mesh -> repaired but still invalid, body returned ----------
-def test_multibody_stl_sets_repaired_invalid_headers(client, monkeypatch):
+# ---- multi-body mesh -> refused, because it is not one object --------------
+def test_multibody_stl_is_refused_rather_than_returned(client, monkeypatch):
+    """Disconnected geometry 400s instead of downloading as an invalid mesh.
+
+    This test previously asserted the opposite -- 200 with
+    `X-Mesh-Repaired: true` / `X-Mesh-Valid: false` -- and was left red when
+    the guard in `app.py` landed. The guard is the deliberate contract, frozen
+    in specs/RNG-33.md ("Known limitation"): a mesh in PIECES cannot be cast
+    and cannot be repaired, so handing it back would produce an STL that looks
+    downloadable and fails in the slicer.
+
+    Deliberately narrow, and the next test pins that: a thin wall or an open
+    edge still ships, preserving the documented behaviour that download works
+    regardless of validation status.
+    """
     _spy_writing(monkeypatch, _multibody_stl())
     resp = client.post("/generate-ring", json=VALID_BODY)
-    assert resp.status_code == 200
-    assert resp.headers["X-Mesh-Repaired"] == "true"
-    assert resp.headers["X-Mesh-Valid"] == "false"
-    assert len(resp.data) > 0
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "Generation produced disconnected geometry"
+    assert "separate pieces" in resp.get_json()["detail"]
 
 
 # ---- unloadable bytes -> raw passthrough, header-safe detail ---------------

@@ -195,6 +195,57 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 - **RNG-36** Enforce the 2mm minimum band width at the shank's narrowest point [Low] - flagged unenforced in the research and still unenforced; may be the first legitimate non-`error` `Violation.severity`
 - **RNG-37** Add reference sketches for solitaire, trilogy and side-stone [High] - no code, a file plus a table row each. `docs/reference/` has ONE sketch, and every RNG-19 defect was found by comparing a render against it while the suite stayed green. Trilogy first, since RNG-35 needs a target to judge against
 
+**Found by RNG-33's archetype sweep (2026-08-21):**
+
+- **RNG-39** Side-stone channel cut leaves degenerate geometry with an elongated
+  centre stone [Medium] - **pre-existing, not caused by RNG-33**: an `oval` at
+  `length_ratio` 2.5 on a channel band gives 2982 mesh bodies / 2712 non-manifold
+  edges on the pre-RNG-33 tree, and the gate calls it castable. A `pear` at its
+  conventional 1.60 leaves a zero-thickness double shell (bodies of -4.5236 and
+  +4.5255mm3) at the groove tool's outer boundary. Non-monotonic in stone reach,
+  so no `length_ratio` threshold can express it honestly - the fix belongs in
+  `side_stone.py`, not in a gate rule
+
+**Found by RNG-33's research pass (2026-08-24):**
+
+- **RNG-41** Pear needs five prongs, and `prong_count` cannot express it [Medium] -
+  trade convention for a pear is **5** (4 claw + 1 V-tip); `prong_count` is
+  `Literal[4, 6]`, so the conventional pear is unbuildable. Suspected in CP3 (its
+  design note already said "a pear asks for 5"), now sourced. Marquise's 6
+  (2 V + 4 claw) **matches CP3 exactly**, so the gap is specific to pear. Not a
+  one-liner: `_snap_prong` rounds vision to 4/6 and
+  `coherence._repair_min_prong_tip` repairs by FORCING prong_count to 4
+
+> **Two numbers we invented turned out to be published, and two research passes
+> disagreed about that.** The first pass concluded "no published figure exists
+> anywhere" for the whole `docs/research/` list; a second pass, run because that
+> conclusion was disputed, found figures for the emerald corner (US10448713B1 +
+> AGS, giving 0.14W where we had 0.15W) and for pear wing shape (straight is a
+> *named defect*; correct wings are gently convex). The rest — pear belly,
+> marquise tip angle, tip radius, V-prong wrap — really are unpublished, and the
+> second pass checked the Stuller and Rio Grande findings catalogues to say so.
+> **The lesson is about the shape of the claim, not the numbers:** "we searched
+> and found nothing" and "nothing exists" are different statements, and writing
+> the second when you mean the first closes a question that was still open. When
+> recording a failed lookup, record *where you looked* — the second pass found
+> the emerald figure in one search.
+
+
+**Found by RNG-33 CP3 (2026-08-23):**
+
+- **RNG-40** `expanded()` is not a true parallel curve, so offsets are short at
+  sharp tips [Medium] - it grows the semi-axes instead of offsetting the girdle
+  (both `OvalOutline` and `ProfileOutline` document the approximation and say
+  the error is largest at the tips). At a marquise point the seat wall's true
+  clearance is **0.426mm at `length_ratio` 1.95 and 0.388 at 2.30** against a
+  nominal 0.51 and a 0.46mm claw node sphere, so the sphere GRAZED the wall and
+  OCCT resolved it as a zero-volume lamina: 2 mesh bodies, 184 non-manifold
+  edges, off a single valid B-rep of the right volume (docs/adr/0007). CP3
+  worked around it by raising `GIRDLE_EMBED` 0.06 -> 0.15, which is not a fix:
+  pear is safe by passing fully THROUGH the wall (0.159mm) while marquise is
+  safe by clearing it, so **no single constant states the requirement
+  honestly**. Also owns the halo plate, which uses the same `expanded()`
+
 > Removed in the pivot: RNG-7 (cathedral shoulders, OpenSCAD-specific) and RNG-8
 > (style registry over OpenSCAD) were deleted — both are superseded by the
 > RingSpec + module-library foundation. **RNG-20** (vision spec castable by

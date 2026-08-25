@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from ringcad.mesh_validator import MIN_PRONG_TIP_MM, MIN_WALL_MM
 
+from .cuts import ProngType, profile_for
 from .models import (
     SHANK_THICKNESS_TAPER, HaloSpec, RingSpec, SideStoneSpec, TrilogySpec,
     HALO_WELL_BACK_RATIO, channel_band_width, channel_groove_depth,
@@ -77,8 +78,38 @@ def _min_wall(spec: RingSpec) -> list[Violation]:
 
 
 def _min_prong_tip(spec: RingSpec) -> list[Violation]:
-    """Derived prong-tip diameter below MIN_PRONG_TIP_MM (coarse proxy)."""
-    arc = math.pi * spec.stones.stone_diameter / spec.setting.prong_count
+    """Derived prong-tip diameter below MIN_PRONG_TIP_MM (coarse proxy).
+
+    The arc is measured around the girdle the stone ACTUALLY has, not around a
+    circle of its short axis. `pi * stone_diameter` is that circle, so on any
+    elongated cut it under-reported the arc each prong gets and refused rings
+    the geometry can build -- the same defect ADR-0006 records for
+    `_halo_overcrowding`, in a second gate, found by auditing for the pattern
+    rather than by any test. For a round stone `perimeter` IS
+    `pi * stone_diameter`, so nothing about round moves.
+
+    The divisor is the number of TIPS, not of prongs (RNG-33 CP3). A V-prong
+    FORKS: it lays one arm back along each of the two girdle runs meeting at the
+    vertex it wraps, so an emerald at four prongs puts EIGHT arms on the girdle
+    and a marquise at six puts eight. Counting placements under-reported
+    crowding on every cornered or pointed cut -- ADR-0006's pattern in a third
+    gate, and exactly why that ADR calls a wrong gate more urgent than a wrong
+    builder: a wrong builder is visible, a wrong gate is silent.
+
+    Deliberately CONSERVATIVE where it is inexact. The arms of one fork sit
+    close together rather than spread evenly round the girdle, so an even share
+    is the tightest reading rather than the true one. That suits a check whose
+    own name is "coarse proxy": it bites on a 4mm emerald (eight arms, 0.556mm
+    each against a 0.7mm floor) and leaves the sizes a jeweller actually sets
+    alone -- a 6.5mm emerald derives 0.904mm and passes.
+    """
+    stones = spec.stones
+    profile = profile_for(getattr(stones, "shape", "round"))
+    layout = profile.prong_layout(spec.setting.prong_count)
+    tips = len(layout) + sum(1 for _, kind in layout if kind is ProngType.V)
+    arc = profile.perimeter(
+        stones.stone_diameter / 2, getattr(stones, "length_ratio", 1.0)
+    ) / tips
     tip = arc * _PRONG_WIRE_FRACTION
     if tip < MIN_PRONG_TIP_MM:
         return [
@@ -87,7 +118,7 @@ def _min_prong_tip(spec: RingSpec) -> list[Violation]:
                 field="setting.prong_count",
                 message=f"Derived prong-tip diameter {tip:.3f}mm is below the "
                 f"{MIN_PRONG_TIP_MM}mm minimum for {spec.setting.prong_count} "
-                "prongs at this stone size.",
+                f"prongs ({tips} tips) at this stone size.",
                 limit_mm=MIN_PRONG_TIP_MM,
                 actual_mm=tip,
             )
@@ -363,8 +394,16 @@ def _stone_curvature(spec: RingSpec) -> list[Violation]:
     ratio = getattr(stones, "length_ratio", 1.0)
     if ratio <= 1.0:
         return []
+    profile = profile_for(stones.shape)
+    # A VERTEX is not a tight curve. It cannot be followed by a swept collar at
+    # any radius, which is why a cornered or pointed cut has its seat BORED
+    # instead (docs/adr/0008). Asking this question of an emerald or a marquise
+    # would reject every one of them outright -- the right answer to the wrong
+    # question -- so the cut is asked whether the question applies at all.
+    if profile.has_vertices:
+        return []
     semi_minor = stones.stone_diameter / 2
-    min_curvature = semi_minor / ratio
+    min_curvature = profile.min_curvature_radius(semi_minor, ratio)
     if min_curvature >= _SEAT_COLLAR_R:
         return []
     return [

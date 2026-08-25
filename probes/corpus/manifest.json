@@ -5,7 +5,7 @@
       "file": "solitaire-round.jpg",
       "expect_ring": true,
       "expected_archetype": "solitaire",
-      "note": "four-prong solitaire, plain shank, round/step-cut centre"
+      "note": "MISNAMED, kept for continuity: the centre is a square step cut with rounded corners and four corner prongs, not a round brilliant. Pre-RNG-33 vision said so in its free text and was forced to write `round`; since CP4 it produces a CUSHION, which is the more faithful reading. The archetype expectation below is what this entry actually pins"
     },
     {
       "file": "halo-oval.jpg",
@@ -29,7 +29,31 @@
       "file": "side-stone.jpg",
       "expect_ring": true,
       "expected_archetype": "side_stone",
-      "note": "round centre, six prongs, shared-prong accents down both shoulders and no halo -- the reading that distinguishes side-stone from halo"
+      "note": "round centre, six prongs, accents down both shoulders. Vision reads it SOLITAIRE, 3/3 on both the pre- and post-RNG-33 prompts, describing 'pave accent band' / 'diamond-set shoulders' in free text -- so the mismatch is pre-existing and is RNG-24's complaint, not a vision failure: these shoulders are PAVE and our side_stone archetype expresses `retention='channel'` only (pave deferred in RNG-11). The expectation here is arguably the thing that is wrong; left as-is so the amber keeps pointing at RNG-24"
+    },
+    {
+      "file": "solitaire-cushion.png",
+      "expect_ring": true,
+      "expected_archetype": "solitaire",
+      "note": "four-prong solitaire, cushion centre at L:W ~1.0 -- rounded corners and outward-bowed sides. The cut vision NAMED on RNG-22's first run and had to write `round`, which is why RNG-33 exists"
+    },
+    {
+      "file": "solitaire-emerald.png",
+      "expect_ring": true,
+      "expected_archetype": "solitaire",
+      "note": "four-prong solitaire, emerald step cut at L:W ~1.45 -- straight sides, cut corners, parallel steps rather than brilliant facets; prongs grip the cut corners"
+    },
+    {
+      "file": "solitaire-pear.png",
+      "expect_ring": true,
+      "expected_archetype": "solitaire",
+      "note": "six-prong solitaire, pear at L:W ~1.55 with a clearly visible V-PRONG at the point -- the retention feature RNG-33 CP3 builds, so this photo is also the check that we read it"
+    },
+    {
+      "file": "solitaire-marquise.jpg",
+      "expect_ring": true,
+      "expected_archetype": "solitaire",
+      "note": "six-prong solitaire, marquise at L:W ~1.9, points at both ends. YELLOW gold on a busy textured background in natural light -- the only corpus entry that is not a clean studio shot, so it exercises metal colour and background clutter as well as the cut"
     },
     {
       "file": "negative-puppies.jpg",

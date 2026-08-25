@@ -1,0 +1,501 @@
+# RNG-33 — Stone cuts beyond round and oval (cushion, emerald, pear, marquise)
+Classification: feature
+
+## Success criteria (the bar Verify checks)
+
+- [x] RingSpec expresses cushion, emerald, pear and marquise; specs without a `shape`
+      remain valid and still mean round (no breaking change, no v2)
+- [x] Each cut generates a single **raw** watertight manifold, zero non-manifold edges
+      (the RNG-17 bar: castable by construction, not repair-reliant)
+- [x] **Body count == 1 and volume > 0** asserted per cut, not only watertightness
+      (ADR-0005: a dropped body reports watertight; ADR-0008: so does a sealed void)
+- [x] Casting invariants hold across the in-range parameter space for every cut:
+      min wall 0.8mm, min prong tip 0.7mm
+- [x] Prong placement is appropriate to each cut, not a circle stretched: emerald and
+      cushion grip the corners; pear and marquise take a V-prong at each point
+- [x] An uploaded photo of a cushion-cut ring produces a cushion-cut model
+- [x] Frontend control present, editable, WCAG 2.1 AA
+- [x] **No regression:** parity, watertightness and golden tests green for round and oval
+
+      *Deliberately "green", not "bit-identical".* RNG-23 had to correct exactly this
+      criterion mid-flight: building claws at girdle points replaced a rotation matrix
+      with `cos`/`sin` and moved round volumes by ~2e-7 relative. CP3 changes that same
+      interface again (`prong_angles` -> `placements`), so the honest bar is stated up
+      front rather than reinterpreted later. The seat's `Torus` path IS exactly preserved.
+
+## Approach
+
+### The end-goal test
+
+Per `CLAUDE.md`, progress toward "any ring" is growing the module vocabulary, not piling up
+per-style templates. At every fork here the choice is the one that **moves knowledge into the
+outline and out of modules, gates and enums**. Today the outline owns its girdle path and
+nothing else. After this ticket it also owns prong placement, prong type, its conventional
+proportions and how its seat is cut. Modules and gates *ask*; they do not branch, and they do
+not keep parallel tables.
+
+### The dependency inversion that makes the gate honest
+
+`castability.py` stays kernel-free and today **re-derives** the ellipse tip radius
+(`semi_minor / ratio`), while `outline.min_curvature_radius()` has no production caller at
+all. That is the drift ADR-0002 warns about, and four more cuts make it worse.
+
+**New `ringcad/ringspec/cuts.py` — pure math, no `build123d` import.** One `CutProfile` per
+cut owning: default ratio, plausible band, corner fraction / exponent, `half_width(axis)`,
+`min_curvature_radius()`, `tip_wedge_angle()`, `prong_layout(n) -> [(theta, ProngType)]`.
+
+`castability.py` asks a profile instead of re-deriving (ADR-0009's lesson, new target).
+`outline.py`'s classes wrap a profile and add only what needs the kernel: `wire()`,
+`frame_at()`, `seat_parts()` / `seat_cuts()`.
+
+Spec layer owns the shape *facts*; geometry layer owns the *kernel construction*. One source.
+
+### Prongs: the outline owns placement, type and count
+
+`prong_angles(n) -> [float]` becomes `placements(n) -> [Placement(theta, type)]` where type is
+`round | claw | V`. `prong_count` stays `Literal[4, 6]` and becomes a **preference the outline
+may honour or override** — a pear asks for 5 because that is what a pear needs.
+
+Prong **type** is the part that compounds. A V-prong is not a pear feature; it is what every
+point and corner needs, so princess, heart, trillion and shield get it free later. Without it,
+every pointed cut we ever add is wrong in the one place the trade is unanimous about.
+
+### Seat: bore the negative (ADR-0008, third customer)
+
+Sweeping a collar tube is a *round-stone* technique that survives an ellipse and breaks on
+every cornered or pointed outline, permanently. Boring works for any closed outline, including
+ones not yet invented. `module.py` needs no new machinery: `side_stone` is cut-only and `halo`
+is parts-and-cuts, so `seat` becoming both is an existing shape.
+
+Round and oval keep their existing `tube()` sweep because the parity and golden suites pin
+them. **That is migration debt, not a design position** — see Out of scope.
+
+ADR-0008's trap applies: a bore that fails to *open* becomes a sealed void that still reports
+watertight, single-solid, all floors met. Assert body count and volume.
+
+### Repair must not change what a thing *is*
+
+`coherence.py` repairs `stone_curvature` by scaling `stones.length_ratio` inversely, so a
+marquise at 1.95 can be repaired to 1.05 and handed back as a "marquise" that renders as a
+lens. **Repair may change a thing's dimensions; it must not silently change its identity.**
+Bound the ratio repair to the cut's own band; fall back to moving `stone_diameter` instead.
+
+## The numbers, and which of them are ours
+
+Per-cut L:W is mandatory, not cosmetic — one shared default makes three of four wrong on sight.
+
+| Cut | Conventional range | Default |
+|---|---|---|
+| cushion | 1.00-1.05 (elongated cushion 1.20-1.30 is a separate segment) | 1.02 |
+| emerald | 1.30-1.50 | 1.40 |
+| pear | 1.45-1.75 | 1.60 |
+| marquise | 1.75-2.30 | 1.95 |
+
+GIA assigns **no cut grade to fancy shapes** (one is slated for 2027), so these are preference
+bands, not standards. We pick a default; we do not call it correct.
+
+**Outline maths (sourced).** Marquise is the intersection of two circular arcs: half-length
+`a`, half-width `b`, arc radius `R = (a^2 + b^2) / (2b)`, centres `(0, +/-(R - b))`; the tip is
+a **finite wedge**, `theta = 2*atan(a/(R - b))` — ~106 degrees at L:W 2.0, exactly 120 at the
+vesica ratio sqrt(3). Emerald's four long sides are genuinely straight (a true octagon).
+Cushion's sides genuinely bow *outward*; a superellipse `|x/a|^n + |y/b|^n = 1` models that and
+degrades to the existing ellipse at `n = 2`.
+
+**Casting floors confirmed, no change needed.** Our 0.8mm min wall matches Stuller's
+structural-wall figure and Materialise's gold figure exactly. Our 0.7mm prong tip sits between
+Stuller's 0.45mm prong minimum and Materialise's 0.8mm; Stuller's 0.2mm polishing allowance is
+why it must not go lower (0.7 modelled finishes near 0.5).
+
+**Prong conventions (sourced).** Emerald and cushion grip the cut/rounded **corners**, not the
+flat sides. Pear takes a V-prong at the point; marquise at both. Stuller states the failure
+mode outright: *"Cushions with rounded corners can easily rotate and fall out of a prong
+setting"*, prescribing double prongs or a gallery rail. Evenly-spaced angles is precisely what
+that warns against.
+
+### Research pass 2026-08-24 — two of these were findable after all
+
+The table below was written after a first research pass concluded no published figure existed
+for any of it. A second pass, run because Juan disputed that conclusion, found figures for two
+and confirmed the rest. Notes: `docs/research/cut-outline-geometry-cushion-emerald.md`,
+`docs/research/cut-outline-geometry-pear-marquise.md`.
+
+**Corrected, both cited:**
+
+| Quantity | Was | Now | Source |
+|---|---|---|---|
+| Emerald corner truncation | 0.15 x W | **0.14 x W** (band 0.135-0.145) | US10448713B1 + AGS "Emerald Cut Geometry" |
+| Pear wing shape | straight tangent lines | **gently convex arc** | GIA 4Cs + 3 independent trade sources |
+
+The emerald number needed a disambiguation before it was safe to use: "corner width" could
+have meant one corner's truncation or the combined span of two, which differ by 2x and would
+have sent us to 0.14 or to 0.07. Settled by a SECOND primary source -- the AGS reference's
+labelled diagram shows the CR bracket spanning one corner -- and then corroborated by our own
+geometry, which now yields a flat top edge of exactly 72.0% of W, the arithmetic signature of
+the one-corner reading.
+
+**The pear wing was a defect we had written up as a virtue.** `PearProfile`'s docstring claimed
+tangent lines "produce none of" the trade's named defects. The trade defines those defects
+symmetrically around a curved ideal -- "bulged wings" and "flat wings" -- so straight IS one of
+them. Fixing it required moving the head/wing JUNCTION, not merely bending the wing: a tangent
+line touches the head at `asin(p/d)`, and any circular arc tangent there that also reaches the
+point is that same line, so the construction is degenerate. Bending the wing while keeping the
+junction would have swapped "flat wings" for "high shoulders". The junction now sits at 0.70 of
+the tangent angle, where a genuine arc leaves tangentially. The belly is unmoved at
+`1 / (2 * ratio)`.
+
+**Fallout, and it took three wrong guesses to find.** The flatter girdle either side of the
+pear's point narrows the angle the V-prong's two arms leave at, and below some angle they lie
+against each other and OCCT resolves the node sphere's tangency as a crack: 15 non-manifold
+edges at length_ratio 2.10, in a body still reporting as one solid. Two hypotheses were wrong
+before measurement settled it -- a bore-clearance epsilon changed nothing at any value, and
+shrinking the claw node fixed 2.10 while making 2.04 worse. Locating the bad edges took one
+step and ended the guessing: every one sat within 0.001mm of the tip node sphere's equator.
+`V_ARM_REACH_FRACTION` 0.20 -> 0.28 (clears at 0.26, also clean at 0.32, so a floor with
+headroom rather than a fitted value). Sweep back to 40/40.
+
+**Confirmed still unpublished, and the search was thorough** (Stuller and Rio Grande findings
+catalogues, a working-jeweler technical article, GIA, IGS, faceting design literature): the
+pear belly position, the marquise tip angle, the tip radius tolerance, and the V-prong wrap
+dimensions. Those stay ours. GIA's Fall 2024 G&G fancy-shape study has now defeated two passes
+(site timeouts, ResearchGate 403) and remains the likeliest home for them.
+
+**Not acted on:**
+
+- Pear's conventional prong count is FIVE (4 claw + 1 V-tip); `prong_count` is `Literal[4, 6]`,
+  so we cannot express it. Filed as **RNG-41**. Marquise's six (2 V + 4 claw) matches CP3
+  exactly, so the gap is specific to pear.
+- A patent application describes a cushion as long sides of near-constant radius plus corner
+  arcs -- a two-radius rounded rectangle, not a superellipse. **Deliberately not filed**: it
+  carries no numeric radius, so acting on it would swap one uncited construction for another,
+  and our superellipse degrades continuously to the ellipse at n = 2 where a two-radius blend
+  would introduce curvature discontinuities into a bored seat. Recorded, not ticketed.
+
+### The V-prong, rebuilt from a photograph (2026-08-25)
+
+CP3 built a V-prong as two tapering cones fanned off the girdle node. In plan view
+that is a V; in metal it is a tuning fork -- two rods meeting in mid-air with **nothing
+between them for the point to sit on**. Juan's photographs settled it: a real V-tip is a
+solid trough the corner beds INTO, and his phrase for the gap was exact -- "a base for
+where the corners of the stone fits in".
+
+It is now the negative of the stone's own point (docs/adr/0008, fourth customer): a wall
+following the girdle, rising out of the seat plate, folding `V_CUP_LIP` inward to retain
+the stone, trimmed to a cylinder about the vertex. In plan view the inner face IS the
+outline, so the point beds into it exactly.
+
+**Wall thickness came from research, and the finding was structural rather than numeric.**
+No source publishes a V-tip wall thickness -- two passes over eight angles agree, and the
+absence is the result (`docs/research/v-prong-wall-thickness.md`). What the sources show is
+how the nearest analogue is MADE: a bezel is one continuous strip at ONE gauge, folded
+over, never a wall thickness plus a separately-sized lip. We were building it additively --
+0.65mm outside the girdle PLUS 0.30mm inside -- so the metal was 0.95mm, thicker than every
+bezel figure found bar one anecdotal outlier. `V_CUP_WALL` is now the TOTAL and `V_CUP_LIP`
+is how much of it sits inside, at **0.70mm**: the PRONG floor, not the wall floor, because
+a V-tip is a discrete retaining feature rather than a structural wall. Metal at each point
+fell 6.13mm2 -> 2.23mm2.
+
+**Two numbers were stale rather than chosen.** The reach was 0.28 because the old fork
+cracked at the node sphere below a certain angle; the cup has no arms and no node sphere,
+so that constraint died with the fork and 0.28 was left behind as a saddle wrapping a
+quarter of the stone. Now 0.15. And the SHAFT to the peg turned out to be redundant
+entirely: the cup welds into the seat plate, which the claws at the other placements
+already carry. Removing it removed the stub hanging below the seat at a pear's point --
+the "imperfection" Juan spotted.
+
+**Three wrong turns, all found by measuring.** (1) A coincident face: the cup's outer wall
+built exactly flush with the seat rim is the SAME surface, and OCCT left a 0.0008mm3 lamina
+of 357 faces and 205 non-manifold edges at length_ratio 2.50. (2) A confident, wrong
+diagnosis: the node sphere was reported protruding 0.172mm through the cup's front, and it
+was not -- the measurement used nearest-point distance to the offset curve instead of
+measuring along the ray. Measured properly, metal ends flush. (3) A test that outlived its
+premise: "a V is strictly MORE metal than the claw it replaces" is true of a fork and false
+of a cup (a pear's is -0.5%, a marquise's +6%), so it was rewritten rather than the geometry
+inflated to satisfy it.
+
+**A contract change, stated rather than papered over.** `prong_setting` alone now returns a
+V cut in PIECES -- the cup is joined by the seat during `compose`. The new test asserts both
+halves, because the composed ring being whole depends on that separation being deliberate:
+a future all-V cut would have no claw to carry the seat and would ship in pieces.
+
+### Invented — no trade or standards figure found
+
+The GIA G&G Fall 2024 study on these outlines proved unreachable (fetch timed out,
+`web.archive.org` blocked, no full-text mirror). A dedicated research pass found **no published
+figure anywhere** for the following. They are ours; the next reader may move them freely.
+
+| Quantity | Our value |
+|---|---|
+| Pear belly position along the length | ~31% from the round end at L:W 1.6, from a tangent-semicircle construction |
+| Pear wing transition | tangent continuation |
+| Emerald corner truncation fraction | ~15% of the short axis |
+| Cushion superellipse exponent | `n ~ 3` (antique/old-mine reads rounder, ~2.5) |
+| Pear/marquise tip radius | none — the tip is a vertex, and a visible radius is graded a *defect* |
+| V-prong wrap angle | computed from the outline's own tip wedge angle, not guessed |
+| Angular positions of pear/marquise side prongs | ours |
+
+Two sit a tier above pure invention, as **documented engineering assumptions** with partial
+trade support but no gemological certification: the two-arc marquise construction, and the
+45-degree emerald corner face.
+
+**One trap.** A "0.227W" figure circulates in faceting sources for emerald and is **not** the
+corner truncation — it is the target P3 *pavilion facet* width during cutting (Jeff Graham,
+"Gram Easy Emerald"). Do not reuse it for the plan-view corner. It would have looked like a
+cited number and been wrong.
+
+## Checkpoints
+
+- [x] **CP1 — Cut vocabulary (contract + pure math).** `ringcad/ringspec/cuts.py` with four
+      `CutProfile`s; `Stones.shape` widened; per-cut `length_ratio` defaults; `_stone_curvature`
+      and `_min_prong_tip` rewritten to ask the profile. No geometry change.
+
+      *Landed.* Six profiles over one numeric core: a cut declares only its own `_polyline` and
+      prong rule, and perimeter, curvature, arc spacing and polar lookup all derive from it, so
+      cut #7 is those two methods. Round and oval keep analytic overrides — the round prong-tip
+      arc was checked **bit-identical across all 2400 stone sizes** (`2*pi*(d/2)` and `pi*d` round
+      the same real to the same double). The per-cut ratio fill is a *clamp to the cut's band*
+      rather than a blanket default, which is what preserves RNG-23's "an oval at 1.0 IS a circle"
+      contract while still stopping a marquise from rendering as a lens.
+
+      **Two defects found by tracing, not by tests** (docs/adr/0010): the pear polyline traversed
+      its head arc the wrong way round, so polar angle was non-monotonic at 341 joints and every
+      arc-length lookup off it was scrambled — the silhouette, extents and perimeter were all
+      still correct, and the prong layout put a claw 12 degrees from the V-prong. And a test of
+      mine asserted a marquise clears the prong-tip floor at 1.9mm without doing the arithmetic;
+      it does not, at any prong count. Both are now pinned by symmetry tests, which is the
+      invariant that would have caught the first one.
+- [x] **CP2 — Outline classes + bored seat.** Four classes wrapping their profiles; `seat()`
+      gains `_parts`/`_cuts`, registered in `MODULES`. Body count and volume asserted.
+
+      *Landed, with two design corrections to the plan.* (1) It is **one** adapter,
+      `ProfileOutline`, not four classes — CP1 put every shape-specific fact in the profile, so a
+      new cut needs no geometry code at all. (2) `seat()` needed no `_parts`/`_cuts` split: the
+      outline returns a finished `seat_solid`, built as body-minus-bore, which keeps `seat()`
+      shape-blind and leaves round/oval on their `Torus` and swept ellipse untouched.
+
+      Girdles build from **exact segments** (emerald 8 lines, marquise 2 arcs, pear 1 arc + 2
+      tangents, cushion 1 periodic spline). Sampling a vertex into a spline yields a wire that is
+      closed, faceable and watertight and is quietly the wrong cut, so the test asserts edge COUNT.
+
+      **Three defects found by tracing and sweeping, none by a test.** The bore inverts below a
+      0.9mm stone — pear and marquise raise, but cushion and emerald silently returned a plausible
+      solid with no opening. `compose`'s single n-ary `cut(*tools)` failed silently on a side-stone
+      band, taking a marquise from a 376.95mm3 single solid to 9.25mm3 in 8 pieces while the gate
+      said castable; it now checks the result and falls back to iterative (docs/adr/0005 as a
+      recovery, not just an assertion). And a claw's girdle sphere grazed the bored seat's flat
+      outer wall by 0.01mm, which OCCT resolved as a zero-volume lamina — 323 faces, 183
+      non-manifold edges, a second mesh "body" off a single valid B-rep (docs/adr/0007). Fixed with
+      a 0.06mm margin on the outer wall only; the bore stays exactly the stone's negative.
+
+      **Verified by parameter sweep, not by spot checks:** 90/90 combinations clean across
+      solitaire, halo and trilogy for all five elongated cuts at six ratios each.
+- [x] **CP3 — Prong placement and type.** `placements()` replaces `prong_angles()`;
+      `prong_setting()` builds a V-prong where the placement says V.
+
+      *Landed.* `prong_angles()` is GONE from `StoneOutline` and all three
+      implementations, not merely superseded: after CP3 it had no production caller,
+      which is the exact drift docs/adr/0002 records for `min_curvature_radius`. A
+      V-prong is one shaft to the vertex plus one arm laid back along each of the two
+      girdle runs meeting there, and the arms are found by WALKING the outline via
+      `frame_at`, so the wrap angle is a consequence of the cut's geometry rather than
+      a guessed rotation of the bisector — and no new method is added to the protocol,
+      which is what keeps round and oval free of a code path nothing calls.
+
+      **The fork is not two tips.** On an emerald's obtuse corner the arms stay
+      separate; on a pear or marquise point they MERGE into one piece of metal, which
+      is what a V-prong at a point is. The first version of `tests/test_v_prong.py`
+      asserted `prong_count + one per V` tips and was therefore measuring the wedge
+      angle, not the fork. The invariants that hold either way: the fork weighed by
+      boolean against the same ring with the fork suppressed, its added metal equal on
+      both sides of the bisector, and mirror-image placements giving mirror-image metal.
+
+      **Three defects, none found by a passing test.** (1) Built as a fan of cones off
+      one node, OCCT's n-ary fuse silently DROPPED a whole arm from ONE of a marquise's
+      two mirror-image V-prongs — 4.866mm3 against its twin's 6.524, single-solid,
+      watertight, no warning (docs/adr/0005, third sighting). Fixed by building each arm
+      as a complete claw chain and fusing those; the SYMMETRY test is what sees it, and
+      nothing else in the suite looks for asymmetry. (2) The 0.88 tip lean is radial,
+      which on a fork pulls both arms TOGETHER — a marquise's 100 degree girdle wedge
+      closed to a 33 degree fork and a pear's to 17, two rods lying against each other.
+      Arms now lean along the girdle's own outward normal; claws keep the literal radial
+      0.88 so round and oval do not move. (3) The seat wall GRAZED the claw node sphere
+      at the marquise tip, tessellating into 2 bodies / 184 non-manifold edges off a
+      single valid B-rep of the right volume — see the note below.
+
+      **`GIRDLE_EMBED` 0.06 -> 0.15, and it is a workaround.** `expanded()` grows the
+      semi-axes instead of offsetting the curve, so at a marquise point the wall's true
+      clearance is 0.426mm at ratio 1.95 and 0.388 at 2.30 against a nominal 0.51 and a
+      0.46 node sphere. 0.15 puts every vertex of every cut outside the grazing band
+      (verified 40/40: four cuts x five ratios across each band x both prong counts).
+      It widens the safe band; it does not make the offset true — pear is safe by being
+      fully THROUGH the wall (0.159mm clearance) while marquise is safe by being clear
+      of it, so no single constant states the requirement honestly. Root cause filed as
+      **RNG-40**, which also owns the halo plate.
+
+      **Two stale tests fixed, both authored elsewhere.**
+      `test_the_smallest_buildable_seat_still_opens` hardcoded a stone size "just above"
+      a guard that moves with `GIRDLE_EMBED`; it now derives it. And
+      `test_multibody_stl_sets_repaired_invalid_headers` had been left RED by the
+      disconnected-geometry commit on this branch — it asserted the 200 the guard was
+      written to remove. Rewritten to assert the 400, which is the contract this spec
+      froze under "Known limitation".
+
+      **Owed to CP4:** `_min_prong_tip` still divides the girdle perimeter by
+      `prong_count`, but a V puts TWO tips at one placement, so a 4-prong marquise
+      really has 6 tips competing for that arc. Same class as the ADR-0006 audit below
+      — a gate measuring something the geometry no longer does.
+- [x] **CP4 — Vision + UI wire-up.** `classify.py` schema/prompt/`_stone_shape`; the shape
+      `<select>` and per-cut ratio default; `coherence.py` identity guard.
+
+      *Landed, and proved on the real path.* `probes/fidelity_probe.py` against the live
+      endpoints: **9/9 generated, every one raw watertight with no repair**, and each new
+      cut read from its OWN photo -- cushion, emerald 1.35, pear 1.47, marquise 2.1. None
+      of those ratios is the cut's default (1.40 / 1.60 / 1.95), so vision is MEASURING the
+      image rather than reciting genre averages, which is the premise RNG-26 rests on.
+      The probe row now prints the built cut beside the archetype, because until CP4 the
+      ticket's own success criterion could only be checked by opening the spec JSON by hand.
+
+      **The guard this checkpoint was asked for does not exist, and should not.** The
+      Approach section expected REPAIR to break identity: `coherence.py` scales
+      `stones.length_ratio` down for a `stone_curvature` violation, so a marquise at 1.95
+      could in principle come back at 1.05 still called a marquise. That is unreachable --
+      CP1's `_stone_curvature` returns early for any cut that `has_vertices`, so it cannot
+      fire on emerald, pear or marquise at all. Fuzzed over 7500 in-band specs: repair
+      moves the ratio 12 times and NEVER out of band. The first two identity tests written
+      here PASSED against unfixed code, and tracing them showed they were exercising
+      `min_prong_tip` rather than `stone_curvature` -- docs/adr/0010's trap, in tests
+      written minutes earlier.
+
+      **The real hole was the INPUT side.** CP1's band validator was one-sided: it raised a
+      below-band ratio to the cut's default and never capped an above-band one, so a
+      `cushion` at 2.38 validated, built, and was called a cushion. Now two-sided, clamping
+      silently for symmetry with the fill (Juan's call; the alternative considered was a
+      400). These are preference bands, not standards, so the honest framing is "that is
+      not what this cut is called", not "that stone is invalid".
+
+      **Three defects found that were on nobody's list.**
+      (1) `length_ratio` was being rounded onto the 0.1 form grid, which DESTROYED the
+      per-cut defaults CP1 researched -- cushion 1.02 -> 1.00, marquise 1.95 -> 2.00. That
+      is "one shared default makes three of four wrong on sight" reintroduced by a rounding
+      rule rather than by a wrong number. It has its own `RATIO_STEP` of 0.01 now, the form
+      input moved with it, and a test ties the two together because nothing did.
+      (2) The `0` "not estimated" sentinel was clamped up to the 1.0 floor and then read as
+      "a 1.0 oval is a circle", so vision saying OVAL while failing to measure the
+      elongation produced a ROUND model -- the exact RNG-22 complaint RNG-23 exists to fix,
+      reproduced through a sentinel. It now fills with the cut's conventional ratio.
+      (3) `applyShapeState` would have DISCARDED vision's measurement: `photo.js` pre-fills
+      every field and then dispatches `change` on the shape select, so an unconditional
+      reset to the cut default would have replaced the measured elongation with a textbook
+      number on every upload -- and the form would have looked like it worked. The reset is
+      conditional on the value being outside the new cut's band.
+
+      **A performance regression, introduced and fixed here.** Putting `prong_layout()` in
+      `_min_prong_tip` put 2.7ms (a 2048-point polyline walk, for pear and marquise) into a
+      function every spec validation and every one of `make_coherent`'s six repair passes
+      calls. Memoised on (cut, n) -- a layout is a per-cut constant -- for 2.7ms -> 0.33us.
+      The memo holds a TUPLE and hands out a fresh list, so a caller that mutates what it
+      got cannot corrupt every later reader.
+
+      **Two corpus findings, both attributed rather than assumed.** `side-stone.jpg` reads
+      as solitaire on the pre-CP4 prompt 3/3 and the post-CP4 prompt 3/3, describing "pave
+      accent band" in free text both ways -- so the amber is pre-existing and is RNG-24's
+      complaint, not a vision failure: those shoulders are PAVE and `side_stone` expresses
+      `retention="channel"` only. And `solitaire-round.jpg` is MISNAMED -- the stone is a
+      square step cut with rounded corners and four corner prongs, so the cushion CP4 now
+      produces is the more faithful reading. Both recorded in the manifest notes.
+
+## The ADR-0006 audit (owed by this ticket)
+
+The abstraction only protects consumers that adopt it. Every site still holding the old scalar,
+decided in writing:
+
+| Site | Status | Call |
+|---|---|---|
+| `castability.py:81` `_min_prong_tip` — `stone_diameter` alone, ignores `length_ratio` | **Live; wrong for every new cut** | Fix in CP1 |
+| `bezel.py:35` — bore is `c["stone_r"] + _CLEARANCE`, a circle on the short axis | Latent: `bezel` is in `MODULES` but named by **no** archetype, so unreachable | File separately |
+| `_castability.py:187` `check_gallery` — rail faces at a constant radius off `stone_r` | Latent: `halo` dropped its gallery; only tests call `gallery()` | File separately; CP3 used no gallery rail, so unrevisited |
+| `castability.py:81` `_min_prong_tip` — arc per PRONG, but a V places two tips | **Live; under-reports crowding for every V cut as of CP3** | Fix in CP4 |
+| `prong_setting.py:48`, `halo.py:147` — peg / hub radii from `stone_r` | Legitimate scale values | Considered, keep |
+
+## Verification — done 2026-08-24
+
+**Result: all four checkpoints landed; 3844 passed, 1 skipped, 0 failed.** The parameter
+sweep is 40/40 clean (four cuts x five ratios across each band x both prong counts), and the
+live probe is 9/9 generated, raw watertight, no repairs, each cut read from its own photo.
+
+Two things this ticket did NOT verify, stated plainly rather than left implied: the geometry
+was judged against `docs/reference/` for pear and marquise only (cushion and emerald sketches
+are still wanted), and the browser UI was exercised by test and by the probe's real endpoints
+but not by a human clicking through a live dev server.
+
+
+1. Offline suite green; parity and golden green for round and oval.
+2. Raw watertight per cut on `to_stl_bytes(compose(spec))` *without* `validate_and_repair`;
+   zero non-manifold edges; `X-Mesh-Repaired: false`; **body count 1, volume > 0**.
+3. Casting invariants swept over `length_ratio` x `prong_count` x `stone_diameter` per cut.
+4. **The real path, not stubs.** Every `classify` test stubs the client — that is how the
+   RNG-21 bug shipped invisibly and how three RNG-23 defects passed a green 3413-test suite.
+   Run `python probes/fidelity_probe.py` before and after; drive a real upload through the live
+   dev server. **Verify the server process is younger than the edit** (RNG-19: "I see no
+   change" was twice a stale process; reload is off).
+5. Compare each render against `docs/reference/`. No RNG-19 defect was found by a test; all
+   four came from a sketch comparison.
+
+## Assets required before Verify (supplied by Juan) — ✅ SUPPLIED 2026-08-24
+
+Forge was not blocked; Verify was. Both sets are now in the tree, so Verify runs at full
+strength rather than degraded.
+
+- `probes/corpus/` — one photo per cut, plus a manifest entry each. Extensions follow the
+  ACTUAL format rather than the `.jpg` this spec first wrote, because `_sniff_media_type`
+  reads magic bytes and a PNG named `.jpg` would mislead a reader for no gain:
+  `solitaire-cushion.png`, `solitaire-emerald.png`, `solitaire-pear.png`,
+  `solitaire-marquise.jpg`. The manifest now loads 10 entries with no declared gaps.
+  The marquise is the only one that is not a clean studio shot — yellow gold, natural light,
+  busy textured background — so it exercises metal colour and clutter as well as the cut.
+- `docs/reference/` — `pear.png` and `marquise.png`, both proper semi-mounts: empty seat,
+  bare metal, plan view plus front elevation, dimensioned, with the V-prongs called out by
+  name.
+
+**The sketches agree with CP3, which is worth recording because no reference has agreed with
+our geometry before** — every previous one (RNG-19's `halo.png`) contradicted it. Both drawings
+show six prongs rather than four; a V-prong at every point (one on the pear, two on the
+marquise); and the marquise's four side claws STRADDLING the widest point rather than sitting
+on it, which is exactly what `_place_between`'s arc-length distribution produces at n=6. Their
+drawn proportions also sit inside the bands CP1 chose: pear 14.00 x 8.50 = 1.65 against our
+1.60 default, marquise 18.00 x 9.00 = 2.00 against our 1.95.
+
+**One thing they contradict, and it is not RNG-33's.** Both front elevations draw the
+understructure as an open arched basket — cusped arches springing from the shank to the seat.
+We build a plain conical peg. That applies to every solitaire we generate and predates this
+ticket; recorded in `docs/reference/README.md` so it is judged rather than smuggled.
+
+## Known limitation: side-stone band with an elongated centre (RNG-39)
+
+A channel side-stone band plus an elongated centre stone tessellates into disconnected pieces. It
+is **pre-existing**: `oval` at 2.5 fails identically on the pre-RNG-33 tree (2982 bodies, 2712
+non-manifold edges) with the gate calling it castable. RNG-33 makes it reachable at a *default*
+ratio because pear's conventional L:W is 1.60.
+
+**No gate rule on `length_ratio` can express it honestly**, because the failures are a scatter
+rather than a region:
+
+    marquise  1.50:OK  1.70:XX  1.90:OK  2.10:XX  2.30:OK  2.50:OK
+    pear      1.15:OK  1.34:OK  1.53:OK  1.72:XX  1.91:OK  2.10:XX
+    oval      1.00:OK  ...  2.20:OK  2.50:XX
+
+A threshold would reject working rings and admit broken ones while looking principled — the drift
+docs/adr/0002 exists for. So the guard **measures the artifact instead**: `/generate-ring` returns
+400 when the mesh comes back in pieces. That cannot drift and stops firing by itself once RNG-39
+lands. Deliberately narrower than "not castable" — a thin wall or an open edge still downloads,
+preserving the documented behaviour.
+
+Confined to the channel cut: the same oval at 2.5 builds cleanly on solitaire, halo and trilogy.
+
+## Out of scope
+
+- Faceting or modelling the gemstone itself. We generate the metal; the stone is a void.
+- Non-round **accent** and side stones. Centre stone first.
+- Widening `prong_count` to per-cut valid sets (5 for pear, 8 for doubled corners).
+- Promoting corner fraction and cushion exponent to editable spec fields.
+- Migrating round/oval off the swept collar onto the bored seat (one construction).
+- `bezel` and `check_gallery` short-axis fixes — both latent, neither user-reachable.

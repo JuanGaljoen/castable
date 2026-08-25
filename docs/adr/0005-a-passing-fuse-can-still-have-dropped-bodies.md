@@ -69,3 +69,31 @@ orphaned).
   exactly preserved. Restoring exact parity would require branching on stone shape inside
   `prong_setting`, defeating the outline abstraction; the parity tests pass and the
   looser criterion was adopted knowingly (see `specs/RNG-23.md`).
+
+## Third sighting (RNG-33 CP3, 2026-08-23): volume was not enough, symmetry was
+
+A V-prong forks: one shaft to the stone's vertex, then an arm laid back along each of the two
+girdle runs meeting there. Built the obvious way -- a fan of cones and node spheres off the one
+shared node, handed to a single seven-part n-ary fuse -- OCCT silently dropped a whole arm from
+**one** of a marquise's **two mirror-image** V-prongs. The survivor measured 6.524mm3; its twin,
+built from mirror-image inputs by the same code path, measured 4.866. Single solid, watertight,
+zero non-manifold edges, no warning, no exception.
+
+Rebuilding each arm as a complete claw chain -- the topology already proven elsewhere in the
+module -- and fusing those chains gives 7.961mm3 for both. Same points, same radii, same
+resulting shape on paper; a different construction in the kernel.
+
+**The part that is new.** This ADR's existing advice is "assert volume, not just
+watertightness". Here the *total* volume of the setting was entirely plausible -- one arm out of
+sixteen bodies is a few percent -- so no volume floor written by a human would have flagged it.
+What named it immediately was that two placements related by a mirror produced different metal.
+
+- **On geometry with a symmetry, assert the symmetry.** It is nearly free to write, needs no
+  reference value, and is sensitive to exactly the failure mode this ADR is about: a boolean
+  that drops a body drops it from one instance, not from all of them. Every cut in the catalogue
+  is symmetric about its long axis, so this applies to the whole family
+  (`tests/test_v_prong.py::test_mirror_image_placements_produce_mirror_image_metal`).
+- **A fan is not a chain.** When several bodies must meet at one node, prefer grouping them into
+  the shapes the module already builds reliably over adding arms to a single fuse. This is the
+  same "group by the feature a human would name" consequence above, applied one level down --
+  the feature here is one *arm*, not one prong.
