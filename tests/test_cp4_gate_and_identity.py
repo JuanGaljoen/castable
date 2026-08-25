@@ -55,7 +55,7 @@ def _tips(shape, n):
 @pytest.mark.parametrize("shape,n,expected", [
     ("round", 4, 4), ("round", 6, 6),      # nothing forks
     ("oval", 4, 4), ("cushion", 4, 4),     # rounded corners take claws
-    ("emerald", 4, 8), ("emerald", 6, 10),  # four cut corners, four forks
+    ("emerald", 4, 4), ("emerald", 6, 6),   # cut corners take single claws
     ("pear", 4, 5), ("pear", 6, 7),        # one point
     ("marquise", 4, 6), ("marquise", 6, 8),  # two points
 ])
@@ -63,17 +63,23 @@ def test_a_fork_puts_two_tips_on_the_girdle(shape, n, expected):
     assert _tips(shape, n) == expected
 
 
-def test_a_small_emerald_is_refused_because_eight_arms_do_not_fit():
-    """4mm across, four V-prongs: eight arms sharing that girdle, each derived
-    at 0.556mm against a 0.7mm floor. Counting four placements instead put it
-    at 1.112mm and let it through."""
-    assert "min_prong_tip" in _codes(_spec("emerald", stone=4.0, prongs=4))
+def test_a_small_marquise_is_refused_because_eight_tips_do_not_fit():
+    """4mm across at six prongs: two V-prongs fork, so EIGHT arms share that
+    girdle, each derived at 0.569mm against a 0.7mm floor. Counting six
+    placements instead put it at 0.759mm and let it through.
+
+    Was an emerald until 2026-08-25, when emerald corners went back to single
+    claws (`docs/reference/emerald.png`) and stopped forking at all. The rule
+    being tested is unchanged -- a fork costs tips -- so it moved to a cut that
+    still forks rather than being deleted with the coverage.
+    """
+    assert "min_prong_tip" in _codes(_spec("marquise", stone=4.0, prongs=6))
 
 
-def test_the_same_emerald_at_a_workable_size_still_passes():
+def test_the_same_marquise_at_a_workable_size_still_passes():
     """The rule has to bite on the crowded case WITHOUT rejecting the sizes a
     jeweller actually sets, or it is just a smaller stone limit."""
-    assert "min_prong_tip" not in _codes(_spec("emerald", stone=6.5, prongs=4))
+    assert "min_prong_tip" not in _codes(_spec("marquise", stone=6.5, prongs=6))
 
 
 @pytest.mark.parametrize("shape", ["round", "oval", "cushion"])

@@ -49,7 +49,9 @@ from ringcad.ringspec import validate_spec
 from ringcad.ringspec.cuts import ProngType, profile_for
 
 NEW_CUTS = ("cushion", "emerald", "pear", "marquise")
-VERTEX_CUTS = ("emerald", "pear", "marquise")   # the cuts that get any V at all
+VERTEX_CUTS = ("pear", "marquise")   # the cuts that get any V at all
+# Emerald left this list on 2026-08-25: a cut corner is a flat wide enough for
+# one claw, and docs/reference/emerald.png draws four single claws.
 
 def _spec(shape, prongs=4, stone=6.5, ratio=None):
     p = profile_for(shape)
@@ -102,7 +104,7 @@ def test_a_v_prong_is_more_metal_than_the_claw_it_replaces(shape, prongs):
     assert forked.volume > plain.volume
 
 
-@pytest.mark.parametrize("shape", ["cushion", "round", "oval"])
+@pytest.mark.parametrize("shape", ["cushion", "emerald", "round", "oval"])
 def test_a_cut_with_no_vertex_to_wrap_gets_no_fork(shape):
     """The control. A cushion's corners are ROUNDED, so it takes claws -- the
     distinction is geometric, not stylistic, which is what makes `ProngType`

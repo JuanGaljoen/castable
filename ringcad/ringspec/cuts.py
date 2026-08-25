@@ -503,16 +503,26 @@ class EmeraldProfile(CutProfile):
         return [LineSeg(vs[i], vs[(i + 1) % len(vs)]) for i in range(len(vs))]
 
     def _prong_layout(self, n):
-        """Prongs clasp the CUT CORNERS.
+        """Corners, not flat sides -- and a plain CLAW at each, not a V.
 
-        Universal across the trade: the corner is the likeliest impact site and
-        the only feature a prong can actually hook, while a prong on a flat side
-        has nothing to grip and interrupts the cut's long straight lines. V --
-        the corner is a genuine vertex, so the prong is notched to wrap it.
+        **This was a V until 2026-08-25, and that was an inference, not a
+        source.** CP1 reasoned that a cut corner is a vertex and that "V is the
+        prong that wraps a vertex", which is true of a pear's point and a
+        marquise's. It is not true here, and the research note says so in as
+        many words: "no source explicitly names emerald-cut corners". The
+        design sketch does -- `docs/reference/emerald.png` is captioned "4 PRONG
+        SOLITAIRE SETTING" and draws a single rounded claw at each corner.
+
+        The geometric reason the rule does not carry over: an emerald's corner
+        is not a point but a short FLAT facet, wide enough for one claw to sit
+        on squarely. A pear's point has no width to sit on, which is why it
+        needs metal coming at it from both sides. Wrapping a corner that is
+        already a flat with a two-armed fork puts eight arms on a stone that
+        wants four claws, and it reads as a thicket.
         """
-        out = [(t, ProngType.V) for t in self.corner_angles(
+        out = [(t, ProngType.CLAW) for t in self.corner_angles(
             self.default_ratio)]
-        if n > 4:                       # mid-points of the two long flat sides
+        if n > 4:                       # long-side prongs at the widest points
             out += [(0.0, ProngType.CLAW), (math.pi, ProngType.CLAW)]
         return out[:n]
 

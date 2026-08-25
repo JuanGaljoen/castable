@@ -153,11 +153,24 @@ def test_placements_carry_a_prong_type_alongside_the_angle(shape, n):
 
 
 @pytest.mark.parametrize("shape,expected_v", [
-    ("cushion", 0), ("emerald", 4), ("pear", 1), ("marquise", 2)])
+    ("cushion", 0), ("emerald", 0), ("pear", 1), ("marquise", 2)])
 def test_v_prongs_land_only_where_there_is_a_vertex_to_wrap(shape, expected_v):
-    """V is the prong that wraps a VERTEX -- geometric, not stylistic. A
-    cushion's corners are rounded, so it takes claws; an emerald's are cut,
-    so it takes four."""
+    """V is the prong that wraps a POINT -- somewhere a claw has no width to
+    sit on.
+
+    Emerald expected 4 here until 2026-08-25, on CP1's reasoning that a cut
+    corner is a vertex and V wraps vertices. A vertex is necessary but not
+    sufficient: an emerald's corner is a short FLAT facet, wide enough for one
+    claw, and `docs/reference/emerald.png` draws exactly that -- "4 PRONG
+    SOLITAIRE SETTING", one rounded claw per corner. A pear's point has no
+    width to sit on, which is why it needs metal from both sides. The research
+    note is explicit that no source ever named emerald corners; the V there was
+    an inference.
+
+    Note `has_vertices` is UNCHANGED for emerald -- its corners really are
+    vertices, which is why its seat is bored rather than swept and why
+    `_stone_curvature` declines to judge it. Only the prong type moved.
+    """
     got = [t for _, t in _outline(shape).placements(4) if t is ProngType.V]
     assert len(got) == expected_v
 
