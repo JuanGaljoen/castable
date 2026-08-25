@@ -395,6 +395,23 @@ class CushionProfile(CutProfile):
     INVENTED: `exponent`. No published corner radius or convexity figure exists
     for cushions; 3.0 reads as a modern cushion brilliant, and antique/old-mine
     stones are visibly plumper (nearer 2.5). Move it freely.
+
+    Two research passes (2026-08-21, 2026-08-24) both came back empty on this
+    one -- GIA, IGS, faceting design literature, GemCad/DiamCalc and patents --
+    so the number stands as ours, and the second pass is on record as having
+    looked rather than assumed. See
+    `docs/research/cut-outline-geometry-cushion-emerald.md`.
+
+    **One challenge to the MODEL rather than the number, deliberately not
+    ticketed.** A granted patent application (US20150020544A1 / EP2826392A1)
+    describes a cushion as long sides of near-constant radius joined by corner
+    arcs of equal radius -- a two-radius rounded rectangle, not a smooth
+    exponent curve. It carries no numeric radius, so adopting it would swap one
+    uncited construction for another; and a two-radius blend introduces
+    curvature discontinuities at four points, which this cut's seat is BORED
+    through (docs/adr/0008), where the superellipse stays smooth and degrades
+    continuously to the ellipse at n = 2 so cushion and oval remain one family.
+    Recorded here so the pointer survives if a radius figure ever surfaces.
     """
 
     exponent: float = 3.0
@@ -449,7 +466,7 @@ class EmeraldProfile(CutProfile):
     consistent trade convention, but no primary standard states it.
     """
 
-    corner_fraction: float = 0.15
+    corner_fraction: float = 0.14
 
     def _corner(self, half_short: float) -> float:
         # Equal truncation on both axes puts the corner face at 45 degrees.
@@ -502,17 +519,39 @@ class EmeraldProfile(CutProfile):
 
 @dataclass(frozen=True)
 class PearProfile(CutProfile):
-    """A semicircular head, two straight tangent wings, one point.
+    """A circular head, two gently CONVEX wings, one point.
 
-    INVENTED: the belly position and the tangent-continuation wing. No published
-    figure exists for either; the trade names only defects ("flat wings",
-    "bulged wings", "high shoulders"). Tangent lines from the point to the head
-    circle are the simplest construction that produces none of those, and they
-    put the widest point at `1 / (2 * ratio)` of the length from the round end
-    -- 31% at the conventional 1.6, which lands mid-band.
+    **The wings were straight until the 2026-08-24 research pass, and straight
+    is a named defect.** The trade defines its defects symmetrically around a
+    curved ideal -- "bulged wings" (too convex) and "flat wings" (too straight)
+    -- so a correct wing is a gently rounded curve between belly and point. Four
+    independent sources converge on that, GIA's own 4Cs guide among them; see
+    `docs/research/cut-outline-geometry-pear-marquise.md`. The previous
+    docstring claimed tangent lines "produce none of" the named defects. They
+    produce one of them.
+
+    **Why the junction had to move.** A tangent line from the point to the head
+    circle touches at `th_T = asin(p/d)`, and any circular arc that is tangent
+    there AND passes through the point is that same line -- the construction is
+    degenerate, so the wing cannot simply be bent while the junction stays put.
+    Bending it anyway would leave a corner at the shoulder, trading "flat wings"
+    for "high shoulders". So the head/wing junction moves DOWN the head to
+    `wing_shoulder * th_T`, where a genuine arc leaves tangentially and still
+    reaches the point. Tangency at the junction is what keeps the shoulder
+    smooth.
+
+    STILL INVENTED: `wing_shoulder`, and the belly position. Two research passes
+    found no published figure for how convex a wing should be, nor for where the
+    belly sits -- the sources name the defects without dimensioning the ideal.
+    The CONVEXITY is sourced; its magnitude is ours. `wing_shoulder` is a
+    fraction of the straight-wing tangent angle, so 1.0 reproduces the old
+    straight wing exactly and smaller values bow it out further. The belly is
+    untouched at `1 / (2 * ratio)` of the length from the round end -- 31% at the
+    conventional 1.6 -- because the head still carries the widest point.
     """
 
     point_angle: float = _TIP_ANGLE
+    wing_shoulder: float = 0.70
 
     def _geometry(self, half_short, ratio):
         p, q = half_short, half_short * ratio
@@ -520,45 +559,72 @@ class PearProfile(CutProfile):
         d = q - y0                        # point-to-centre distance
         return p, q, y0, d
 
+    def _wing(self, half_short, ratio):
+        """The right wing: (junction angle on the head, arc centre, radius).
+
+        Solves for the circle tangent to the head at `th` that also passes
+        through the point. With `u` the unit vector at `th` and the centre
+        written `O + (p - R)u` (internal tangency, so the wing curves the same
+        way as the head), `|P - C| = R` gives R directly.
+        """
+        p, q, y0, d = self._geometry(half_short, ratio)
+        th_t = math.asin(min(p / d, 1.0))       # the straight-wing junction
+        th = self.wing_shoulder * th_t
+        w = d * math.sin(th)
+        # w == p is the degenerate straight wing; wing_shoulder < 1 keeps w < p.
+        radius = (2 * p * w - d * d - p * p) / (2 * (w - p))
+        u = (math.cos(th), math.sin(th))
+        centre = ((p - radius) * u[0], y0 + (p - radius) * u[1])
+        return th, centre, radius
+
     def _polyline(self, half_short, ratio, samples=_SAMPLES):
         p, q, y0, d = self._geometry(half_short, ratio)
-        # Tangent points: |T| = p and T . (T - P) = 0 about the head centre.
-        ty = p * p / d
-        tx = p * math.sqrt(max(1.0 - (p * p) / (d * d), 0.0))
-        a0 = math.atan2(ty, tx)
+        th, centre, radius = self._wing(half_short, ratio)
         # CCW about the ORIGIN, which `point_at` / `angles_by_arc` rely on:
-        # head the long way round the BOTTOM (-tangent -> +tangent), then up
+        # head the long way round the BOTTOM (-junction -> +junction), then up
         # the right wing to the point, then down the left wing. Sweeping the
         # head the other way crosses the top and makes polar angle
         # non-monotonic, which silently scrambles every arc-length lookup.
-        a_start, sweep = math.pi - a0, math.pi + 2 * a0
+        a_start, sweep = math.pi - th, math.pi + 2 * th
         arc_n = max(samples * 2 // 3, 8)
         out = [(p * math.cos(a_start + sweep * i / arc_n),
                 y0 + p * math.sin(a_start + sweep * i / arc_n))
                for i in range(arc_n + 1)]
         wing_n = max(samples // 6, 4)
         tip = (0.0, q)
-        start = out[-1]                   # +tangent
-        for k in range(1, wing_n + 1):    # +tangent -> point
-            f = k / wing_n
-            out.append((start[0] + f * (tip[0] - start[0]),
-                        start[1] + f * (tip[1] - start[1])))
-        end = (-tx, y0 + ty)              # -tangent, closing the loop
-        for k in range(1, wing_n):        # point -> -tangent
-            f = k / wing_n
-            out.append((tip[0] + f * (end[0] - tip[0]),
-                        tip[1] + f * (end[1] - tip[1])))
+        start = out[-1]                                   # +junction
+        a_j = math.atan2(start[1] - centre[1], start[0] - centre[0])
+        a_tip = math.atan2(tip[1] - centre[1], tip[0] - centre[0])
+        # Shortest sweep: the wing is a minor arc, so the wrapped delta is the
+        # one that stays on the stone rather than going the long way round.
+        delta = (a_tip - a_j + math.pi) % TWO_PI - math.pi
+        for k in range(1, wing_n + 1):                    # +junction -> point
+            a = a_j + delta * k / wing_n
+            out.append((centre[0] + radius * math.cos(a),
+                        centre[1] + radius * math.sin(a)))
+        # The left wing is the mirror, walked back down from the point.
+        for k in range(1, wing_n):                        # point -> -junction
+            a = a_tip - delta * k / wing_n
+            out.append((-(centre[0] + radius * math.cos(a)),
+                        centre[1] + radius * math.sin(a)))
         return out
 
     def segments(self, half_short, ratio):
+        """Head arc, then one arc per wing -- three edges, as before, but the
+        wings are no longer straight."""
         p, q, y0, d = self._geometry(half_short, ratio)
-        ty = p * p / d
-        tx = p * math.sqrt(max(1.0 - (p * p) / (d * d), 0.0))
-        a0 = math.atan2(ty, tx)
+        th, centre, radius = self._wing(half_short, ratio)
+        junction = (p * math.cos(th), y0 + p * math.sin(th))
+        a_j = math.atan2(junction[1] - centre[1], junction[0] - centre[0])
+        a_tip = math.atan2(q - centre[1], 0.0 - centre[0])
+        delta = (a_tip - a_j + math.pi) % TWO_PI - math.pi
+        mirror = (-centre[0], centre[1])
+        # Mirroring x negates both angles, and reverses the sweep with them.
         return [
-            ArcSeg((0.0, y0), p, math.pi - a0, TWO_PI + a0),
-            LineSeg((tx, y0 + ty), (0.0, q)),
-            LineSeg((0.0, q), (-tx, y0 + ty)),
+            ArcSeg((0.0, y0), p, math.pi - th, TWO_PI + th),
+            ArcSeg(centre, radius, a_j, a_j + delta),
+            ArcSeg(mirror, radius, math.pi - a_tip,
+                   math.pi - a_tip + delta),
         ]
 
     def _prong_layout(self, n):

@@ -112,6 +112,64 @@ mode outright: *"Cushions with rounded corners can easily rotate and fall out of
 setting"*, prescribing double prongs or a gallery rail. Evenly-spaced angles is precisely what
 that warns against.
 
+### Research pass 2026-08-24 — two of these were findable after all
+
+The table below was written after a first research pass concluded no published figure existed
+for any of it. A second pass, run because Juan disputed that conclusion, found figures for two
+and confirmed the rest. Notes: `docs/research/cut-outline-geometry-cushion-emerald.md`,
+`docs/research/cut-outline-geometry-pear-marquise.md`.
+
+**Corrected, both cited:**
+
+| Quantity | Was | Now | Source |
+|---|---|---|---|
+| Emerald corner truncation | 0.15 x W | **0.14 x W** (band 0.135-0.145) | US10448713B1 + AGS "Emerald Cut Geometry" |
+| Pear wing shape | straight tangent lines | **gently convex arc** | GIA 4Cs + 3 independent trade sources |
+
+The emerald number needed a disambiguation before it was safe to use: "corner width" could
+have meant one corner's truncation or the combined span of two, which differ by 2x and would
+have sent us to 0.14 or to 0.07. Settled by a SECOND primary source -- the AGS reference's
+labelled diagram shows the CR bracket spanning one corner -- and then corroborated by our own
+geometry, which now yields a flat top edge of exactly 72.0% of W, the arithmetic signature of
+the one-corner reading.
+
+**The pear wing was a defect we had written up as a virtue.** `PearProfile`'s docstring claimed
+tangent lines "produce none of" the trade's named defects. The trade defines those defects
+symmetrically around a curved ideal -- "bulged wings" and "flat wings" -- so straight IS one of
+them. Fixing it required moving the head/wing JUNCTION, not merely bending the wing: a tangent
+line touches the head at `asin(p/d)`, and any circular arc tangent there that also reaches the
+point is that same line, so the construction is degenerate. Bending the wing while keeping the
+junction would have swapped "flat wings" for "high shoulders". The junction now sits at 0.70 of
+the tangent angle, where a genuine arc leaves tangentially. The belly is unmoved at
+`1 / (2 * ratio)`.
+
+**Fallout, and it took three wrong guesses to find.** The flatter girdle either side of the
+pear's point narrows the angle the V-prong's two arms leave at, and below some angle they lie
+against each other and OCCT resolves the node sphere's tangency as a crack: 15 non-manifold
+edges at length_ratio 2.10, in a body still reporting as one solid. Two hypotheses were wrong
+before measurement settled it -- a bore-clearance epsilon changed nothing at any value, and
+shrinking the claw node fixed 2.10 while making 2.04 worse. Locating the bad edges took one
+step and ended the guessing: every one sat within 0.001mm of the tip node sphere's equator.
+`V_ARM_REACH_FRACTION` 0.20 -> 0.28 (clears at 0.26, also clean at 0.32, so a floor with
+headroom rather than a fitted value). Sweep back to 40/40.
+
+**Confirmed still unpublished, and the search was thorough** (Stuller and Rio Grande findings
+catalogues, a working-jeweler technical article, GIA, IGS, faceting design literature): the
+pear belly position, the marquise tip angle, the tip radius tolerance, and the V-prong wrap
+dimensions. Those stay ours. GIA's Fall 2024 G&G fancy-shape study has now defeated two passes
+(site timeouts, ResearchGate 403) and remains the likeliest home for them.
+
+**Not acted on:**
+
+- Pear's conventional prong count is FIVE (4 claw + 1 V-tip); `prong_count` is `Literal[4, 6]`,
+  so we cannot express it. Filed as **RNG-41**. Marquise's six (2 V + 4 claw) matches CP3
+  exactly, so the gap is specific to pear.
+- A patent application describes a cushion as long sides of near-constant radius plus corner
+  arcs -- a two-radius rounded rectangle, not a superellipse. **Deliberately not filed**: it
+  carries no numeric radius, so acting on it would swap one uncited construction for another,
+  and our superellipse degrades continuously to the ellipse at n = 2 where a two-radius blend
+  would introduce curvature discontinuities into a bored seat. Recorded, not ticketed.
+
 ### Invented — no trade or standards figure found
 
 The GIA G&G Fall 2024 study on these outlines proved unreachable (fetch timed out,

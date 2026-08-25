@@ -34,8 +34,21 @@ NODE_OVERLAP = 0.03
 # bisector through a guessed angle. The wrap LENGTH has no published trade
 # figure (see specs/RNG-33.md, "Invented"), so it is pinned to the metal's own
 # scale and the next reader may move it freely.
-V_ARM_REACH_FRACTION = 0.20
+V_ARM_REACH_FRACTION = 0.28
 V_ARM_REACH_FLOOR = 2.2          # x wire_r
+
+# Raised from 0.20 in the 2026-08-24 research pass, and NOT for looks. Giving
+# the pear a convex wing (see `PearProfile`) flattens the girdle either side of
+# its point, which narrows the angle the two arms of the V leave at. Below a
+# certain fork angle the arms lie against each other and OCCT resolves the
+# node sphere's tangency as a crack rather than a surface: measured at
+# length_ratio 2.10, 15 non-manifold edges in a single watertight-reporting
+# body, every one of them within 0.001mm of the tip's node sphere equator --
+# the exact tangency failure RNG-19 documents in the claw comment below.
+#
+# 0.26 is where it clears; 0.28 is that with margin, and 0.32 is also clean, so
+# this is a floor with room above it rather than a fitted value. Marquise and
+# emerald are unaffected either way -- their forks were already wide enough.
 
 # How far a tip leans in over the stone, as a fraction of its girdle reach.
 # The round setting's original figure, now shared by every tip including a
