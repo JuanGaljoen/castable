@@ -109,3 +109,33 @@ Note also what a sketch shows that is **out of scope**: `halo.png` has pavé set
 down the shank, which our archetype union cannot express at all (→ RNG-24). Read
 the sketches for the archetype in hand, and file the rest rather than smuggling
 it in.
+
+### Band cross-section profiles
+
+RNG-25 adds a shank profile family, so the band needs the same treatment a cut
+gets: a trade sheet to judge a render against.
+
+| File | Shows | Status |
+|---|---|---|
+| `band-profiles.png` | eight named band cross-sections (Anna Loucah) | ✅ added 2026-09-04 |
+
+**It confirmed the research and corrected the schema on its first read.** It
+agrees with `docs/research/shank-cross-section-profiles.md` on every profile the
+two have in common — Court is domed inside *and* out (so our existing `Ellipse`
+section is a court, and the RNG-25 defaults reproduce it exactly), D-section is
+flat inside with a domed outside, Flat Court is flat outside with a domed inside,
+Flat is flat on both, and Knife Edge rises to a central ridge.
+
+**What it added is a THIRD axis.** RNG-25 was scoped as outer surface × inner
+surface. This sheet draws `Court` and `Flat Sided Court` as different profiles
+that differ *only* in whether the band's SIDE WALLS are flat or rounded, and
+`Soft Square` is the same treatment applied to `Flat`. Two of its eight cells are
+side-wall variants rather than outer/inner pairs. RNG-25 deliberately does not
+build that axis — see `specs/RNG-25.md` — but the vocabulary is real and the
+follow-up is filed rather than forgotten.
+
+**One departure to expect in our renders.** The sheet draws the knife edge with a
+genuinely sharp apex. We enforce a 0.8mm minimum at the ridge (our structural
+metal floor; no published knife-edge apex figure exists — see the research note
+for where that was searched), so our knife edge is visibly blunter than this
+drawing. That is a chosen, castable departure, not a defect to fix by eye.
