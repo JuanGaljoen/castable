@@ -104,6 +104,8 @@ function gatherStructuredBody(name) {
       inner_diameter: Number(document.getElementById("inner_diameter").value),
       band_width: Number(document.getElementById("band_width").value),
       band_thickness: Number(document.getElementById("band_thickness").value),
+      outer_profile: document.getElementById("outer_profile").value,
+      inner_profile: document.getElementById("inner_profile").value,
     },
     setting: {
       prong_count: parseInt(document.getElementById("prong_count").value, 10),

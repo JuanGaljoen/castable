@@ -20,6 +20,7 @@ from ringcad.ringspec.cuts import profile_for
 from ringcad.ringspec import (
     Adjustment,
     Halo,
+    Shank,
     SideStone,
     Stones,
     Trilogy,
@@ -104,6 +105,15 @@ _BUILDABLE_SHAPES = frozenset(
     get_args(Stones.model_fields["shape"].annotation)
 )
 
+# Same rule, same reason, for the shank cross-section (RNG-25): read off the
+# RingSpec Literals rather than a second hand-written list.
+_BUILDABLE_OUTER_PROFILES = frozenset(
+    get_args(Shank.model_fields["outer_profile"].annotation)
+)
+_BUILDABLE_INNER_PROFILES = frozenset(
+    get_args(Shank.model_fields["inner_profile"].annotation)
+)
+
 DEFAULT_MODEL = "claude-haiku-4-5"
 DEFAULT_NOTE = "Estimates are rough; verify before generating."
 
@@ -134,8 +144,17 @@ _SYSTEM = (
     "for a round stone, about 1.5 for a typical oval, 2.0 for a marquise); "
     "this is a ratio you can see directly, unlike absolute millimetres, so "
     "measure it from the image rather than recalling a typical value for the "
-    "cut -- use 0 only if the stone is too obscured to measure. Give a "
-    "per-field `confidence` in [0,1] for each shared dimension (0 when you "
+    "cut -- use 0 only if the stone is too obscured to measure. Set "
+    "`outer_profile` (the OUTSIDE of the band, facing away from the finger) "
+    "to one of: 'domed' (rounded, the ordinary curved band), 'flat' (a flat "
+    "top with sharp edges), or 'knife_edge' (rises to a visible ridge or "
+    "peak down the centre). Set `inner_profile` (the INSIDE of the band, "
+    "against the finger) to one of: 'domed' (rounded/comfort-fit interior, "
+    "usually not visible in a photo -- answer 'domed' unless you can "
+    "actually see the inside) or 'flat'. These are independent: a band can "
+    "be domed outside with a flat inside, or any other combination. Answer "
+    "'domed' for both if unsure or if the profile is not clearly visible. "
+    "Give a per-field `confidence` in [0,1] for each shared dimension (0 when you "
     "did not estimate it). If the image does not clearly show a single ring, "
     "set ring_detected to false and set every dimension to 0. Never "
     "guess finger size or inner diameter -- there is no field for it. All "
@@ -190,6 +209,11 @@ class RingClassification(BaseModel):
     stone_diameter: float
     stone_height: float
     setting_height: float
+    # Shank cross-section (RNG-25). Plain `str`, like `stone_shape` below and
+    # for the same ADR-0004 reason: a Literal or optional would add a union
+    # param. Degraded in code by `_shank_profile`.
+    outer_profile: str
+    inner_profile: str
     # Centre-stone shape (RNG-23). Plain `str`/`float`, not a Literal or an
     # optional: either would add a union param, and ADR-0004 keeps this schema
     # flat and required. The value is validated in code, where an unsupported cut
@@ -229,6 +253,8 @@ class ClassifyResult:
     confidence: dict = field(default_factory=dict)
     stone_shape: str = "round"
     stone_length_ratio: float = 1.0
+    outer_profile: str = "domed"
+    inner_profile: str = "domed"
 
     def to_spec(self) -> dict | None:
         """Assemble a coherent, castable RingSpec (archetype + groups +
@@ -299,6 +325,8 @@ class ClassifyResult:
                 "band_width": est.get("band_width", _SHARED_DEFAULTS["band_width"]),
                 "band_thickness": est.get(
                     "band_thickness", _SHARED_DEFAULTS["band_thickness"]),
+                **({} if estimates is not None else
+                   _shank_profile(self.outer_profile, self.inner_profile)),
             },
             "setting": {
                 "prong_count": est.get(
@@ -396,6 +424,24 @@ def _round_to_step(spec: dict, direction: str = "nearest") -> dict:
             for k, v in group.items()
         }
     return out
+
+
+def _shank_profile(outer: str, inner: str) -> dict:
+    """Normalise the vision layer's shank profile into RingSpec's shank
+    fields (RNG-25). Each axis degrades independently to `domed` (court, the
+    pre-RNG-25 default) rather than failing the whole classification -- the
+    same never-500 rule `_stone_shape` follows, simpler here because there is
+    no ratio to clamp, only two independent categorical choices."""
+    outer_name = (outer or "").strip().lower()
+    inner_name = (inner or "").strip().lower()
+    return {
+        "outer_profile": (
+            outer_name if outer_name in _BUILDABLE_OUTER_PROFILES else "domed"
+        ),
+        "inner_profile": (
+            inner_name if inner_name in _BUILDABLE_INNER_PROFILES else "domed"
+        ),
+    }
 
 
 def _stone_shape(shape: str, ratio: float) -> dict:
@@ -604,6 +650,8 @@ def classify_ring(image_bytes: bytes, media_type: str) -> ClassifyResult:
             confidence=_confidence(data.confidence),
             stone_shape=data.stone_shape,
             stone_length_ratio=data.stone_length_ratio,
+            outer_profile=data.outer_profile,
+            inner_profile=data.inner_profile,
         )
     except Exception:
         logger.error("classify_ring failed", exc_info=True)
