@@ -173,7 +173,7 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 - **RNG-18** Pin build123d + OCP in requirements.txt [Done] - a clean clone could not generate a ring; also found pydantic undeclared
 - **RNG-23** Stone shape/cut in RingSpec (round + oval) [Done] - `StoneOutline` seam; unblocked RNG-26
 - **RNG-22** Photo fidelity probe harness (repeatable photo -> model corpus run) [Done] - the measuring stick for everything below; found RNG-31/32/33 on its first run
-- **RNG-25** Shank profile family (knife-edge, cathedral, comfort-fit, graduated) [High] - needs RNG-16; the spec-widening half RNG-19 fenced off
+- **RNG-25** Shank cross-section profile family (domed/flat/knife-edge outer x domed/flat inner) [Done] - needs RNG-16; the spec-widening half RNG-19 fenced off
 - **RNG-27** Viewer presentation (metal material, studio lighting, tessellation) [High] - independent; perceived quality, touches no geometry
 - **RNG-19** Geometry aesthetic refinement (proportions, claws, channel, halo) [Done] - surface polish behind the *existing* schema; four checkpoints, and the source of `docs/reference/` + ADR-0008
 - **RNG-24** Composable features (halo + pave on one ring, retire the archetype union) [Medium] - the architectural fix; needs an ADR
@@ -181,6 +181,8 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 - **RNG-30** 3D preview keeps stale geometry after the form changes [Medium] - misled RNG-23 QA twice; fold into RNG-27 if that lands first
 - **RNG-28** Accept WebP + HEIC uploads [Low] - deliberately deferred paper cut
 - **RNG-29** Photo error message does not clear when a file is chosen [Low] - found in RNG-23 QA
+- **RNG-42** Band side-wall treatment (flat-sided court, soft square) [Low] - needs RNG-25; found by `docs/reference/band-profiles.png`, a third axis (side-wall/corner) the two-axis profile family doesn't express
+- **RNG-43** Cathedral shoulders that sweep up to the head [Medium] - needs RNG-25 + RNG-16; split out of RNG-25 at Understand because it is setting attachment (the `gallery` connectivity standard), not a band cross-section
 
 **Found by RNG-22's first live corpus run (2026-08-01):**
 
@@ -261,7 +263,8 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 > (RNG-19), and **the vision layer now emits buildable specs** (RNG-32: 5/5
 > corpus photos generate, up from 3/5). What remains in the fidelity block is
 > **presentation** (RNG-27, still the cheapest large win and touches no
-> geometry) and **vocabulary** (RNG-33 stone cuts, RNG-25 shank profiles).
+> geometry) — **vocabulary** (RNG-33 stone cuts, RNG-25 shank profiles) is
+> now done on both fronts.
 >
 > **The lesson RNG-19 leaves is about how defects get found here.** Four real
 > defects — including a halo passing the casting gate with a quarter of the
@@ -528,3 +531,67 @@ that straight to the casting gate and let it fail. It no longer does.
   by any assertion failing. **A test authored in the same sitting as the
   code it tests is not exempt from being traced** — the same discipline
   ADR-0005/6/7 already apply to the gate itself.
+
+**RNG-25 (shank cross-section profile family) complete.** The band was
+exactly one shape — a hardcoded `Ellipse(th/2, w/2)` — regardless of what a
+photo showed; it is now six trade profiles across every archetype.
+
+- **The ticket's own four-name list was wrong, and research caught it before
+  any code was written.** "Comfort fit" is not an outer shape at all — it is
+  purely a domed INNER surface, and the trade pairs it with every outer shape
+  independently (Stuller stocks "Half Round Comfort Fit" and "Comfort-Fit
+  Heavy Knife Edge" as separate SKUs). The schema is two independent fields,
+  `Shank.outer_profile` (domed/flat/knife_edge) x `inner_profile`
+  (domed/flat), not one five-name enum. `domed`+`domed` is `court` — today's
+  literal ellipse, kept bit-identical (confirmed by SHA-256 hash against the
+  pre-RNG-25 tree for the golden solitaire, halo, trilogy AND side-stone).
+  "Graduated" turned out not to be a band shape at all — the trade uses it
+  for accent-stone sizing along a band; the real term for a narrowing band is
+  "tapered," which is `Shank.shank_taper` and already shipped. That scope
+  item was dropped, not built. Full sourcing in
+  `docs/research/shank-cross-section-profiles.md`.
+- **A trade reference sheet (`docs/reference/band-profiles.png`) corrected
+  the schema again, after research already had.** It confirmed every profile
+  RNG-25 built, and it drew a THIRD axis (the band's side walls — court vs.
+  flat-sided court, flat vs. soft square) the two-axis schema cannot express.
+  Filed as RNG-42 rather than folded in — the pattern `docs/reference/`
+  exists for (ADR-0008's directory) keeps finding real gaps before a render
+  does.
+- **A genuine self-intersection bug, found by tracing the math by hand before
+  any geometry was built.** The first cut at the taper formula receded each
+  non-flat surface by a fixed 0.5 regardless of its partner — correct only
+  when BOTH sides are non-flat (court, splitting the ellipse's taper 50/50).
+  `knife_edge` + `domed` (the one pairing with no reference-sheet cell to
+  catch it by eye) produced negative thickness near the band's edge. Fixed by
+  sharing the taper amplitude across however many surfaces are non-flat
+  (`SectionProfile.weights()`), proven — not spot-checked — to keep thickness
+  non-negative everywhere. Verify mutation-tested the guard test against the
+  actual original bug (checked out the pre-fix commit) to confirm it wasn't
+  asleep.
+- **The knife-edge minimum edge width needed no gate rule at all**
+  (`docs/adr/0012`). The ticket asked for a castability check the way every
+  other floor in this file works; building the ridge as an actual two-slope
+  shape showed the apex could instead be sized so a too-thin value is not
+  constructible (`knife_edge_apex_fraction` always yields exactly
+  `MIN_WALL_MM` of flat crown). No new `Violation` code, no new
+  `make_coherent` repair path — RNG-32's whole coherence machinery needed
+  zero changes.
+- **`_min_wall`'s own floor turned out to already be violated, correctly, by
+  every ring this app has ever shipped** (`docs/adr/0011`). It checks the
+  `band_thickness` FIELD; the actual court section tapers to zero thickness
+  at the band's own edges by design (the trade sheet confirms this is normal
+  — it's what "court" IS). The ticket's "min wall holds across the full
+  parameter space" was rewritten to name the centreline explicitly, at Design,
+  before it could ship as a criterion nothing could actually satisfy.
+- **`head_r` (the band's outer radius at the head, where every setting welds
+  in) is now one function** (`sections.head_r`), called by both
+  `castability.py` and `geometry/_common.py` — the exact drift class that bit
+  `shank_taper` once already (ADR-0002) closed for this field before it could
+  recur.
+- Verified against the real dev server, not just the stubbed suite: all six
+  profile combinations generate through `/generate-ring` as raw watertight
+  manifolds needing no repair, including the previously self-intersecting
+  `knife_edge`+`domed`. Full suite: 3923 passed.
+- **RNG-42** (band side-wall treatment) and **RNG-43** (cathedral shoulders)
+  filed as follow-ups rather than folded in — both are real scope the ticket
+  surfaced, neither is a band cross-section.

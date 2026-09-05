@@ -98,6 +98,25 @@
           </div>
 
           <div class="field">
+            <label for="outer_profile">Band outer profile</label>
+            <select id="outer_profile" name="outer_profile" aria-describedby="outer_profile-hint">
+              <option value="domed" selected>Domed (court)</option>
+              <option value="flat">Flat</option>
+              <option value="knife_edge">Knife-edge</option>
+            </select>
+            <span class="hint" id="outer_profile-hint">The outside of the band, facing away from the finger</span>
+          </div>
+
+          <div class="field">
+            <label for="inner_profile">Band inner profile</label>
+            <select id="inner_profile" name="inner_profile" aria-describedby="inner_profile-hint">
+              <option value="domed" selected>Domed (comfort fit)</option>
+              <option value="flat">Flat</option>
+            </select>
+            <span class="hint" id="inner_profile-hint">The inside of the band, against the finger</span>
+          </div>
+
+          <div class="field">
             <label for="stone_diameter">Stone diameter</label>
             <input type="number" id="stone_diameter" name="stone_diameter"
                    value="6.5" min="2" max="10" step="0.1" required

@@ -5,7 +5,9 @@ RingSpec, additively — `/generate-ring` keeps using params until the RNG-15
 cutover. The round-trip is lossless: `to_params(from_params(p)) == p` exactly
 for every schema-valid input, ints stay ints. The 8th SCAD shaping param
 `shank_taper` lives in the shank group; `to_params` drops it and `from_params`
-restores its default, so the 7-key dict stays clean.
+restores its default, so the 7-key dict stays clean. The RNG-25 cross-section
+fields (`outer_profile`/`inner_profile`) drop the same way, via their own
+Pydantic defaults -- no code here reads or sets them.
 """
 from __future__ import annotations
 

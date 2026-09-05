@@ -167,7 +167,15 @@ def channel_band_width(accent_stone_diameter: float, min_wall: float) -> float:
 
 class Shank(BaseModel):
     """Band geometry. `shank_taper` is the WIDTH flare toward the head (the SCAD
-    8th shaping param); thickness is governed by `SHANK_THICKNESS_TAPER`."""
+    8th shaping param); thickness is governed by `SHANK_THICKNESS_TAPER`.
+
+    `outer_profile`/`inner_profile` are the cross-section family (RNG-25): two
+    independent axes, not one enum of trade names, because the trade itself
+    treats them independently (docs/research/shank-cross-section-profiles.md).
+    Both default to `domed`, i.e. "court" -- today's `Ellipse` section -- so
+    every spec written before RNG-25 renders identically. See
+    `ringcad.ringspec.sections` for what each value means geometrically.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -175,6 +183,8 @@ class Shank(BaseModel):
     band_width: float = Field(gt=0, le=12)
     band_thickness: float = Field(gt=0, le=8)
     shank_taper: float = Field(default=SHANK_WIDTH_TAPER, ge=1.0, le=3.0)
+    outer_profile: Literal["domed", "flat", "knife_edge"] = "domed"
+    inner_profile: Literal["domed", "flat"] = "domed"
 
 
 class Setting(BaseModel):
