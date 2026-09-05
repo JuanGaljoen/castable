@@ -80,6 +80,9 @@ _FULL = dict(
     # Centre-stone shape (RNG-23); required like everything else, so the default
     # stub describes a plain round stone.
     stone_shape="round", stone_length_ratio=1.0,
+    # Shank cross-section (RNG-25); required like everything else, so the
+    # default stub describes today's court section.
+    outer_profile="domed", inner_profile="domed",
     note="rough estimate",
 )
 
