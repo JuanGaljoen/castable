@@ -151,7 +151,7 @@ writing one would fail our own current geometry, which is the ADR-0002 failure i
       literal `Ellipse` call so circular sections stay bit-identical (the `RoundOutline` precedent).
       · files: `ringcad/geometry/section.py` (new), `ringcad/geometry/_common.py`,
       `tests/test_shank_profiles.py` (new)
-- [ ] **CP3 — vision + UI wire-up.** Vision reports the two axes; the form exposes them under their
+- [x] **CP3 — vision + UI wire-up.** Vision reports the two axes; the form exposes them under their
       trade names.
       · files: `ringcad/classify.py`, `templates/index.html`, `static/app.js`, `static/photo.js`,
       `tests/test_classify_schema.py`, `tests/test_classify.py`, `tests/test_backend.py`
