@@ -22,6 +22,8 @@ from .models import (
     HALO_WELL_BACK_RATIO, channel_band_width, channel_groove_depth,
     halo_min_arc,
 )
+from .sections import head_r as _section_head_r
+from .sections import section_for
 
 # Side-stone row: angular clearance off the centre head (A_START) and the
 # angular limit before the ring base (A_MAX) — mirrored by the actual
@@ -293,7 +295,13 @@ def _trilogy_overcrowding(spec: RingSpec) -> list[Violation]:
     # head radius is how far the band's outer surface stands off the finger, and
     # the builder derives it the same way (`_common._clamps`). Reading the width
     # field here is what made this check disagree with the geometry it guards.
-    head_r = shank.inner_diameter / 2 + shank.band_thickness * SHANK_THICKNESS_TAPER
+    # Routed through `sections.head_r` (RNG-25) so this and the builder read
+    # ONE formula regardless of `shank.outer_profile`/`inner_profile`.
+    profile = section_for(shank.outer_profile, shank.inner_profile)
+    head_r = _section_head_r(
+        shank.inner_diameter / 2, shank.band_thickness, SHANK_THICKNESS_TAPER,
+        profile,
+    )
     arc = stone_r + trilogy.side_stone_gap + side_r
     phi = arc / head_r
     chord = 2 * head_r * math.sin(phi / 2)
@@ -337,7 +345,15 @@ def _side_stone_overcrowding(spec: RingSpec) -> list[Violation]:
         return []
     ss = spec.side_stone
     shank = spec.shank
-    band_outer_r = shank.inner_diameter / 2 + shank.band_thickness
+    # Side-stone's band is FLAT by construction on BOTH axes (RNG-11:
+    # `FLAT_TAPER` in `geometry/_common.py`), so `t_taper` is 1.0 here rather
+    # than `SHANK_THICKNESS_TAPER` -- routed through the same `sections.head_r`
+    # as `_trilogy_overcrowding` so a profile change can't silently diverge the
+    # two copies of "the band's outer radius" (docs/adr/0002).
+    profile = section_for(shank.outer_profile, shank.inner_profile)
+    band_outer_r = _section_head_r(
+        shank.inner_diameter / 2, shank.band_thickness, 1.0, profile,
+    )
     step = ss.accent_stone_diameter + ss.accent_gap
     dphi = math.degrees(step / band_outer_r)
 
