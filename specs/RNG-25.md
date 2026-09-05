@@ -147,7 +147,7 @@ writing one would fail our own current geometry, which is the ADR-0002 failure i
       · files: `ringcad/ringspec/sections.py` (new), `ringcad/ringspec/models.py`,
       `ringcad/ringspec/castability.py`, `ringcad/ringspec/adapters.py`,
       `tests/test_sections.py` (new), `tests/test_ringspec_shank_profile.py` (new)
-- [ ] **CP2 — geometry.** The section face, and `_band_section` delegating to it; court keeps its
+- [x] **CP2 — geometry.** The section face, and `_band_section` delegating to it; court keeps its
       literal `Ellipse` call so circular sections stay bit-identical (the `RoundOutline` precedent).
       · files: `ringcad/geometry/section.py` (new), `ringcad/geometry/_common.py`,
       `tests/test_shank_profiles.py` (new)
