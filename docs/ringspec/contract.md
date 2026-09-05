@@ -78,8 +78,16 @@ casting floors. Casting floors are enforced separately in castability validation
 | `band_width`     | `float` | required| `> 0`, `<= 12` |
 | `band_thickness` | `float` | required| `> 0`, `<= 8`  |
 | `shank_taper`    | `float` | `1.7`   | `>= 1.0`, `<= 3.0` |
+| `outer_profile`  | `str`   | `"domed"` | `domed`, `flat`, `knife_edge` |
+| `inner_profile`  | `str`   | `"domed"` | `domed`, `flat` |
 
 `shank_taper` is the SCAD 8th shaping parameter — see round-trip rule below.
+
+`outer_profile`/`inner_profile` (RNG-25) are the cross-section family, as two
+independent axes rather than one enum of trade names (the trade itself treats
+them independently — see `docs/research/shank-cross-section-profiles.md`).
+`domed`+`domed` is "court", today's pre-RNG-25 section, so both fields default
+to it and every spec written before RNG-25 renders identically.
 
 ### `Setting`
 
