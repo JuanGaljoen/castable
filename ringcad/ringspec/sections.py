@@ -72,7 +72,7 @@ class SectionProfile:
     outer_profile: str
     inner_profile: str
 
-    def _weights(self) -> tuple[float, float]:
+    def weights(self) -> tuple[float, float]:
         """How much of the taper (`0` to `1`) each surface carries. A flat
         surface carries none; the non-flat surfaces split the rest evenly, so
         their combined recession always reaches exactly 1 at the edge."""
@@ -85,7 +85,7 @@ class SectionProfile:
         return (share if outer_active else 0.0, share if inner_active else 0.0)
 
     def inner(self, s: float) -> float:
-        _, d_i = self._weights()
+        _, d_i = self.weights()
         if d_i == 0.0:
             return 0.0
         return d_i * (1.0 - _dome(s))
@@ -94,7 +94,7 @@ class SectionProfile:
         """`apex_fraction` (`a`) is the knife edge's flat-crown half-width in
         `s`; every other outer profile ignores it. Every profile returns
         exactly 1.0 at `s=0` by construction -- see `head_r` below."""
-        d_o, _ = self._weights()
+        d_o, _ = self.weights()
         if d_o == 0.0:
             return 1.0
         recede = (_knife_crown(s, min(apex_fraction, 1.0))

@@ -14,6 +14,7 @@ from ringcad.ringspec import (
     TrilogySpec, from_params, to_params, validate_castability, validate_spec,
 )
 from ringcad.ringspec.models import Shank
+from ringcad.ringspec.sections import section_for
 
 
 def _spec(**shank_overrides) -> dict:
@@ -121,3 +122,27 @@ def test_trilogy_overcrowding_verdict_is_unchanged_by_profile(outer, inner):
     baseline = [v.code for v in validate_castability(_trilogy_spec("domed", "domed"))]
     verdict = [v.code for v in validate_castability(_trilogy_spec(outer, inner))]
     assert verdict == baseline
+
+
+@pytest.mark.parametrize("outer", ["domed", "flat", "knife_edge"])
+@pytest.mark.parametrize("inner", ["domed", "flat"])
+def test_castability_head_r_matches_the_builders_head_r(outer, inner):
+    """The cross-layer anti-drift test CP1 deferred (docs/adr/0002): the
+    builder's `head_r` (`geometry._common.clamps`) and the SAME formula fed
+    the same raw spec fields (`sections.head_r`, what `castability.py` calls
+    internally) must agree -- through each side's own public seam, never by
+    reaching into `_trilogy_overcrowding`'s internals."""
+    from ringcad.geometry._common import clamps
+    from ringcad.ringspec.models import SHANK_THICKNESS_TAPER
+    from ringcad.ringspec.sections import head_r as sections_head_r
+
+    spec = _trilogy_spec(outer, inner)
+    geometry_head_r = clamps(spec)["head_r"]
+    expected = sections_head_r(
+        spec.shank.inner_diameter / 2,
+        spec.shank.band_thickness,
+        SHANK_THICKNESS_TAPER,
+        section_for(outer, inner),
+    )
+    assert geometry_head_r == pytest.approx(expected)
+

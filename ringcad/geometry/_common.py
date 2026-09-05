@@ -11,14 +11,19 @@ import math
 from typing import Mapping
 
 from build123d import (
-    Align, Cone, Cylinder, Ellipse, Location, Plane, Pos, Rot, Vector, loft,
+    Align, Cone, Cylinder, Location, Plane, Pos, Rot, Vector, loft,
 )
 
 from ringcad.mesh_validator import MIN_PRONG_TIP_MM, MIN_WALL_MM
 from ringcad.ringspec import RingSpec, to_params
 from ringcad.ringspec.models import SHANK_THICKNESS_TAPER, SHANK_WIDTH_TAPER
+from ringcad.ringspec.sections import (
+    SectionProfile, head_r as _section_head_r, knife_edge_apex_fraction,
+    section_for,
+)
 
 from .outline import outline_for
+from .section import section_face
 
 # Re-exported under the historic name; the schema owns the value so the
 # castability checks derive `head_r` identically (docs/adr/0002).
@@ -38,6 +43,7 @@ def _clamps(
     p: Mapping[str, object],
     taper: float = SHANK_TAPER,
     t_taper: float = SHANK_THICKNESS_TAPER,
+    profile: SectionProfile | None = None,
 ) -> dict:
     id_c = max(float(p["inner_diameter"]), 5.0)
     bt_c = max(float(p["band_thickness"]), MIN_WALL_MM)
@@ -47,6 +53,8 @@ def _clamps(
     taper = max(taper, 1.0)
     t_taper = max(t_taper, 1.0)
     inner_r = id_c / 2
+    profile = profile if profile is not None else section_for("domed", "domed")
+    apex_fraction = knife_edge_apex_fraction(bw_c, MIN_WALL_MM)
     return {
         "inner_r": inner_r,
         "bt": bt_c,
@@ -55,10 +63,14 @@ def _clamps(
         "gh": gh_c,
         "taper": taper,        # WIDTH flare toward the head
         "t_taper": t_taper,    # thickness rise toward the head (near-flat)
+        "profile": profile,        # RNG-25: shank cross-section
+        "apex_fraction": apex_fraction,  # RNG-25: knife-edge crown width
         # `head_r` is the band's outer radius AT THE HEAD, so it follows the
         # thickness taper. `placement()` welds every setting at `head_r - 0.4`;
-        # if these two disagree the setting floats clear of the band.
-        "head_r": inner_r + bt_c * t_taper,
+        # if these two disagree the setting floats clear of the band. Routed
+        # through `sections.head_r` (RNG-25) so this and `castability.py`
+        # read ONE formula regardless of the cross-section profile.
+        "head_r": _section_head_r(inner_r, bt_c, t_taper, profile),
         "ring_z": gh_c * 0.5,
         "claw_rise": gh_c * 0.5,
     }
@@ -88,7 +100,12 @@ def clamps(spec: RingSpec) -> dict:
     # A flat band is flat on BOTH axes — the side-stone row needs a constant
     # outer radius for its seats and rails to sit ON the surface (RNG-11).
     t_taper = FLAT_TAPER if flat else SHANK_THICKNESS_TAPER
-    c = _clamps(p, taper, t_taper)
+    shank = getattr(spec, "shank", None)
+    profile = section_for(
+        getattr(shank, "outer_profile", "domed"),
+        getattr(shank, "inner_profile", "domed"),
+    )
+    c = _clamps(p, taper, t_taper, profile)
     pc = int(p["prong_count"])
     c["prong_n"] = pc if pc in (4, 6) else 4
     stones = getattr(spec, "stones", None)
@@ -125,7 +142,11 @@ def _band_section(c: dict, a_deg: float):
     origin = Vector(rc * math.cos(r), rc * math.sin(r), 0)
     x_dir = Vector(math.cos(r), math.sin(r), 0)            # radial
     z_dir = Vector(-math.sin(r), math.cos(r), 0)           # sweep tangent
-    return Plane(origin=origin, x_dir=x_dir, z_dir=z_dir) * Ellipse(th / 2, w / 2)
+    # `apex_fraction` is fixed from the band's NARROWEST width (`_clamps`), so
+    # the knife-edge crown only ever gets WIDER than MIN_WALL_MM as the band
+    # flares toward the head, never thinner — safe to reuse at every angle.
+    face = section_face(c["profile"], th, w, c["apex_fraction"])
+    return Plane(origin=origin, x_dir=x_dir, z_dir=z_dir) * face
 
 
 def band(c: dict):

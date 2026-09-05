@@ -253,7 +253,7 @@
     },
     "Shank": {
       "additionalProperties": false,
-      "description": "Band geometry. `shank_taper` is the WIDTH flare toward the head (the SCAD\n8th shaping param); thickness is governed by `SHANK_THICKNESS_TAPER`.",
+      "description": "Band geometry. `shank_taper` is the WIDTH flare toward the head (the SCAD\n8th shaping param); thickness is governed by `SHANK_THICKNESS_TAPER`.\n\n`outer_profile`/`inner_profile` are the cross-section family (RNG-25): two\nindependent axes, not one enum of trade names, because the trade itself\ntreats them independently (docs/research/shank-cross-section-profiles.md).\nBoth default to `domed`, i.e. \"court\" -- today's `Ellipse` section -- so\nevery spec written before RNG-25 renders identically. See\n`ringcad.ringspec.sections` for what each value means geometrically.",
       "properties": {
         "inner_diameter": {
           "exclusiveMinimum": 0,
@@ -279,6 +279,25 @@
           "minimum": 1.0,
           "title": "Shank Taper",
           "type": "number"
+        },
+        "outer_profile": {
+          "default": "domed",
+          "enum": [
+            "domed",
+            "flat",
+            "knife_edge"
+          ],
+          "title": "Outer Profile",
+          "type": "string"
+        },
+        "inner_profile": {
+          "default": "domed",
+          "enum": [
+            "domed",
+            "flat"
+          ],
+          "title": "Inner Profile",
+          "type": "string"
         }
       },
       "required": [
