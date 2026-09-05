@@ -23,42 +23,45 @@ surface); `geometry/_common.py` (CP2) is what turns that into a build123d face.
 **`domed` + `domed` is `court`** -- today's `Ellipse(th/2, w/2)`, reproduced
 exactly (see `test_domed_domed_reproduces_the_current_ellipse`), so every spec
 written before RNG-25 renders identically once both fields default to it.
+
+**The taper amplitude is SHARED, not fixed, between whichever surfaces are
+non-flat.** A flat surface never moves off its reference (0 for inner, 1 for
+outer); every non-flat surface recedes toward that reference as `s` runs to
++-1, and the two non-flat surfaces split the recession evenly so their SUM
+reaches exactly 1 at the edge (thickness -> 0) whichever side is doing the
+work. Concretely: `court` (both domed) splits it 50/50 -- the existing,
+tested ellipse. `D-section` (domed outer, flat inner) puts the FULL taper on
+the outer surface alone, since the flat inner is not moving to meet it
+halfway; `flat court` mirrors that onto the inner surface. Fixing the
+amplitude at a flat 0.5 regardless of the pairing -- this module's first cut
+-- is wrong whenever exactly one side is flat: the moving side then only
+recedes halfway, so `knife_edge` + `domed` (the one pairing with no reference
+sheet cell to catch it by eye) produced NEGATIVE thickness near the edge, a
+self-intersecting section, first caught here by tracing the two curves by
+hand before any geometry was built on them.
 """
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Callable
 
 OUTER_NAMES: tuple[str, ...] = ("domed", "flat", "knife_edge")
 INNER_NAMES: tuple[str, ...] = ("domed", "flat")
 
 
-def _inner_flat(s: float) -> float:
-    return 0.0
+def _dome(s: float) -> float:
+    """1.0 at the centreline, 0.0 at either edge -- the shared elliptical
+    recession curve every domed surface (inner or outer) uses."""
+    return math.sqrt(max(0.0, 1 - s * s))
 
 
-def _inner_domed(s: float) -> float:
-    return 0.5 * (1 - math.sqrt(max(0.0, 1 - s * s)))
-
-
-def _outer_flat(s: float) -> float:
-    return 1.0
-
-
-def _outer_domed(s: float) -> float:
-    return 0.5 * (1 + math.sqrt(max(0.0, 1 - s * s)))
-
-
-_INNER: dict[str, Callable[[float], float]] = {
-    "domed": _inner_domed,
-    "flat": _inner_flat,
-}
-
-_OUTER_SIMPLE: dict[str, Callable[[float], float]] = {
-    "domed": _outer_domed,
-    "flat": _outer_flat,
-}
+def _knife_crown(s: float, a: float) -> float:
+    """1.0 across the flat crown (|s| <= a), receding linearly to 0.0 at
+    either edge -- the knife edge's own recession curve."""
+    s = abs(s)
+    if a >= 1.0:
+        return 1.0
+    return 1.0 if s <= a else (1 - s) / (1 - a)
 
 
 @dataclass(frozen=True)
@@ -69,17 +72,34 @@ class SectionProfile:
     outer_profile: str
     inner_profile: str
 
+    def _weights(self) -> tuple[float, float]:
+        """How much of the taper (`0` to `1`) each surface carries. A flat
+        surface carries none; the non-flat surfaces split the rest evenly, so
+        their combined recession always reaches exactly 1 at the edge."""
+        outer_active = self.outer_profile != "flat"
+        inner_active = self.inner_profile != "flat"
+        n = int(outer_active) + int(inner_active)
+        if n == 0:
+            return 0.0, 0.0
+        share = 1.0 / n
+        return (share if outer_active else 0.0, share if inner_active else 0.0)
+
     def inner(self, s: float) -> float:
-        return _INNER[self.inner_profile](s)
+        _, d_i = self._weights()
+        if d_i == 0.0:
+            return 0.0
+        return d_i * (1.0 - _dome(s))
 
     def outer(self, s: float, apex_fraction: float = 1.0) -> float:
         """`apex_fraction` (`a`) is the knife edge's flat-crown half-width in
         `s`; every other outer profile ignores it. Every profile returns
         exactly 1.0 at `s=0` by construction -- see `head_r` below."""
-        if self.outer_profile == "knife_edge":
-            a = min(apex_fraction, 1.0)
-            return 1.0 if abs(s) <= a else (1 - abs(s)) / (1 - a)
-        return _OUTER_SIMPLE[self.outer_profile](s)
+        d_o, _ = self._weights()
+        if d_o == 0.0:
+            return 1.0
+        recede = (_knife_crown(s, min(apex_fraction, 1.0))
+                  if self.outer_profile == "knife_edge" else _dome(s))
+        return 1.0 - d_o * (1.0 - recede)
 
 
 def section_for(outer_profile: str, inner_profile: str) -> SectionProfile:
