@@ -41,13 +41,49 @@ def test_inner_flat_is_zero_everywhere():
         assert profile.inner(s) == pytest.approx(0.0)
 
 
-def test_inner_domed_reaches_half_thickness_at_edges():
-    """The dome rises from 0 at the centreline to 0.5 (half the section's
-    thickness) at each edge -- the classic comfort-fit curve."""
+def test_inner_domed_reaches_full_thickness_at_edges_when_outer_is_flat():
+    """With a flat outer, the domed inner carries the WHOLE taper alone (no
+    partner to split it with), so it must rise all the way to 1.0 (meeting
+    the flat outer, zero thickness) at the edges, not stop at 0.5."""
     profile = section_for("flat", "domed")
     assert profile.inner(0.0) == pytest.approx(0.0)
+    assert profile.inner(1.0) == pytest.approx(1.0)
+    assert profile.inner(-1.0) == pytest.approx(1.0)
+
+
+def test_inner_domed_reaches_half_thickness_at_edges_when_outer_also_domed():
+    """With a domed outer sharing the taper, the domed inner only carries
+    half of it -- this is `court`, and it must stay exactly as it already
+    was (the ellipse identity test pins the same thing indirectly)."""
+    profile = section_for("domed", "domed")
     assert profile.inner(1.0) == pytest.approx(0.5)
-    assert profile.inner(-1.0) == pytest.approx(0.5)
+
+
+def test_knife_edge_with_domed_inner_never_self_intersects():
+    """The pairing with no reference-sheet cell to catch it by eye: CP1's
+    first cut fixed each surface's recession at 0.5 regardless of its
+    partner, so a domed inner (needing the full 0.5-to-1.0 climb when paired
+    with a receding, not flat, outer) overtook the knife edge's outer surface
+    near the band's edge -- negative thickness, a self-intersecting section.
+    Thickness must stay >= 0 everywhere and reach exactly 0 at the edge."""
+    profile = section_for("knife_edge", "domed")
+    a = 0.3
+    for s in (0.0, 0.5, 0.7, 0.8, 0.9, 0.95, 0.99):
+        thickness = profile.outer(s, apex_fraction=a) - profile.inner(s)
+        assert thickness >= 0.0, f"self-intersecting section at s={s}"
+    edge_thickness = profile.outer(1.0, apex_fraction=a) - profile.inner(1.0)
+    assert edge_thickness == pytest.approx(0.0)
+
+
+def test_d_section_outer_carries_the_full_taper_alone():
+    """Domed outer paired with a flat inner (D-section / half-round wire): the
+    dome must reach the flat's own reference (0) at the edges, not stop
+    halfway -- a true half-round wire's arc meets its flat diameter exactly
+    at the two ends (docs/research/shank-cross-section-profiles.md)."""
+    profile = section_for("domed", "flat")
+    assert profile.outer(0.0) == pytest.approx(1.0)
+    assert profile.outer(1.0) == pytest.approx(0.0)
+    assert profile.outer(-1.0) == pytest.approx(0.0)
 
 
 def test_outer_flat_is_full_thickness_everywhere():
