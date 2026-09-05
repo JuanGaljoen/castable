@@ -142,7 +142,7 @@ writing one would fail our own current geometry, which is the ADR-0002 failure i
 
 ## Checkpoints
 
-- [ ] **CP1 — contract + facts.** `SectionProfile` and the six profiles; `Shank.outer_profile` /
+- [x] **CP1 — contract + facts.** `SectionProfile` and the six profiles; `Shank.outer_profile` /
       `Shank.inner_profile`; `head_r` derived from the profile in one place.
       · files: `ringcad/ringspec/sections.py` (new), `ringcad/ringspec/models.py`,
       `ringcad/ringspec/castability.py`, `ringcad/ringspec/adapters.py`,
