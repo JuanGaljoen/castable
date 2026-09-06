@@ -10,16 +10,11 @@ RNG-13 so RNG-15 consumes RingSpec directly.
 """
 from __future__ import annotations
 
-from typing import Annotated, Literal, Union
+from typing import Literal
 
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    TypeAdapter,
-    ValidationError,
-    model_validator,
-)
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic_core import PydanticCustomError
+from pydantic_core import ValidationError as CoreValidationError
 
 SPEC_VERSION = "1.0"
 
@@ -282,20 +277,6 @@ class FieldConfidence(BaseModel):
     setting_height: float | None = Field(default=None, ge=0, le=1)
 
 
-class SolitaireSpec(BaseModel):
-    """Solitaire archetype: one centre stone in a prong setting on a shank."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    version: Literal["1.0"] = "1.0"
-    archetype: Literal["solitaire"] = "solitaire"
-    shank: Shank
-    setting: Setting
-    stones: Stones
-    motifs: list[Motif] = Field(default_factory=list)
-    confidence: FieldConfidence | None = None
-
-
 class Halo(BaseModel):
     """Accent-stone ring encircling the centre stone (RNG-9).
 
@@ -312,21 +293,6 @@ class Halo(BaseModel):
     halo_stone_height: float = Field(default=1.2, ge=0.8, le=3.0)
 
 
-class HaloSpec(BaseModel):
-    """Halo archetype: a solitaire centre plus a ring of accent stones."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    version: Literal["1.0"] = "1.0"
-    archetype: Literal["halo"] = "halo"
-    shank: Shank
-    setting: Setting
-    stones: Stones
-    halo: Halo
-    motifs: list[Motif] = Field(default_factory=list)
-    confidence: FieldConfidence | None = None
-
-
 class Trilogy(BaseModel):
     """Side-stone group flanking the centre stone (RNG-10)."""
 
@@ -335,21 +301,6 @@ class Trilogy(BaseModel):
     side_stone_diameter: float = Field(default=2.5, ge=0.9, le=6.0)
     side_stone_height: float = Field(default=1.8, ge=0.8, le=4.0)
     side_stone_gap: float = Field(default=0.6, ge=0.3, le=2.0)
-
-
-class TrilogySpec(BaseModel):
-    """Trilogy archetype: a solitaire centre plus two symmetric side stones."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    version: Literal["1.0"] = "1.0"
-    archetype: Literal["trilogy"] = "trilogy"
-    shank: Shank
-    setting: Setting
-    stones: Stones
-    trilogy: Trilogy
-    motifs: list[Motif] = Field(default_factory=list)
-    confidence: FieldConfidence | None = None
 
 
 class SideStone(BaseModel):
@@ -369,69 +320,158 @@ class SideStone(BaseModel):
     retention: Literal["channel"] = "channel"
 
 
-class SideStoneSpec(BaseModel):
-    """Side-stone archetype: a solitaire centre plus a channel-set accent row
-    down each shoulder."""
+class RingSpec(BaseModel):
+    """The versioned contract (RNG-24): one model, features as optional groups.
+
+    `halo`/`trilogy`/`side_stone` are independently optional — a ring is a base
+    (shank/setting/stones) plus whichever features are present, not a choice of
+    exactly one archetype. This is CP1 (contract + migration): the schema
+    allows any subset, but `validate_castability`'s temporary
+    `multi_feature_unvalidated` gate still rejects more than one present until
+    CP2 lands real cross-feature checks (docs/adr, specs/RNG-24.md).
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     version: Literal["1.0"] = "1.0"
-    archetype: Literal["side_stone"] = "side_stone"
     shank: Shank
     setting: Setting
     stones: Stones
-    side_stone: SideStone
+    halo: Halo | None = None
+    trilogy: Trilogy | None = None
+    side_stone: SideStone | None = None
     motifs: list[Motif] = Field(default_factory=list)
     confidence: FieldConfidence | None = None
 
+    @property
+    def archetype(self) -> str:
+        """Derived, back-compat convenience — NOT a stored discriminator.
 
-ARCHETYPE_TAGS = {"solitaire", "halo", "trilogy", "side_stone"}
+        Returns the single active feature's name, or "solitaire" when none is
+        set. Meaningful only while at most one feature is present (CP1's own
+        gate guarantees that); CP2 gives genuine multi-feature specs their own
+        label or drops this property, since "the archetype" stops being a
+        well-defined question once more than one feature can coexist.
+        """
+        if self.halo is not None:
+            return "halo"
+        if self.trilogy is not None:
+            return "trilogy"
+        if self.side_stone is not None:
+            return "side_stone"
+        return "solitaire"
 
-# The versioned contract is a discriminated (tagged) union over `archetype`.
-# `RingSpec` is an Annotated alias — a type hint, NOT an instantiable class;
-# construct a concrete member (SolitaireSpec/HaloSpec/TrilogySpec/
-# SideStoneSpec) or route dict/JSON input through validate_spec (which uses
-# the adapter below).
-RingSpec = Annotated[
-    Union[SolitaireSpec, HaloSpec, TrilogySpec, SideStoneSpec],
-    Field(discriminator="archetype"),
-]
-_RING_SPEC_ADAPTER = TypeAdapter(RingSpec)
+
+# --- Back-compat constructors -------------------------------------------
+# RNG-9/10/11/14 built one class per archetype; RNG-24 retires that union, but
+# a large existing test surface (and no production code) constructs these as
+# plain factories -- `HaloSpec(shank=..., setting=..., stones=..., halo=...)`.
+# Keeping the call shape and returning a RingSpec avoids rewriting every test
+# that only ever used these as convenience constructors, while the type itself
+# is genuinely unified: `isinstance(spec, HaloSpec)` no longer means anything
+# (HaloSpec is a function now), which is the honest signal that the union is
+# gone rather than merely renamed.
+def SolitaireSpec(**kwargs) -> RingSpec:
+    return RingSpec(**kwargs)
 
 
-def validate_spec(data: object) -> SolitaireSpec | HaloSpec:
-    """Validate input into the concrete archetype member, raising on failure.
+def HaloSpec(*, halo: Halo | None = None, **kwargs) -> RingSpec:
+    return RingSpec(halo=halo if halo is not None else Halo(), **kwargs)
 
-    Back-compat: an archetype-less dict defaults to "solitaire" (the union
-    rejects a missing tag with union_tag_not_found), without mutating caller
-    input.
+
+def TrilogySpec(*, trilogy: Trilogy | None = None, **kwargs) -> RingSpec:
+    return RingSpec(trilogy=trilogy if trilogy is not None else Trilogy(), **kwargs)
+
+
+def SideStoneSpec(*, side_stone: SideStone | None = None, **kwargs) -> RingSpec:
+    return RingSpec(
+        side_stone=side_stone if side_stone is not None else SideStone(), **kwargs
+    )
+
+
+# The legacy discriminator's known values -> which group it names (None for
+# solitaire, which names no group at all).
+_LEGACY_ARCHETYPE_GROUP = {
+    "solitaire": None,
+    "halo": "halo",
+    "trilogy": "trilogy",
+    "side_stone": "side_stone",
+}
+_FEATURE_GROUPS = ("halo", "trilogy", "side_stone")
+
+
+def _tag_error(value: object) -> CoreValidationError:
+    err = PydanticCustomError(
+        "union_tag_invalid",
+        f"Input tag {value!r} found using 'archetype' does not match any of "
+        f"the expected tags: {sorted(_LEGACY_ARCHETYPE_GROUP)}",
+    )
+    return CoreValidationError.from_exception_data(
+        "RingSpec", [{"type": err, "loc": ("archetype",), "input": value}]
+    )
+
+
+def _conflict_error(field: str, archetype: str) -> CoreValidationError:
+    err = PydanticCustomError(
+        "archetype_group_conflict",
+        f"archetype {archetype!r} does not use the {field!r} group, but it "
+        "was present in the request",
+    )
+    return CoreValidationError.from_exception_data(
+        "RingSpec", [{"type": err, "loc": (field,), "input": None}]
+    )
+
+
+def _missing_group_error(field: str, archetype: str) -> CoreValidationError:
+    err = PydanticCustomError(
+        "missing", f"archetype {archetype!r} requires the {field!r} group"
+    )
+    return CoreValidationError.from_exception_data(
+        "RingSpec", [{"type": err, "loc": (field,), "input": None}]
+    )
+
+
+def validate_spec(data: object) -> RingSpec:
+    """Validate input into a `RingSpec`, raising on failure.
+
+    A legacy `archetype` tag (RNG-9..11) is translated at this edge rather
+    than carried into the model: it must name a known archetype, and the
+    group it names must be present while every other feature group must be
+    absent — preserving the exact back-compat behaviour the discriminated
+    union used to enforce structurally. An archetype-less body validates
+    directly; any subset of feature groups is legal there (RNG-24).
     """
-    if isinstance(data, dict) and "archetype" not in data:
-        data = {**data, "archetype": "solitaire"}
-    return _RING_SPEC_ADAPTER.validate_python(data)
+    if isinstance(data, dict) and "archetype" in data:
+        archetype = data["archetype"]
+        if archetype not in _LEGACY_ARCHETYPE_GROUP:
+            raise _tag_error(archetype)
+        expected = _LEGACY_ARCHETYPE_GROUP[archetype]
+        for group in _FEATURE_GROUPS:
+            # A dumped RingSpec (coherence.make_coherent's `working`, e.g.)
+            # always carries all three feature keys, `None` when absent — so
+            # "present" means a non-None value, not mere key membership.
+            present = data.get(group) is not None
+            if group == expected and not present:
+                raise _missing_group_error(group, archetype)
+            if group != expected and present:
+                raise _conflict_error(group, archetype)
+        data = {k: v for k, v in data.items() if k != "archetype"}
+    return RingSpec.model_validate(data)
 
 
 def spec_errors(exc: ValidationError) -> list[dict]:
     """Flatten a ValidationError into JSON-serializable field-level errors.
 
-    Each entry is {"field", "reason", "type"}. The leading archetype tag is
-    stripped from the loc path; an invalid/missing tag names "archetype"; a
-    None/empty body names "" ("" == top-level). Disambiguation is on error
-    TYPE, not loc, so a tag error never collides with a body error.
+    Each entry is {"field", "reason", "type"}. A None/empty body names ""
+    ("" == top-level); every other error's field is its dotted loc path —
+    RingSpec is a plain model now, so loc never carries a leading union tag
+    to strip (RNG-24).
     """
     out: list[dict] = []
     for err in exc.errors():
-        etype = str(err["type"])
         loc = err["loc"]
-        if etype in ("union_tag_invalid", "union_tag_not_found"):
-            field = "archetype"
-        elif not loc:
-            field = ""
-        elif loc[0] in ARCHETYPE_TAGS:
-            field = ".".join(str(part) for part in loc[1:])
-        else:
-            field = ".".join(str(part) for part in loc)
+        field = "" if not loc else ".".join(str(part) for part in loc)
         out.append(
-            {"field": field, "reason": str(err["msg"]), "type": etype}
+            {"field": field, "reason": str(err["msg"]), "type": str(err["type"])}
         )
     return out

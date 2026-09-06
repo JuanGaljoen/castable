@@ -11,7 +11,7 @@ import pytest
 from pydantic import ValidationError
 
 from ringcad.ringspec import (
-    TrilogySpec, from_params, to_params, validate_castability, validate_spec,
+    from_params, to_params, validate_castability, validate_spec,
 )
 from ringcad.ringspec.models import Shank
 from ringcad.ringspec.sections import section_for
@@ -108,7 +108,7 @@ def _trilogy_spec(outer_profile, inner_profile):
             },
         }
     )
-    assert isinstance(spec, TrilogySpec)
+    assert spec.trilogy is not None
     return spec
 
 

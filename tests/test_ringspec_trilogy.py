@@ -1,12 +1,10 @@
-"""RNG-10 Checkpoint 1 — Trilogy RingSpec discriminated-union contract slice.
+"""RNG-10/RNG-24 — RingSpec's Trilogy feature-group contract slice.
 
-RED until the union lands: Trilogy / TrilogySpec do not exist yet, so the
-import below fails at collection (ImportError). That is the correct RED
-signal — the feature (the new union member) is MISSING, not buggy.
-
-Mirrors tests/test_ringspec_halo.py's CP1 pattern: union routing, tag-stripped
-field paths, field ranges/defaults, committed example + schema drift.
-Castability (side/center spacing) lives in
+RNG-24 retired the archetype union: RingSpec is one model with an optional
+`trilogy` group, and a legacy `archetype: "trilogy"` tag is translated at the
+`validate_spec` edge. Mirrors tests/test_ringspec_halo.py's pattern: legacy-tag
+translation, loc paths, field ranges/defaults, committed example + schema
+drift. Castability (side/center spacing) lives in
 tests/test_ringspec_trilogy_castability.py.
 """
 import json
@@ -17,9 +15,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from ringcad.ringspec import (
     RingSpec,
-    SolitaireSpec,
     Trilogy,
-    TrilogySpec,
     spec_errors,
     validate_spec,
 )
@@ -63,10 +59,10 @@ def _fields(exc):
     return [e["field"] for e in spec_errors(exc.value)]
 
 
-# --- CP1-1: the union routes trilogy to TrilogySpec --------------------------
+# --- CP1-1: a legacy archetype tag translates to the matching feature group --
 def test_trilogy_spec_validates_to_trilogyspec():
     spec = validate_spec(TRILOGY_SPEC)
-    assert isinstance(spec, TrilogySpec)
+    assert spec.trilogy is not None
     assert spec.trilogy.side_stone_gap == 0.6
 
 
@@ -98,7 +94,7 @@ def test_trilogy_bad_field_strips_archetype_tag():
 # --- back-compat: existing solitaire/union behaviour is unaffected -----------
 def test_solitaire_spec_still_validates_to_solitairespec():
     spec = validate_spec(SOLITAIRE_SPEC)
-    assert isinstance(spec, SolitaireSpec)
+    assert spec.halo is None and spec.trilogy is None and spec.side_stone is None
 
 
 # --- CP1-3: Trilogy group field ranges are enforced with named fields --------
@@ -145,10 +141,10 @@ def test_committed_trilogy_example_exists_and_validates():
     assert os.path.isfile(TRILOGY_EXAMPLE_PATH), f"missing: {TRILOGY_EXAMPLE_PATH}"
     with open(TRILOGY_EXAMPLE_PATH) as fh:
         data = json.load(fh)
-    assert isinstance(validate_spec(data), TrilogySpec)
+    assert validate_spec(data).trilogy is not None
 
 
-def test_committed_schema_matches_generated_union_schema():
+def test_committed_schema_matches_generated_schema():
     expected = TypeAdapter(RingSpec).json_schema()
     with open(SCHEMA_PATH) as fh:
         committed = json.load(fh)

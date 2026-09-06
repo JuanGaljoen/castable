@@ -18,7 +18,7 @@ from ringcad.mesh_validator import MIN_PRONG_TIP_MM, MIN_WALL_MM
 
 from .cuts import ProngType, profile_for
 from .models import (
-    SHANK_THICKNESS_TAPER, HaloSpec, RingSpec, SideStoneSpec, TrilogySpec,
+    SHANK_THICKNESS_TAPER, RingSpec,
     HALO_WELL_BACK_RATIO, channel_band_width, channel_groove_depth,
     halo_min_arc,
 )
@@ -203,7 +203,7 @@ def _halo_overcrowding(spec: RingSpec) -> list[Violation]:
     rejected specs the geometry could build -- caught by running a real oval-halo
     photo end to end, since every classify test stubs the client.
     """
-    if not isinstance(spec, HaloSpec):
+    if spec.halo is None:
         return []
     halo = spec.halo
     offset = halo.halo_gap + halo.halo_stone_diameter / 2
@@ -240,7 +240,7 @@ def _halo_web(spec: RingSpec) -> list[Violation]:
     counts (~0.004mm against a 0.8mm floor), so consistency with the halo's
     existing math is worth more here than the stricter measure.
     """
-    if not isinstance(spec, HaloSpec):
+    if spec.halo is None:
         return []
     halo = spec.halo
     offset = halo.halo_gap + halo.halo_stone_diameter / 2
@@ -280,7 +280,7 @@ def _trilogy_overcrowding(spec: RingSpec) -> list[Violation]:
     <= that arc. At large offsets the two diverge enough that the girdles can
     overlap even though `side_stone_gap` is positive.
     """
-    if not isinstance(spec, TrilogySpec):
+    if spec.trilogy is None:
         return []
     trilogy = spec.trilogy
     shank = spec.shank
@@ -341,7 +341,7 @@ def _side_stone_overcrowding(spec: RingSpec) -> list[Violation]:
     Returns on the first violation found, (a) then (b), matching the shape of
     `_halo_overcrowding`/`_trilogy_overcrowding`.
     """
-    if not isinstance(spec, SideStoneSpec):
+    if spec.side_stone is None:
         return []
     ss = spec.side_stone
     shank = spec.shank
@@ -457,7 +457,7 @@ def _side_stone_channel(spec: RingSpec) -> list[Violation]:
     band that is simply too small. Returns (a) then (b), matching the shape of
     the overcrowding checks.
     """
-    if not isinstance(spec, SideStoneSpec):
+    if spec.side_stone is None:
         return []
     ss = spec.side_stone
     shank = spec.shank
@@ -494,6 +494,37 @@ def _side_stone_channel(spec: RingSpec) -> list[Violation]:
     return []
 
 
+def _multi_feature_unvalidated(spec: RingSpec) -> list[Violation]:
+    """CP1 placeholder: reject more than one feature (RNG-24).
+
+    The contract now allows any subset of {halo, trilogy, side_stone}, but the
+    cross-feature castability checks that make a real combination trustworthy
+    are CP2's job (specs/RNG-24.md), not CP1's. Rather than let a multi-feature
+    spec silently reach `compose` before those checks exist, this rejects it
+    outright with a message naming the features involved. Deleted in CP2.
+    """
+    present = [
+        name for name, group in (
+            ("halo", spec.halo),
+            ("trilogy", spec.trilogy),
+            ("side_stone", spec.side_stone),
+        )
+        if group is not None
+    ]
+    if len(present) <= 1:
+        return []
+    return [
+        Violation(
+            code="multi_feature_unvalidated",
+            field="+".join(present),
+            message=f"combining {' and '.join(present)} on one ring is not "
+            "yet validated for cross-feature castability (RNG-24 CP2).",
+            limit_mm=None,
+            actual_mm=None,
+        )
+    ]
+
+
 def validate_castability(spec: RingSpec) -> list[Violation]:
     """Run the full lost-wax gate; [] means the spec is castable."""
     return (
@@ -501,6 +532,7 @@ def validate_castability(spec: RingSpec) -> list[Violation]:
         + _min_prong_tip(spec)
         + _geometric(spec)
         + _stone_curvature(spec)
+        + _multi_feature_unvalidated(spec)
         + _halo_overcrowding(spec)
         + _halo_web(spec)
         + _trilogy_overcrowding(spec)

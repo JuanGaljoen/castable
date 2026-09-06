@@ -1,12 +1,11 @@
-"""RNG-9 Checkpoint 1 — RingSpec discriminated-union contract slice.
+"""RNG-9/RNG-24 — RingSpec's Halo feature-group contract slice.
 
-RED until the union lands: SolitaireSpec / HaloSpec / Halo do not exist yet,
-so the import below fails at collection (ImportError). That is the correct RED
-signal — the feature (the tagged union + Halo group) is MISSING, not buggy.
-
-Covers CP1-1 (union routing), CP1-1a (tag-stripped field paths), CP1-1b
-(archetype vs body disambiguation on error TYPE), CP1-2 (7-param back-compat),
-and CP1-3 (Halo field ranges/defaults + committed example + schema drift).
+RNG-24 retired the archetype union: RingSpec is one model with an optional
+`halo` group, and a legacy `archetype: "halo"` tag is translated at the
+`validate_spec` edge rather than routing to a distinct type. Covers CP1-1
+(legacy-tag translation), CP1-1a (loc paths, no tag prefix to strip), CP1-1b
+(archetype-vs-body error disambiguation), CP1-2 (7-param back-compat), and
+CP1-3 (Halo field ranges/defaults + committed example + schema drift).
 Castability (CP1-4) lives in tests/test_ringspec_halo_castability.py.
 """
 import json
@@ -17,9 +16,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from ringcad.ringspec import (
     Halo,
-    HaloSpec,
     RingSpec,
-    SolitaireSpec,
     from_params,
     spec_errors,
     to_params,
@@ -77,16 +74,16 @@ def _fields(exc):
     return [e["field"] for e in spec_errors(exc.value)]
 
 
-# --- CP1-1: the union routes each archetype to its concrete member ------------
+# --- CP1-1: a legacy archetype tag translates to the matching feature group --
 def test_halo_spec_validates_to_halospec():
     spec = validate_spec(HALO_SPEC)
-    assert isinstance(spec, HaloSpec)
+    assert spec.halo is not None
     assert spec.halo.halo_gap == 0.5
 
 
 def test_solitaire_spec_validates_to_solitairespec():
     spec = validate_spec(SOLITAIRE_SPEC)
-    assert isinstance(spec, SolitaireSpec)
+    assert spec.halo is None and spec.trilogy is None and spec.side_stone is None
 
 
 def test_solitaire_carrying_halo_group_is_rejected():
@@ -134,25 +131,24 @@ def test_unknown_archetype_names_archetype_field_via_union_tag():
     assert archetype_err[0]["type"] == "union_tag_invalid"
 
 
-def test_none_body_names_empty_field_via_model_attributes_type():
+def test_none_body_names_empty_field():
     with pytest.raises(ValidationError) as exc:
         validate_spec(None)
     errs = spec_errors(exc.value)
     body_err = [e for e in errs if e["field"] == ""]
     assert body_err, errs
-    assert body_err[0]["type"] == "model_attributes_type"
 
 
-# --- CP1-2: 7-param back-compat is preserved by the union --------------------
-def test_from_params_returns_concrete_solitairespec():
+# --- CP1-2: 7-param back-compat is preserved -------------------------------
+def test_from_params_returns_a_featureless_spec():
     spec = from_params(GOOD_PARAMS)
-    assert isinstance(spec, SolitaireSpec)
+    assert spec.halo is None and spec.trilogy is None and spec.side_stone is None
 
 
 def test_archetypeless_dict_defaults_to_solitaire():
     body = {"shank": SHANK, "setting": SETTING, "stones": STONES}
     spec = validate_spec(body)
-    assert isinstance(spec, SolitaireSpec)
+    assert spec.halo is None and spec.trilogy is None and spec.side_stone is None
 
 
 def test_flat7_roundtrip_unaffected_by_union():
@@ -206,10 +202,10 @@ def test_committed_halo_example_exists_and_validates():
     assert os.path.isfile(HALO_EXAMPLE_PATH), f"missing: {HALO_EXAMPLE_PATH}"
     with open(HALO_EXAMPLE_PATH) as fh:
         data = json.load(fh)
-    assert isinstance(validate_spec(data), HaloSpec)
+    assert validate_spec(data).halo is not None
 
 
-def test_committed_schema_matches_generated_union_schema():
+def test_committed_schema_matches_generated_schema():
     expected = TypeAdapter(RingSpec).json_schema()
     with open(SCHEMA_PATH) as fh:
         committed = json.load(fh)

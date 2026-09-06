@@ -21,7 +21,7 @@ import math
 
 import pytest
 
-from ringcad.ringspec import TrilogySpec, validate_castability, validate_spec
+from ringcad.ringspec import validate_castability, validate_spec
 
 SETTING = {"prong_count": 6, "setting_height": 6.0}
 
@@ -48,7 +48,7 @@ def _trilogy_spec(shank=None, stones=None, trilogy=None):
             },
         }
     )
-    assert isinstance(spec, TrilogySpec)
+    assert spec.trilogy is not None
     return spec
 
 

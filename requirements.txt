@@ -19,6 +19,10 @@ cadquery-ocp-novtk==7.9.3.1.1
 
 # RingSpec schema + vision structured output (RNG-14, RNG-6)
 pydantic==2.13.4
+# Imported directly for synthetic ValidationErrors (RNG-24's legacy-archetype
+# translation) -- already installed transitively by pydantic itself, but
+# test_requirements.py (RNG-18) requires every direct import to be declared.
+pydantic_core==2.46.4
 
 # Photo classification (RNG-6)
 anthropic==0.109.1

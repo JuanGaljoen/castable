@@ -92,13 +92,47 @@ the repo's checkpoint rule.
 
 ## Checkpoints
 
-- [ ] **CP1 — contract + migration.** One `RingSpec` with optional `halo`/`trilogy`/
+- [x] **CP1 — contract + migration.** One `RingSpec` with optional `halo`/`trilogy`/
       `side_stone` groups; legacy `archetype` translated at the edge; six `isinstance`
       guards become presence guards; endpoint discriminator fixed; temporary
-      `multi_feature_unvalidated` gate; golden geometry hash-compared.
+      `multi_feature_unvalidated` gate; golden geometry hash-compared. Full suite green
+      (3924 passed, 1 skipped).
       · files: `ringcad/ringspec/models.py`, `ringcad/ringspec/castability.py`,
-      `ringcad/ringspec/adapters.py`, `ringcad/ringspec/__init__.py`,
-      `ringcad/geometry/_castability.py`, `ringcad/geometry/_common.py`, `ringcad/app.py`
+      `ringcad/ringspec/coherence.py`, `ringcad/geometry/_common.py`, `ringcad/app.py`,
+      `probes/fidelity_probe.py`, `requirements.txt`, `docs/ringspec/contract.md`,
+      `docs/ringspec/ringspec.schema.json`, plus 8 rewritten `tests/test_ringspec_*.py`
+      files and the new `tests/test_ringspec_composable_identity.py` golden-hash pin.
+
+      **Deviations from the frozen plan, all found by the full-suite run:**
+      - `RingSpec.archetype` became a **derived read-only property** (single active
+        feature's name, or `"solitaire"`), not dropped outright — `module.py`'s
+        `compose(spec)` still reads `spec.archetype` to pick a module list, and CP1
+        deliberately left `module.py` untouched (that rework is CP2's). Documented in
+        the model's own docstring as meaningful only while <=1 feature is present.
+      - `coherence.make_coherent`'s returned dict re-adds an `"archetype"` key (from the
+        derived property) before returning. `RingSpec.model_dump()` no longer has an
+        `archetype` field to round-trip, but `classify.py`'s `to_spec()` and its tests
+        still key the JSON contract on one — that migration is CP3's, not CP1's.
+      - Found via that fix: the legacy-tag translation in `validate_spec` originally
+        checked group *presence* as `group in data`, which misfires against a dumped
+        spec where absent features are `None`-valued keys rather than missing ones.
+        Fixed to `data.get(group) is not None`.
+      - `probes/fidelity_probe.py`'s `supported_archetypes()` reflected on the (former)
+        `RingSpec` union via `typing.get_args`; retired in favour of importing
+        `classify.SUPPORTED_ARCHETYPES` directly — one source of truth instead of two,
+        rather than reinventing a way to reflect archetype tags off a plain model.
+      - `pydantic_core` added to `requirements.txt`: `models.py` constructs synthetic
+        `ValidationError`s for the legacy-tag translation via `pydantic_core.
+        from_exception_data`/`PydanticCustomError`, both already installed transitively
+        by `pydantic` but not previously a direct import (`test_requirements.py`,
+        RNG-18, requires every direct import declared).
+      - `SolitaireSpec`/`HaloSpec`/`TrilogySpec`/`SideStoneSpec` kept as thin factory
+        *functions* over `RingSpec` (not the plan's silent deletion) — a large existing
+        test/geometry surface used them as pure constructors with no `isinstance` check;
+        keeping the call shape avoided touching files the plan never listed. The
+        `isinstance` call sites (all confined to the `test_ringspec_*.py` contract
+        tests) were rewritten to presence checks, which is the honest signal the union
+        is actually gone.
 
 - [ ] **CP2 — composition + cross-feature castability.** `compose` builds from the feature
       set; `Footprint` seam + one generic pairwise check; `_SIDE_STONE_A_START_DEG` becomes

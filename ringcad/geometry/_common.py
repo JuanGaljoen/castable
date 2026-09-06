@@ -95,7 +95,7 @@ def clamps(spec: RingSpec) -> dict:
     peg and hub radii, which are not girdle-following.
     """
     p = to_params(spec)
-    flat = getattr(spec, "archetype", None) == "side_stone"
+    flat = getattr(spec, "side_stone", None) is not None
     taper = FLAT_TAPER if flat else SHANK_TAPER
     # A flat band is flat on BOTH axes — the side-stone row needs a constant
     # outer radius for its seats and rails to sit ON the surface (RNG-11).

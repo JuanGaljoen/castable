@@ -1,12 +1,10 @@
-"""RNG-11 Checkpoint 1 — SideStone RingSpec discriminated-union contract slice.
+"""RNG-11/RNG-24 — RingSpec's SideStone feature-group contract slice.
 
-RED until the union lands: SideStone / SideStoneSpec do not exist yet, so the
-import below fails at collection (ImportError). That is the correct RED
-signal — the feature (the new union member) is MISSING, not buggy.
-
-Mirrors tests/test_ringspec_trilogy.py's CP1 pattern: union routing,
-tag-stripped field paths, field ranges/defaults, committed example + schema
-drift. Castability (row/base-clearance spacing) lives in
+RNG-24 retired the archetype union: RingSpec is one model with an optional
+`side_stone` group, and a legacy `archetype: "side_stone"` tag is translated
+at the `validate_spec` edge. Mirrors tests/test_ringspec_trilogy.py's pattern:
+legacy-tag translation, loc paths, field ranges/defaults, committed example +
+schema drift. Castability (row/base-clearance spacing) lives in
 tests/test_ringspec_side_stone_castability.py.
 """
 import json
@@ -18,8 +16,6 @@ from pydantic import TypeAdapter, ValidationError
 from ringcad.ringspec import (
     RingSpec,
     SideStone,
-    SideStoneSpec,
-    SolitaireSpec,
     spec_errors,
     validate_spec,
 )
@@ -65,10 +61,10 @@ def _fields(exc):
     return [e["field"] for e in spec_errors(exc.value)]
 
 
-# --- CP1-1: the union routes side_stone to SideStoneSpec ----------------------
+# --- CP1-1: a legacy archetype tag translates to the matching feature group --
 def test_side_stone_spec_validates_to_sidestonespec():
     spec = validate_spec(SIDE_STONE_SPEC)
-    assert isinstance(spec, SideStoneSpec)
+    assert spec.side_stone is not None
     assert spec.side_stone.accent_count_per_side == 3
 
 
@@ -103,7 +99,7 @@ def test_side_stone_bad_field_strips_archetype_tag():
 # --- back-compat: existing solitaire/union behaviour is unaffected -----------
 def test_solitaire_spec_still_validates_to_solitairespec():
     spec = validate_spec(SOLITAIRE_SPEC)
-    assert isinstance(spec, SolitaireSpec)
+    assert spec.halo is None and spec.trilogy is None and spec.side_stone is None
 
 
 # --- CP1-3: SideStone group field ranges are enforced with named fields ------
@@ -175,10 +171,10 @@ def test_committed_side_stone_example_exists_and_validates():
     )
     with open(SIDE_STONE_EXAMPLE_PATH) as fh:
         data = json.load(fh)
-    assert isinstance(validate_spec(data), SideStoneSpec)
+    assert validate_spec(data).side_stone is not None
 
 
-def test_committed_schema_matches_generated_union_schema():
+def test_committed_schema_matches_generated_schema():
     expected = TypeAdapter(RingSpec).json_schema()
     with open(SCHEMA_PATH) as fh:
         committed = json.load(fh)

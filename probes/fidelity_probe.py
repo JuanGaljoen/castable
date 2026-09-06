@@ -23,7 +23,6 @@ import json
 import os
 import sys
 import time
-import typing
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -169,17 +168,16 @@ def exit_code(results: list[Result]) -> int:
 
 
 def supported_archetypes() -> set[str]:
-    """Read the archetype tags off the RingSpec union.
+    """The archetype tags `classify.py` can emit.
 
-    Derived rather than hardcoded so a new archetype needs no edit here.
+    RNG-24 retired RingSpec's discriminated union (there is no longer a type
+    to reflect archetype tags off), so this reads `classify.SUPPORTED_
+    ARCHETYPES` -- the one place that list is still a plain enumeration --
+    rather than duplicating it here.
     """
-    from ringcad.ringspec.models import RingSpec
+    from ringcad.classify import SUPPORTED_ARCHETYPES
 
-    (union,) = typing.get_args(RingSpec)[:1]  # strip the Annotated wrapper
-    return {
-        member.model_fields["archetype"].default
-        for member in typing.get_args(union)
-    }
+    return set(SUPPORTED_ARCHETYPES)
 
 
 def probe(client, photo: Path) -> Record:
