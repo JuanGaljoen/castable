@@ -187,7 +187,7 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 **Found by RNG-22's first live corpus run (2026-08-01):**
 
 - **RNG-32** Vision estimates fields independently, producing specs the casting gate rejects [Done] - a stone taller than its own head; **revives the premise RNG-20 was deleted for**, now with a real counterexample
-- **RNG-33** Stone cuts beyond round + oval (cushion, emerald, pear, marquise) [High] - vision *said* "cushion cut" and had to write `round`; cashes in the RNG-23 `StoneOutline` seam
+- **RNG-33** Stone cuts beyond round + oval (cushion, emerald, pear, marquise) [Done] - vision *said* "cushion cut" and had to write `round`; cashed in the RNG-23 `StoneOutline` seam. Left RNG-39/40/41 behind it
 - **RNG-31** Vision intermittently reports no ring for a clear ring photo [Medium] - 1 failure in 4 runs of the same photo; diagnose before fixing
 - **RNG-34** Close the side-stone gap in the fidelity corpus [Low] - needs a photo, no code
 
@@ -482,7 +482,7 @@ was twice a stale process, not a bad build.
 **Next:** **RNG-27** (material + lighting) is now the cheapest large win and
 touches no geometry; with RNG-19 and RNG-32 both landed, the remaining "models
 look flat" complaint is presentation, not proportion or castability.
-**RNG-33** remains the cheapest *fidelity* win (the `StoneOutline` seam exists),
+With RNG-33 and RNG-25 both landed, the vocabulary work is done;
 **RNG-26** is unblocked (`length_ratio` is the first ratio vision can fill), and
 **RNG-35** finishes the trilogy spacing RNG-19 CP1 half-did. Run the probe before
 and after each of them — and **get a reference sketch for whichever archetype you
