@@ -35,7 +35,8 @@ import math
 
 from build123d import Axis, Cone, Cylinder, Align, Plane, Pos, Rectangle, Rot, revolve
 
-from ringcad.ringspec.castability import _SIDE_STONE_A_START_DEG as A_START_DEG
+from ringcad.ringspec.castability import _SIDE_STONE_A_START_DEG as BASE_A_START_DEG
+from ringcad.ringspec.footprint import side_stone_start_deg
 from ringcad.ringspec.models import (
     GIRDLE_PENETRATION, GIRDLE_RECESS, PAVILION_FRACTION, channel_groove_depth,
 )
@@ -60,10 +61,18 @@ def _dphi_deg(spec, c: dict) -> float:
 
 
 def _accent_angles(spec, c: dict, sign: float) -> list[float]:
-    """Ring-angles (deg) for one shoulder's accent row (Decision 6)."""
+    """Ring-angles (deg) for one shoulder's accent row (Decision 6).
+
+    The start angle is DERIVED, not the bare constant (RNG-24 CP2): a halo or
+    trilogy sharing the head pushes the row further round than a bare centre
+    does, and the gate (`_side_stone_overcrowding`) checks against this same
+    widened value -- reading the constant directly here would let geometry
+    and the check disagree about where the row actually starts.
+    """
     count = spec.side_stone.accent_count_per_side
     dphi = _dphi_deg(spec, c)
-    return [sign * (A_START_DEG + k * dphi) for k in range(count)]
+    start = side_stone_start_deg(spec, BASE_A_START_DEG)
+    return [sign * (start + k * dphi) for k in range(count)]
 
 
 def _trench_span(spec, c: dict, sign: float) -> tuple[float, float]:

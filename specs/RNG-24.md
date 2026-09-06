@@ -134,11 +134,50 @@ the repo's checkpoint rule.
         tests) were rewritten to presence checks, which is the honest signal the union
         is actually gone.
 
-- [ ] **CP2 — composition + cross-feature castability.** `compose` builds from the feature
+- [x] **CP2 — composition + cross-feature castability.** `compose` builds from the feature
       set; `Footprint` seam + one generic pairwise check; `_SIDE_STONE_A_START_DEG` becomes
-      derived; temporary gate removed.
+      derived; temporary gate removed. Full suite green (3928 passed, 1 skipped). The
+      evidenced AC holds: a halo + side-stone spec generates as one **raw** watertight
+      manifold, no repair (`tests/test_ringspec_cross_feature.py`).
       · files: `ringcad/geometry/module.py`, `ringcad/ringspec/castability.py`,
-      `ringcad/ringspec/footprint.py` (new), `ringcad/geometry/side_stone.py`
+      `ringcad/ringspec/footprint.py` (new), `ringcad/geometry/side_stone.py`,
+      `ringcad/ringspec/models.py` (`effective_thickness_taper`), `ringcad/geometry/_common.py`,
+      `docs/ringspec/contract.md`, `tests/test_ringspec_cross_feature.py` (new)
+
+      **The footprint formulae were measured, not derived on paper** (the design's own
+      Risk #1), via a throwaway script building the real `compose()`d golden halo/
+      trilogy geometry and reading bounding-box corners as (r, θ) about the ring axis —
+      `ringspec` cannot import `geometry` (docs/adr/0002), so the resulting closed-form
+      approximations, widened by a measured `SAFETY_MARGIN`, are encoded once in
+      `footprint.py` rather than computed from real geometry at validation time.
+
+      **Two modeling bugs found by that same measurement, both fixed before landing:**
+      - The naive `arc/head_r` angular estimate under-reported a raised feature's true
+        reach by up to ~25% — its nearest bounding-box corner sits closer to the axis
+        than `head_r`, so the same tangential extent subtends a wider angle than the
+        naive formula assumed. Fixed with the measured `SAFETY_MARGIN` (1.3x).
+      - **The real bug:** modelling `side_stone`'s two shoulders as one symmetric
+        interval `[-end, +end]` made it report a collision with EVERY halo regardless
+        of size, since a halo centred on the head always falls inside that interval —
+        even though nothing is actually built in the gap between the shoulders.
+        `side_stone_footprints` now returns two disjoint per-shoulder `Footprint`s.
+        Caught by testing the evidenced positive case (halo + side-stone golden
+        defaults) and finding it failed when the design predicted it should pass.
+
+      **`_SIDE_STONE_A_START_DEG` is genuinely derived now** (`side_stone_start_deg`):
+      widened past whichever of halo/trilogy is present, by a measured margin (not a
+      bare touch) so the two clear by construction rather than by chance — read by
+      BOTH the gate (`_side_stone_overcrowding`) and the builder (`side_stone.py`'s
+      `_accent_angles`), closing the drift class ADR-0002 warns about before it could
+      open. `effective_thickness_taper` (models.py) is the same move applied to the
+      pre-existing `t_taper` duplication between `_common.clamps` and
+      `_side_stone_overcrowding`/`_trilogy_overcrowding` — found while wiring the
+      footprint currency, fixed as part of the same single-source pass.
+
+      **Negative case, not just positive:** halo + trilogy at golden defaults IS
+      flagged (`cross_feature_overcrowding`, naming both features) — both are fixed at
+      the head and neither can move for the other, so this is the genuine case the
+      design's own note anticipated, not a gate that only ever says yes.
 
 - [ ] **CP3 — vision + UI.** `classify.py` emits a feature set (not an archetype enum);
       `coherence.py` repairs across features; the `ARCHETYPES` registry becomes feature

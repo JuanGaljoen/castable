@@ -147,35 +147,59 @@ MODULES: dict[str, Module] = {
     ),
 }
 
+# Kept for callers that want to FORCE a specific module list regardless of
+# what the spec's own feature groups say (e.g. building the bare band for a
+# before/after comparison) — `compose(spec, archetype=...)`. The spec-driven
+# path (no override) no longer consults this: RNG-24 CP2 composes from
+# whichever feature groups are actually present, any subset, not a choice of
+# exactly one archetype (`_spec_module_names`).
+BASE_MODULES: list[str] = ["shank", "seat", "prong_setting"]
+_FEATURE_MODULES: tuple[str, ...] = ("halo", "trilogy", "side_stone")
 ARCHETYPES: dict[str, list[str]] = {
-    "solitaire": ["shank", "seat", "prong_setting"],
-    "halo": ["shank", "seat", "prong_setting", "halo"],
-    "trilogy": ["shank", "seat", "prong_setting", "trilogy"],
-    "side_stone": ["shank", "seat", "prong_setting", "side_stone"],
+    "solitaire": BASE_MODULES,
+    "halo": BASE_MODULES + ["halo"],
+    "trilogy": BASE_MODULES + ["trilogy"],
+    "side_stone": BASE_MODULES + ["side_stone"],
 }
 
 
+def _spec_module_names(spec: RingSpec) -> list[str]:
+    """The module list a spec's OWN feature groups imply — any subset of
+    {halo, trilogy, side_stone} alongside the base three, not a single
+    archetype choice (RNG-24 CP2)."""
+    return BASE_MODULES + [
+        name for name in _FEATURE_MODULES if getattr(spec, name) is not None
+    ]
+
+
 def compose(spec: RingSpec, archetype: str | None = None):
-    """Build + fuse an archetype's modules into one build123d solid.
+    """Build + fuse a spec's modules into one build123d solid.
 
     Fuses every module's LEAF solids in a single general fuse (`leaves[0].fuse(
     *leaves[1:])`). Simple modules contribute one leaf (their fused build);
     heavy modules like `halo` contribute many via `parts`. A single general
     fuse over the flat leaf set is robust where pairwise-fusing pre-fused
-    compounds is not (RNG-17 risk #1). Solitaire is unchanged: its three modules
-    each yield one leaf, so the fuse is identical to before.
+    compounds is not (RNG-17 risk #1). A bare solitaire is unchanged: its three
+    modules each yield one leaf, so the fuse is identical to before.
+
+    `archetype`, when given, FORCES that named module list instead of reading
+    the spec's own feature groups (back-compat for callers building a bare
+    comparison band, e.g. `compose(spec, archetype="solitaire")`).
     """
-    name = archetype or spec.archetype
-    if name not in ARCHETYPES:
-        raise UnknownArchetypeError(f"unknown archetype {name!r}")
+    if archetype is not None:
+        if archetype not in ARCHETYPES:
+            raise UnknownArchetypeError(f"unknown archetype {archetype!r}")
+        mod_names = ARCHETYPES[archetype]
+    else:
+        mod_names = _spec_module_names(spec)
     c = clamps(spec)
     leaves: list = []
     cuts: list = []
-    for mod_name in ARCHETYPES[name]:
+    for mod_name in mod_names:
         module = MODULES.get(mod_name)
         if module is None:
             raise UnregisteredModuleError(
-                f"archetype {name!r} names unregistered module {mod_name!r}"
+                f"module list names unregistered module {mod_name!r}"
             )
         parts = module.parts(spec, c)
         mod_cuts = module.cuts(spec, c)

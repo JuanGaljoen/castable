@@ -17,10 +17,13 @@ from pydantic import BaseModel
 from ringcad.mesh_validator import MIN_PRONG_TIP_MM, MIN_WALL_MM
 
 from .cuts import ProngType, profile_for
+from .footprint import clear as _footprints_clear
+from .footprint import halo_footprint, side_stone_footprints, trilogy_footprint
+from .footprint import side_stone_start_deg
 from .models import (
     SHANK_THICKNESS_TAPER, RingSpec,
     HALO_WELL_BACK_RATIO, channel_band_width, channel_groove_depth,
-    halo_min_arc,
+    effective_thickness_taper, halo_min_arc,
 )
 from .sections import head_r as _section_head_r
 from .sections import section_for
@@ -299,8 +302,8 @@ def _trilogy_overcrowding(spec: RingSpec) -> list[Violation]:
     # ONE formula regardless of `shank.outer_profile`/`inner_profile`.
     profile = section_for(shank.outer_profile, shank.inner_profile)
     head_r = _section_head_r(
-        shank.inner_diameter / 2, shank.band_thickness, SHANK_THICKNESS_TAPER,
-        profile,
+        shank.inner_diameter / 2, shank.band_thickness,
+        effective_thickness_taper(spec), profile,
     )
     arc = stone_r + trilogy.side_stone_gap + side_r
     phi = arc / head_r
@@ -329,10 +332,11 @@ def _side_stone_overcrowding(spec: RingSpec) -> list[Violation]:
     exactly like the trilogy post / gallery rail are independent of their own
     gap fields. Checks two real placement facts instead:
 
-      (a) the row must fit between A_START (clears the centre head) and
-          A_MAX (stays off the ring base) — compared in arc-length mm so the
-          Violation stays unit-consistent with every other check here, not in
-          degrees. Flags `accent_count_per_side`.
+      (a) the row must fit between its start angle (clears the centre head —
+          A_START, WIDENED when a halo/trilogy also shares it, RNG-24 CP2)
+          and A_MAX (stays off the ring base) — compared in arc-length mm so
+          the Violation stays unit-consistent with every other check here,
+          not in degrees. Flags `accent_count_per_side`.
       (b) adjacent accents' true CHORD (straight-line) distance at the band's
           outer radius must clear their combined diameter — the same
           arc-vs-chord divergence `_trilogy_overcrowding` guards against.
@@ -345,19 +349,22 @@ def _side_stone_overcrowding(spec: RingSpec) -> list[Violation]:
         return []
     ss = spec.side_stone
     shank = spec.shank
-    # Side-stone's band is FLAT by construction on BOTH axes (RNG-11:
-    # `FLAT_TAPER` in `geometry/_common.py`), so `t_taper` is 1.0 here rather
-    # than `SHANK_THICKNESS_TAPER` -- routed through the same `sections.head_r`
-    # as `_trilogy_overcrowding` so a profile change can't silently diverge the
-    # two copies of "the band's outer radius" (docs/adr/0002).
+    # Side-stone's band is FLAT by construction on BOTH axes (RNG-11), so
+    # `t_taper` is 1.0 here rather than `SHANK_THICKNESS_TAPER` -- routed
+    # through the same `sections.head_r` as `_trilogy_overcrowding` (and now
+    # single-sourced via `effective_thickness_taper`, RNG-24) so a profile
+    # change can't silently diverge the two copies of "the band's outer
+    # radius" (docs/adr/0002).
     profile = section_for(shank.outer_profile, shank.inner_profile)
     band_outer_r = _section_head_r(
-        shank.inner_diameter / 2, shank.band_thickness, 1.0, profile,
+        shank.inner_diameter / 2, shank.band_thickness,
+        effective_thickness_taper(spec), profile,
     )
     step = ss.accent_stone_diameter + ss.accent_gap
     dphi = math.degrees(step / band_outer_r)
 
-    budget_deg = _SIDE_STONE_A_MAX_DEG - _SIDE_STONE_A_START_DEG
+    start_deg = side_stone_start_deg(spec, _SIDE_STONE_A_START_DEG)
+    budget_deg = _SIDE_STONE_A_MAX_DEG - start_deg
     budget_arc = band_outer_r * math.radians(budget_deg)
     required_arc = (ss.accent_count_per_side - 1) * step
     if required_arc > budget_arc:
@@ -494,35 +501,50 @@ def _side_stone_channel(spec: RingSpec) -> list[Violation]:
     return []
 
 
-def _multi_feature_unvalidated(spec: RingSpec) -> list[Violation]:
-    """CP1 placeholder: reject more than one feature (RNG-24).
+def _cross_feature_overcrowding(spec: RingSpec) -> list[Violation]:
+    """Two features present together must not occupy the same metal (RNG-24
+    CP2). Replaces CP1's blanket `multi_feature_unvalidated` gate: any subset
+    of {halo, trilogy, side_stone} is now genuinely checked rather than
+    outright refused, via the shared `Footprint` currency (footprint.py) —
+    one pairwise check regardless of which two (or three) features are
+    involved, so a fourth feature's cross-checks are free.
 
-    The contract now allows any subset of {halo, trilogy, side_stone}, but the
-    cross-feature castability checks that make a real combination trustworthy
-    are CP2's job (specs/RNG-24.md), not CP1's. Rather than let a multi-feature
-    spec silently reach `compose` before those checks exist, this rejects it
-    outright with a message naming the features involved. Deleted in CP2.
+    `side_stone`'s own footprint already reads a WIDENED start angle when a
+    halo or trilogy is present (`side_stone_start_deg`), so most halo/trilogy
+    + side_stone combinations clear here by construction; this catches the
+    combinations too tight even after that widening, and any halo + trilogy
+    pairing (both fixed at the head, neither can move for the other).
     """
-    present = [
-        name for name, group in (
-            ("halo", spec.halo),
-            ("trilogy", spec.trilogy),
-            ("side_stone", spec.side_stone),
+    footprints = [
+        (name, fp) for name, fp in (
+            ("halo", halo_footprint(spec)),
+            ("trilogy", trilogy_footprint(spec)),
         )
-        if group is not None
+        if fp is not None
+    ] + [
+        ("side_stone", fp)
+        for fp in side_stone_footprints(spec, _SIDE_STONE_A_START_DEG)
     ]
-    if len(present) <= 1:
-        return []
-    return [
-        Violation(
-            code="multi_feature_unvalidated",
-            field="+".join(present),
-            message=f"combining {' and '.join(present)} on one ring is not "
-            "yet validated for cross-feature castability (RNG-24 CP2).",
-            limit_mm=None,
-            actual_mm=None,
-        )
-    ]
+    violations = []
+    for i, (name_a, fp_a) in enumerate(footprints):
+        for name_b, fp_b in footprints[i + 1:]:
+            # side_stone contributes one entry per shoulder (footprint.py) —
+            # never compare a feature's own two entries against each other.
+            if name_a == name_b:
+                continue
+            if not _footprints_clear(fp_a, fp_b):
+                violations.append(
+                    Violation(
+                        code="cross_feature_overcrowding",
+                        field=f"{name_a}+{name_b}",
+                        message=f"{name_a} and {name_b} do not clear each "
+                        f"other by {MIN_WALL_MM}mm on this ring — they occupy "
+                        "the same metal.",
+                        limit_mm=MIN_WALL_MM,
+                        actual_mm=None,
+                    )
+                )
+    return violations
 
 
 def validate_castability(spec: RingSpec) -> list[Violation]:
@@ -532,7 +554,7 @@ def validate_castability(spec: RingSpec) -> list[Violation]:
         + _min_prong_tip(spec)
         + _geometric(spec)
         + _stone_curvature(spec)
-        + _multi_feature_unvalidated(spec)
+        + _cross_feature_overcrowding(spec)
         + _halo_overcrowding(spec)
         + _halo_web(spec)
         + _trilogy_overcrowding(spec)

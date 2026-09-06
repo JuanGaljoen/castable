@@ -36,6 +36,7 @@ SPEC_VERSION = "1.0"
 # `shank_taper` FIELD.
 SHANK_WIDTH_TAPER = 1.35
 SHANK_THICKNESS_TAPER = 1.15
+FLAT_TAPER = 1.0
 
 # --- Channel setting (RNG-19 CP3) -------------------------------------------
 # Here for the same reason as the tapers above: `castability` derives the band's
@@ -360,6 +361,20 @@ class RingSpec(BaseModel):
         if self.side_stone is not None:
             return "side_stone"
         return "solitaire"
+
+
+def effective_thickness_taper(spec: RingSpec) -> float:
+    """The shank's effective THICKNESS taper for a given spec (RNG-11, RNG-24).
+
+    Flat (no taper) when `side_stone` is present — a channel needs a constant
+    outer radius for its seats/rails to sit on (specs/RNG-11.md); otherwise the
+    normal head taper. Single-sourced here (not duplicated in `_common.clamps`
+    and every spec-layer check that needs a band radius) because `ringspec`
+    cannot import `geometry` — a geometry-side copy is exactly the drift
+    docs/adr/0002 is about, and this is the same fact `SHANK_THICKNESS_TAPER`
+    exists here for.
+    """
+    return FLAT_TAPER if spec.side_stone is not None else SHANK_THICKNESS_TAPER
 
 
 # --- Back-compat constructors -------------------------------------------
