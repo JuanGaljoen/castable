@@ -76,16 +76,23 @@ _SHARED_DEFAULTS = {
     "prong_count": 6,
 }
 
-# RNG-12: which archetypes the module library can build, and each one's group
-# key + Pydantic group model (source of truth for the group field bounds). The
-# group fields are read off the model, so a new archetype needs no per-field
-# clamp table here.
-_ARCHETYPE_GROUPS = {
+# RNG-12/RNG-24: which features the module library can build, and each one's
+# group key + Pydantic group model (source of truth for the group field
+# bounds). The group fields are read off the model, so a new feature needs no
+# per-field clamp table here. RNG-24 retired the archetype union -- a ring is
+# a base plus whichever of these are PRESENT, any subset, not a choice of one.
+_FEATURE_GROUPS = {
     "halo": ("halo", Halo),
     "trilogy": ("trilogy", Trilogy),
     "side_stone": ("side_stone", SideStone),
 }
-SUPPORTED_ARCHETYPES = ("solitaire", "halo", "trilogy", "side_stone")
+SUPPORTED_FEATURES = ("halo", "trilogy", "side_stone")
+# Back-compat alias: `SUPPORTED_ARCHETYPES` named the four archetype-union
+# choices, one of which was "solitaire" (no group at all). probes/
+# fidelity_probe.py reads this name to validate its manifest's `archetype`
+# column; keep the value so that stays meaningful without importing the
+# retired concept back in.
+SUPPORTED_ARCHETYPES = ("solitaire",) + SUPPORTED_FEATURES
 
 # Read off the schema rather than restated, so the clamp cannot drift from the
 # contract (the same rule `_field_bounds` follows for the archetype groups).
@@ -120,16 +127,29 @@ DEFAULT_NOTE = "Estimates are rough; verify before generating."
 _SYSTEM = (
     "You are a jewelry classifier for engagement rings. Given a photo, "
     "identify the ring and estimate its dimensions in millimetres. Set "
-    "`style` to a free-text description of what you actually see (e.g. "
-    "'cathedral pave halo'). Set `archetype` to the NEAREST of the four "
-    "supported buildable styles: solitaire (a single centre stone), halo (a "
-    "ring of small accents around the centre), trilogy (one centre plus two "
-    "flanking side stones), or side_stone (a channel row of small accents "
-    "down each shoulder). Estimate the dimensions of the chosen archetype's "
-    "group (halo_*, side_stone_* for trilogy, accent_* for side_stone). "
+    "`style` to a DETAILED description of the ring in the photo, a sentence "
+    "or two, in the words a jeweller would use: the centre stone's cut and "
+    "rough size, how it is set, any halo or shoulder stones and how THOSE "
+    "are set, the band, and the metal colour (e.g. 'Round brilliant centre "
+    "of about 6.5mm in a six-prong head, encircled by a full halo of round "
+    "accents, with pave-set diamonds down both shoulders of a white metal "
+    "band'). This description is shown to the user to confirm we looked at "
+    "the right ring, so describe what is actually visible rather than "
+    "naming a style category. Real rings often "
+    "combine more than one feature at once -- set `features` to EVERY one of "
+    "these three you actually see, in any combination (an empty list means a "
+    "plain centre stone with no extra features): 'halo' (a ring of small "
+    "accents encircling the centre stone), 'trilogy' (two flanking side "
+    "stones beside the centre, each in its own setting), 'side_stone' (a "
+    "channel row of small accents set INTO the band down each shoulder, "
+    "flush with the surface, not raised or in individual settings). A ring "
+    "can have a centre stone with a halo AND side-stone shoulders at once -- "
+    "list both. Estimate the dimensions of EVERY feature group you listed "
+    "(halo_*, side_stone_* for trilogy, accent_* for side_stone). "
     "EVERY field is required: fill in a number for every dimension, and use "
-    "0 for any dimension you cannot estimate or that does not apply to the "
-    "chosen archetype (e.g. the halo_* fields on a solitaire). Set "
+    "0 for any dimension you cannot estimate or that does not apply -- a "
+    "feature you did NOT list in `features` always gets 0 for every one of "
+    "its own dimensions. Set "
     "`stone_shape` to the centre stone's CUT, one of exactly these six: "
     "'round' (a circle), 'oval' (a smooth ellipse, no corners or points), "
     "'cushion' (a square or slightly oblong outline with ROUNDED corners and "
@@ -161,9 +181,9 @@ _SYSTEM = (
     "millimetre estimates are rough approximations."
 )
 _USER = (
-    "Classify this ring: pick the nearest supported archetype, describe the "
-    "style you see, and estimate its dimensions in millimetres. If it is not "
-    "a clear photo of a single ring, set ring_detected to false."
+    "Classify this ring: list every feature you see, describe the style, and "
+    "estimate its dimensions in millimetres. If it is not a clear photo of a "
+    "single ring, set ring_detected to false."
 )
 
 
@@ -185,22 +205,23 @@ class RingConfidence(BaseModel):
 
 class RingClassification(BaseModel):
     """Structured output schema for messages.parse. `style` is the free-text
-    detected style; `archetype` is the nearest supported buildable style. Only
-    the chosen archetype's group dims are read; the rest are ignored. No
-    inner_diameter field (never guessed).
+    detected style; `features` (RNG-24) is EVERY supported feature actually
+    present -- any subset of {halo, trilogy, side_stone}, not a choice of
+    one -- and only a listed feature's group dims are read; the rest are
+    ignored. No inner_diameter field (never guessed).
 
     EVERY field is REQUIRED (no defaults). Strict structured output treats a
     field with a default as optional, and a schema with many optional fields
     incurs exponential compilation cost -- the real Messages API then hangs and
     times out (RNG-21, the "17 params with type arrays or anyOf" 400 was the
     same root cause surfacing as a hard reject). The model instead fills every
-    field and uses 0 for a dimension it cannot estimate or that does not apply
-    to the chosen archetype; parsing treats 0 as "not estimated" and falls back
-    to the shared/group default. See tests/test_classify_schema for the guard."""
+    dimension field and uses 0 for one it cannot estimate or that does not
+    apply to any listed feature; parsing treats 0 as "not estimated" and falls
+    back to the shared/group default. See tests/test_classify_schema for the
+    guard."""
 
     ring_detected: bool
     style: str
-    archetype: str
     prong_count: int
     shank_taper: str
     features: list[str]
@@ -240,6 +261,11 @@ class RingClassification(BaseModel):
 
 @dataclass(frozen=True)
 class ClassifyResult:
+    """`features` (RNG-24) is the validated feature SET actually present --
+    any subset of `SUPPORTED_FEATURES`, filtered from vision's raw list (an
+    empty list means a plain centre stone, no extra feature). Not one
+    archetype choice."""
+
     ok: bool
     ring_detected: bool
     style: str
@@ -248,7 +274,6 @@ class ClassifyResult:
     prong_count: int
     features: list[str]
     estimates: dict[str, float]
-    archetype: str = "solitaire"
     group_estimates: dict = field(default_factory=dict)
     confidence: dict = field(default_factory=dict)
     stone_shape: str = "round"
@@ -257,10 +282,10 @@ class ClassifyResult:
     inner_profile: str = "domed"
 
     def to_spec(self) -> dict | None:
-        """Assemble a coherent, castable RingSpec (archetype + groups +
-        confidence), or None when no ring was detected. See `_coherent_spec`
-        for the fallback chain; use `to_json` when the adjustments made along
-        the way are also needed."""
+        """Assemble a coherent, castable RingSpec (feature groups actually
+        present + confidence), or None when no ring was detected. See
+        `_coherent_spec` for the fallback chain; use `to_json` when the
+        adjustments made along the way are also needed."""
         return self._coherent_spec()[0]
 
     def _coherent_spec(self) -> tuple[dict | None, list[Adjustment]]:
@@ -272,25 +297,32 @@ class ClassifyResult:
         schema-valid on both fields alone).
 
         Fallback chain, each link a strictly safer bet than the last:
-        detected archetype (repaired) -> solitaire from the same shared
-        estimates (repaired) -> pure-default solitaire, which is guaranteed
-        castable (tests/test_ringspec_coherence.py's
+        detected feature set (repaired) -> no features from the same shared
+        estimates (repaired) -> pure-default, no features, which is
+        guaranteed castable (tests/test_ringspec_coherence.py's
         test_defaults_are_castable_after_coherence). A schema-invalid
         assembly (extreme snapped counts, RNG-19's tightened gate) skips
-        straight to the next link rather than repairing garbage."""
+        straight to the next link rather than repairing garbage.
+
+        `cross_feature_overcrowding` (RNG-24 CP2) has no dedicated repair --
+        there is no single obvious field to move when two features simply
+        don't fit together -- so a genuinely overcrowded combination falls
+        straight through to the next, safer link, the same as any other
+        unrepairable violation."""
         if not self.ring_detected:
             return None, []
-        for archetype, group in (
-            (self.archetype, self.group_estimates),
-            ("solitaire", {}),
+        for features, group_estimates in (
+            (self.features, self.group_estimates),
+            ([], {}),
         ):
+            label = "+".join(features) if features else "solitaire"
             try:
-                spec = self._assemble(archetype, group)
+                spec = self._assemble(features, group_estimates)
                 validate_spec(spec)
             except ValidationError:
                 logger.error(
                     "assembled %s spec failed validation; trying next "
-                    "fallback", archetype, exc_info=True,
+                    "fallback", label, exc_info=True,
                 )
                 continue
             coherent, adjustments = make_coherent(spec, self.confidence)
@@ -300,26 +332,27 @@ class ClassifyResult:
                     return stepped, adjustments
                 logger.error(
                     "%s spec did not settle on the step grid castably; "
-                    "trying next fallback", archetype,
+                    "trying next fallback", label,
                 )
                 continue
             logger.error(
                 "%s spec still uncastable after repair; trying next "
-                "fallback", archetype,
+                "fallback", label,
             )
-        return self._assemble("solitaire", {}, estimates={}), []
+        return self._assemble([], {}, estimates={}), []
 
-    def _assemble(self, archetype: str, group: dict,
+    def _assemble(self, features: list[str], groups: dict,
                   estimates: dict | None = None) -> dict:
         """`estimates` defaults to `self.estimates`; the pure-default last
         resort in `_coherent_spec` passes `{}` explicitly to get the
         guaranteed-castable defaults (and a round stone -- shape is skipped
         along with it, since a bad shape reading is exactly the kind of
-        thing that resort exists to shed)."""
+        thing that resort exists to shed). `groups` is `{group_key: {field:
+        value}}` for whichever features are present (RNG-24) -- any subset,
+        not one archetype's worth."""
         est = self.estimates if estimates is None else estimates
         spec = {
             "version": "1.0",
-            "archetype": archetype,
             "shank": {
                 "inner_diameter": DEFAULT_INNER_DIAMETER,
                 "band_width": est.get("band_width", _SHARED_DEFAULTS["band_width"]),
@@ -345,10 +378,13 @@ class ClassifyResult:
         }
         if self.confidence:
             spec["confidence"] = dict(self.confidence)
-        if archetype in _ARCHETYPE_GROUPS:
+        for name in features:
+            if name not in _FEATURE_GROUPS:
+                continue
+            group_key = _FEATURE_GROUPS[name][0]
             # Always emit the group key -- an empty dict lets the schema fill
             # every group default (each group field is optional-with-default).
-            spec[_ARCHETYPE_GROUPS[archetype][0]] = dict(group)
+            spec[group_key] = dict(groups.get(group_key, {}))
         return spec
 
     def to_json(self) -> dict:
@@ -523,24 +559,30 @@ def _clamp_bounds(lo, hi, value: float) -> float:
     return value
 
 
-def _group_estimates(archetype: str, data: "RingClassification") -> dict:
-    """Clamp each group dim the model returned to its RingSpec field bounds;
-    int-typed counts are rounded and snapped to int. Fields the model left null
-    are omitted so the schema default applies."""
-    if archetype not in _ARCHETYPE_GROUPS:
-        return {}
-    _, model_cls = _ARCHETYPE_GROUPS[archetype]
+def _group_estimates(features: list[str], data: "RingClassification") -> dict:
+    """Clamp each PRESENT feature's group dims to its RingSpec field bounds;
+    int-typed counts are rounded and snapped to int. Fields the model left
+    null are omitted so the schema default applies. Returns `{group_key:
+    {field: value}}` for every feature actually present (RNG-24) -- a feature
+    NOT in `features` contributes nothing, even if vision left a stray
+    nonzero value on one of its dimension fields."""
     out: dict = {}
-    for name, fld in model_cls.model_fields.items():
-        raw = getattr(data, name, 0.0)
-        # 0.0 is the "not estimated" sentinel (dims are strictly positive).
-        if not raw or raw <= 0:
+    for name in features:
+        if name not in _FEATURE_GROUPS:
             continue
-        lo, hi = _field_bounds(model_cls, name)
-        if fld.annotation is int:
-            out[name] = int(_clamp_bounds(lo, hi, round(float(raw))))
-        else:
-            out[name] = _clamp_bounds(lo, hi, float(raw))
+        group_key, model_cls = _FEATURE_GROUPS[name]
+        group_out: dict = {}
+        for fname, fld in model_cls.model_fields.items():
+            raw = getattr(data, fname, 0.0)
+            # 0.0 is the "not estimated" sentinel (dims are strictly positive).
+            if not raw or raw <= 0:
+                continue
+            lo, hi = _field_bounds(model_cls, fname)
+            if fld.annotation is int:
+                group_out[fname] = int(_clamp_bounds(lo, hi, round(float(raw))))
+            else:
+                group_out[fname] = _clamp_bounds(lo, hi, float(raw))
+        out[group_key] = group_out
     return out
 
 
@@ -558,15 +600,31 @@ def _confidence(data: "RingConfidence | None") -> dict:
     return out
 
 
-def _note(archetype: str, style: str, model_note: str) -> str:
-    """When the detected free-text style doesn't name the buildable archetype,
-    say we fell back to the nearest supported style (RNG-12 decision 1)."""
-    label = archetype.replace("_", " ")
-    if style and label not in style.lower().replace("_", " "):
-        return (
-            f"Detected {style} -- building the nearest supported style "
-            f"({label}). Verify before generating."
-        )
+def _valid_features(raw: list[str]) -> list[str]:
+    """Filter vision's raw `features` list to the known buildable set,
+    deduplicated, order preserved. Degrades rather than fails -- an unknown
+    token is silently dropped instead of rejecting the whole classification,
+    the same never-500 rule `_stone_shape`/`_shank_profile` follow."""
+    out: list[str] = []
+    for name in raw:
+        key = (name or "").strip().lower()
+        if key in SUPPORTED_FEATURES and key not in out:
+            out.append(key)
+    return out
+
+
+def _note(model_note: str) -> str:
+    """The note is about the ESTIMATES, not about what the app did with them.
+
+    RNG-12 had this announce a forced substitution ("detected a cathedral
+    pave halo -- building the nearest supported style"), which was worth
+    saying while the archetype union was throwing information away. RNG-24
+    builds what it detects, so that sentence became an announcement of a
+    non-event -- and it was phrased in internal vocabulary ("also building
+    side stone") against a description that said "pave band shoulders",
+    because it matched feature NAMES against free text. Describing the photo
+    is `style`'s job; this is only ever the estimates caveat.
+    """
     return model_note or DEFAULT_NOTE
 
 
@@ -632,21 +690,17 @@ def classify_ring(image_bytes: bytes, media_type: str) -> ClassifyResult:
             if getattr(data, key) and getattr(data, key) > 0
         }
         estimates["prong_count"] = _snap_prong(data.prong_count)
-        archetype = (
-            data.archetype if data.archetype in SUPPORTED_ARCHETYPES
-            else "solitaire"
-        )
+        features = _valid_features(data.features)
         return ClassifyResult(
             ok=True,
             ring_detected=True,
             style=data.style,
             shank_taper=data.shank_taper,
-            note=_note(archetype, data.style, data.note),
+            note=_note(data.note),
             prong_count=_snap_prong(data.prong_count),
-            features=list(data.features),
+            features=features,
             estimates=estimates,
-            archetype=archetype,
-            group_estimates=_group_estimates(archetype, data),
+            group_estimates=_group_estimates(features, data),
             confidence=_confidence(data.confidence),
             stone_shape=data.stone_shape,
             stone_length_ratio=data.stone_length_ratio,

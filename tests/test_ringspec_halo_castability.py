@@ -15,7 +15,7 @@ import json
 
 import pytest
 
-from ringcad.ringspec import HaloSpec, validate_castability, validate_spec
+from ringcad.ringspec import validate_castability, validate_spec
 
 SHANK = {
     "inner_diameter": 16.5,
@@ -48,7 +48,7 @@ def _halo_spec(halo=None, stones=None):
             "halo": {**HALO_GROUP, **(halo or {})},
         }
     )
-    assert isinstance(spec, HaloSpec)
+    assert spec.halo is not None
     return spec
 
 

@@ -12,24 +12,19 @@ const NUMBER_KEYS = [
   "setting_height",
 ];
 
-// Non-solitaire archetypes, each a structured RingSpec group. Keyed by the
-// `archetype` value; `group` is the spec key, `fieldset` the toggled <fieldset>
-// id, `numberKeys`/`intKeys`/`stringKeys` the group's inputs (numbers via
-// Number, ints via parseInt, strings read verbatim — e.g. a <select> value).
-// A registry, not an if-chain, so a new archetype is one entry (RNG-10 CP3).
-const ARCHETYPES = {
-  // Solitaire has no group of its own, but it must still be requested as a
-  // structured RingSpec: the legacy flat-7 body carries no `stones` group, so a
-  // solitaire sent that way silently drops the centre-stone shape and comes back
-  // round (RNG-23). `/generate-ring` accepts either form for solitaire; only the
-  // structured one can express a shape.
-  solitaire: {
-    group: null,
-    fieldset: null,
-    numberKeys: [],
-    intKeys: [],
-    stringKeys: [],
-  },
+// Composable features (RNG-24): any subset, not a choice of one archetype.
+// Keyed by feature name; `group` is the spec key, `fieldset` the revealed
+// <fieldset> id, `numberKeys`/`intKeys`/`stringKeys` the group's inputs
+// (numbers via Number, ints via parseInt, strings read verbatim — e.g. a
+// <select> value). A registry, not an if-chain, so a new feature is one
+// entry (RNG-10 CP3, widened RNG-24).
+//
+// Nothing in the form OFFERS a feature. The photo is the only thing that
+// puts one on the ring: upload, and whatever it detected appears, filled in.
+// A feature can be removed (vision is not always right), but there is no
+// "add" — this is a tool for reproducing a ring you photographed, not a
+// configurator for assembling one from parts.
+const FEATURES = {
   halo: {
     group: "halo",
     fieldset: "halo-fields",
@@ -53,12 +48,21 @@ const ARCHETYPES = {
   },
 };
 
-// Every archetype-group field id (for required-toggling and error clearing).
-const ARCHETYPE_FIELD_KEYS = Object.values(ARCHETYPES).flatMap(
+// Every feature-group field id (for required-toggling and error clearing).
+const FEATURE_FIELD_KEYS = Object.values(FEATURES).flatMap(
   (cfg) => cfg.numberKeys.concat(cfg.intKeys, cfg.stringKeys)
 );
 
-const archetypeSelect = document.getElementById("archetype");
+// The fieldset's own visibility IS the state — no parallel flag to drift
+// out of step with what the user can actually see and edit.
+function isFeatureActive(name) {
+  const fieldset = document.getElementById(FEATURES[name].fieldset);
+  return !!(fieldset && !fieldset.hidden);
+}
+
+function activeFeatures() {
+  return Object.keys(FEATURES).filter(isFeatureActive);
+}
 
 const form = document.getElementById("ring-form");
 const generateBtn = document.getElementById("generate-btn");
@@ -74,32 +78,12 @@ const meshStatusEl = document.getElementById("mesh-status");
 let currentBlob = null;
 let currentObjectUrl = null;
 
-function gatherSolitaireBody() {
-  const params = {};
-  for (const key of NUMBER_KEYS) {
-    params[key] = Number(document.getElementById(key).value);
-  }
-  params.prong_count = parseInt(document.getElementById("prong_count").value, 10);
-  return params;
-}
-
-// Structured RingSpec JSON (RNG-9 CP4): a non-solitaire archetype is requested
-// as the full discriminated-union shape /generate-ring's structured dispatch
-// expects — shared shank/setting/stones plus the archetype's own group.
-function gatherStructuredBody(name) {
-  const cfg = ARCHETYPES[name];
-  const group = {};
-  for (const key of cfg.numberKeys) {
-    group[key] = Number(document.getElementById(key).value);
-  }
-  for (const key of cfg.intKeys) {
-    group[key] = parseInt(document.getElementById(key).value, 10);
-  }
-  for (const key of cfg.stringKeys) {
-    group[key] = document.getElementById(key).value;
-  }
+// Structured RingSpec JSON (RNG-9 CP4, widened RNG-24): shared shank/setting/
+// stones plus a group for EVERY active feature — any subset, not one
+// archetype's worth. A plain centre stone sends the shared groups alone; the
+// schema forbids extra keys, so an absent feature's group is never attached.
+function gatherStructuredBody() {
   const body = {
-    archetype: name,
     shank: {
       inner_diameter: Number(document.getElementById("inner_diameter").value),
       band_width: Number(document.getElementById("band_width").value),
@@ -117,9 +101,20 @@ function gatherStructuredBody(name) {
       ...stoneShapeFields(),
     },
   };
-  // Solitaire has no group of its own; the schema forbids extra keys, so an
-  // empty one cannot be sent.
-  if (cfg.group) body[cfg.group] = group;
+  for (const name of activeFeatures()) {
+    const cfg = FEATURES[name];
+    const group = {};
+    for (const key of cfg.numberKeys) {
+      group[key] = Number(document.getElementById(key).value);
+    }
+    for (const key of cfg.intKeys) {
+      group[key] = parseInt(document.getElementById(key).value, 10);
+    }
+    for (const key of cfg.stringKeys) {
+      group[key] = document.getElementById(key).value;
+    }
+    body[cfg.group] = group;
+  }
   return body;
 }
 
@@ -179,42 +174,51 @@ function applyShapeState() {
 }
 
 function gatherRequestBody() {
-  return ARCHETYPES[archetypeSelect.value]
-    ? gatherStructuredBody(archetypeSelect.value)
-    : gatherSolitaireBody();
+  return gatherStructuredBody();
 }
 
-// Toggles each archetype's fieldset visibility + required-ness with the
-// selector: the active archetype's group is shown and required, all others
-// hidden and optional (so a hidden group never blocks native validation).
-function applyArchetypeVisibility() {
-  const active = archetypeSelect.value;
-  for (const [name, cfg] of Object.entries(ARCHETYPES)) {
-    const isActive = name === active;
-    const fieldset = document.getElementById(cfg.fieldset);
-    if (fieldset) fieldset.hidden = !isActive;
-    for (const key of cfg.numberKeys.concat(cfg.intKeys, cfg.stringKeys)) {
-      const el = document.getElementById(key);
-      if (!el) continue;
-      if (isActive) {
-        el.setAttribute("required", "required");
-      } else {
-        el.removeAttribute("required");
-      }
+// Show/hide one feature's fieldset and match its required-ness. A hidden
+// group is never required, so it never blocks native validation.
+//
+// Removing HIDES rather than clears: the values stay, so re-adding a feature
+// gives back whatever you (or the photo) had put there, instead of silently
+// discarding edits on a misclick.
+function setFeature(name, active) {
+  const cfg = FEATURES[name];
+  if (!cfg) return;
+  const fieldset = document.getElementById(cfg.fieldset);
+  if (fieldset) fieldset.hidden = !active;
+  for (const key of cfg.numberKeys.concat(cfg.intKeys, cfg.stringKeys)) {
+    const el = document.getElementById(key);
+    if (!el) continue;
+    if (active) {
+      el.setAttribute("required", "required");
+    } else {
+      el.removeAttribute("required");
     }
   }
 }
 
+// Removing is the only feature control the form offers, and it exists for
+// one reason: vision is not always right. It read pave shoulders on a photo
+// that had them, but it can equally read something that isn't there, and
+// without this the user would be stuck generating a ring they can see is
+// wrong. There is deliberately no matching "add" — features come from the
+// photo, not from a parts picker.
+function removeFeature(name) {
+  setFeature(name, false);
+}
+
 // A channel is cut INTO the band, so it needs the stone plus a MIN_WALL wall
 // each side (RNG-19 CP3, docs/parameter-ranges.md). The form's 2.2mm default
-// cannot hold any legal accent, so selecting Side-stone with stock values
+// cannot hold any legal accent, so checking Side-stone with stock values
 // would post a spec the casting gate rejects. Widen the band to fit instead of
 // letting the default path 400 — the user can still narrow it and get the
 // server's violation, which names the field and the required width.
 const CHANNEL_MIN_WALL = 0.8;
 
 function fitBandToChannel() {
-  if (archetypeSelect.value !== "side_stone") return;
+  if (!isFeatureActive("side_stone")) return;
   const bandWidth = document.getElementById("band_width");
   const accent = document.getElementById("accent_stone_diameter");
   if (!bandWidth || !accent) return;
@@ -232,7 +236,7 @@ function setLoading(isLoading) {
 }
 
 function clearFieldErrors() {
-  for (const key of NUMBER_KEYS.concat(["prong_count"], ARCHETYPE_FIELD_KEYS)) {
+  for (const key of NUMBER_KEYS.concat(["prong_count"], FEATURE_FIELD_KEYS)) {
     const el = document.getElementById(key);
     if (!el) continue;
     el.classList.remove("field-error");
@@ -401,13 +405,24 @@ async function generate(event) {
 }
 
 form.addEventListener("submit", generate);
-archetypeSelect.addEventListener("change", () => {
-  applyArchetypeVisibility();
+
+for (const button of document.querySelectorAll(".remove-feature")) {
+  button.addEventListener("click", () => removeFeature(button.dataset.feature));
+}
+
+// photo.js drives the same machinery rather than reaching into the form
+// itself: it says WHICH features the photo showed, and this decides what
+// that means for the DOM (same custom-event convention as ring:generated).
+document.addEventListener("ring:set-features", (event) => {
+  const detected = (event.detail && event.detail.features) || [];
+  for (const name of Object.keys(FEATURES)) {
+    setFeature(name, detected.includes(name));
+  }
   fitBandToChannel();
 });
+
 const accentDiaEl = document.getElementById("accent_stone_diameter");
 if (accentDiaEl) accentDiaEl.addEventListener("change", fitBandToChannel);
-applyArchetypeVisibility();
 
 const shapeSelect = document.getElementById("shape");
 shapeSelect.addEventListener("change", applyShapeState);

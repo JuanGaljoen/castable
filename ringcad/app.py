@@ -68,7 +68,14 @@ def create_app() -> Flask:
                 "Invalid request body", "expected a JSON object"
             )
 
-        structured = isinstance(body, dict) and "archetype" in body
+        # NOT "archetype" (RNG-24): once feature groups are independently
+        # optional, a structured feature spec omitting the legacy tag would
+        # otherwise be misread as a flat-7 solitaire request. `shank` is
+        # present on every structured body (legacy-tagged or not) and absent
+        # from every flat-7 body.
+        structured = isinstance(body, dict) and (
+            "archetype" in body or "shank" in body
+        )
 
         if structured:
             try:

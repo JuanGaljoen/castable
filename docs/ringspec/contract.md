@@ -15,50 +15,52 @@ on the spec *before* any geometry runs.
 
 ## Envelope
 
-`RingSpec` is a **discriminated (tagged) union** over `archetype` —
-`SolitaireSpec | HaloSpec | TrilogySpec | SideStoneSpec` (RNG-9, RNG-10,
-RNG-11). `RingSpec` itself is an `Annotated` type alias, NOT an instantiable
-class: construct a concrete member (`SolitaireSpec(...)`/`HaloSpec(...)`/
-`TrilogySpec(...)`/`SideStoneSpec(...)`) or route dict/JSON input through
-`validate_spec`, which returns the concrete member. Each member is a
-versioned envelope over its element groups; unknown/extra fields are
-rejected everywhere (`extra="forbid"`).
-
-`SolitaireSpec` (four groups):
+`RingSpec` is **one model**, not a discriminated union (RNG-24 retired the
+per-archetype union RNG-9/10/11 built). A ring is a base (`shank`/`setting`/
+`stones`) plus whichever features are present; any subset of
+`{halo, trilogy, side_stone}` is expressible.
 
 | Field        | Type                       | Default        | Notes |
 |--------------|----------------------------|----------------|-------|
 | `version`    | `Literal["1.0"]`           | `"1.0"`        | Schema version. |
-| `archetype`  | `Literal["solitaire"]`     | `"solitaire"`  | **Discriminator**. |
 | `shank`      | `Shank`                    | required       | Band geometry. |
 | `setting`    | `Setting`                  | required       | Prong / gallery. |
 | `stones`     | `Stones`                   | required       | Centre-stone sizing. |
-| `motifs`     | `list[Motif]`              | `[]`           | Empty is valid for a solitaire. |
+| `halo`       | `Halo \| null`             | `null`         | Accent-stone ring (RNG-9). |
+| `trilogy`    | `Trilogy \| null`          | `null`         | Two side stones (RNG-10). |
+| `side_stone` | `SideStone \| null`        | `null`         | Channel-set accent row (RNG-11). |
+| `motifs`     | `list[Motif]`              | `[]`           | Empty is valid. |
 | `confidence` | `FieldConfidence \| null`  | `null`         | Per-field vision confidence; populated by RNG-12. |
 
-`HaloSpec` mirrors `SolitaireSpec` (same `shank`/`setting`/`stones`/`motifs`/
-`confidence`) with `archetype: Literal["halo"]` and one added required group,
-`halo: Halo` (see below).
+Unknown/extra fields are rejected (`extra="forbid"`). Construct a spec
+directly (`RingSpec(shank=..., setting=..., stones=..., halo=...)`) or route
+dict/JSON input through `validate_spec`.
 
-`TrilogySpec` likewise mirrors `SolitaireSpec` with `archetype:
-Literal["trilogy"]` and one added required group, `trilogy: Trilogy` (see
-below).
+**Cross-feature castability is CP1's known gap, not yet CP2's fix.**
+`validate_castability`'s temporary `multi_feature_unvalidated` check rejects
+more than one feature present until real cross-feature checks land
+(specs/RNG-24.md CP2) — the contract *allows* combinations the gate doesn't
+yet validate.
 
-`SideStoneSpec` likewise mirrors `SolitaireSpec` with `archetype:
-Literal["side_stone"]` and one added required group,
-`side_stone: SideStone` (see below).
+**Back-compat constructors.** `SolitaireSpec(...)`, `HaloSpec(...)`,
+`TrilogySpec(...)`, `SideStoneSpec(...)` still exist as thin factory
+functions over `RingSpec` (not distinct types — `isinstance(spec, HaloSpec)`
+no longer means anything), so existing call sites that only ever used them as
+constructors are unaffected.
 
-### Archetype discriminator
+### Legacy `archetype` tag
 
-`archetype` is the union tag. `validate_spec` routes each value to its concrete
-member; an **archetype-less dict defaults to `"solitaire"`** (back-compat — the
-raw union otherwise rejects a missing tag with `union_tag_not_found`). An
-unknown value (e.g. `"cluster"`) is rejected with `union_tag_invalid`, surfaced
-by `spec_errors` as `field == "archetype"`. Future archetypes are added as new
-union members — additive, no breaking v2.
+A body still carrying the old `archetype` discriminator (`"solitaire"` /
+`"halo"` / `"trilogy"` / `"side_stone"`) is translated at the `validate_spec`
+edge rather than carried into the model: the named group must be present and
+every other feature group must be absent — the exact structural rule the old
+union enforced. An unknown value (e.g. `"cluster"`) is rejected with
+`union_tag_invalid`, surfaced by `spec_errors` as `field == "archetype"`. An
+archetype-less body validates directly, with any subset of feature groups.
 
-The element groups map deliberately onto the build123d modules; `halo` will map
-onto a per-accent setting module in the RNG-9 geometry slice.
+`RingSpec.archetype` is a **derived, read-only property** (not a stored
+field): the single active feature's name, or `"solitaire"` if none is set.
+Meaningful only while at most one feature is present.
 
 The element groups map deliberately onto the build123d modules proven in the
 RNG-13 spike: `shank → shank()`, `setting → prong_setting()`,
@@ -106,7 +108,7 @@ snap-to-nearest is a vision-layer concern, not the contract's.
 | `stone_diameter` | `float` | required| `> 0`, `<= 24` |
 | `stone_height`   | `float` | required| `> 0`, `<= 12` |
 
-### `Halo` (RNG-9, HaloSpec only)
+### `Halo` (RNG-9)
 
 The ring of accent stones encircling the centre stone. Bounds are structural
 sanity caps; casting floors are enforced in castability validation.
@@ -118,7 +120,7 @@ sanity caps; casting floors are enforced in castability validation.
 | `halo_gap`            | `float` | `0.5`   | `>= 0.3`, `<= 1.5` |
 | `halo_stone_height`   | `float` | `1.2`   | `>= 0.8`, `<= 3.0` |
 
-### `Trilogy` (RNG-10, TrilogySpec only)
+### `Trilogy` (RNG-10)
 
 Two symmetric side stones flanking the centre stone. Bounds are structural
 sanity caps; casting floors are enforced in the reused `accent_seat`/
@@ -130,7 +132,7 @@ sanity caps; casting floors are enforced in the reused `accent_seat`/
 | `side_stone_height`   | `float` | `1.8`   | `>= 0.8`, `<= 4.0` |
 | `side_stone_gap`      | `float` | `0.6`   | `>= 0.3`, `<= 2.0` |
 
-### `SideStone` (RNG-11, SideStoneSpec only)
+### `SideStone` (RNG-11)
 
 A channel-set accent row down each shoulder of the shank, symmetric about the
 centre stone. Bounds are structural sanity caps; wall floors are enforced in
@@ -191,9 +193,10 @@ Casting constants are **single-sourced** from
 | `min_prong_tip`      | Derived prong-tip diameter `< MIN_PRONG_TIP_MM`. The tip diameter is a **coarse proxy** (`π · stone_diameter / prong_count · wire_fraction`) — plan Risk #2, "fuzzy"; pin against the SCAD/build123d geometry in RNG-15. |
 | `stone_exceeds_bore` | `stone_diameter >= inner_diameter` (stone wider than the finger bore). |
 | `stone_exceeds_head` | `stone_height >= setting_height` (stone taller than the head). |
-| `halo_overcrowding`  | (HaloSpec) Per-accent arc `2π·R / halo_stone_count < halo_stone_diameter`, where `R = stone_diameter/2 + halo_gap + halo_stone_diameter/2`. |
-| `trilogy_overcrowding` | (TrilogySpec) The side stone's chord (straight-line) distance from the centre stone, `2·head_r·sin(φ/2)` where `φ = (stone_r + side_stone_gap + side_r) / head_r`, is less than `stone_r + side_r` — the two girdles would overlap. |
-| `side_stone_overcrowding` | (SideStoneSpec) Two checks, first violation wins: (a) the row's required arc `(accent_count_per_side - 1) · (accent_stone_diameter + accent_gap)` exceeds the arc budget between a 10° and 110° angular offset from the head (`band_outer_r · radians(100°)`), flagging `accent_count_per_side`; else (b) adjacent accents' chord distance `2·band_outer_r·sin(dφ/2)` is less than `accent_stone_diameter`, flagging `accent_gap` — the same arc-vs-chord divergence as `trilogy_overcrowding`. |
+| `cross_feature_overcrowding` | Two present features' `Footprint`s (`ringcad/ringspec/footprint.py`) fail to clear each other by `MIN_WALL_MM` in either angle or radius — an annular-sector currency shared by all three features, so a new feature's cross-checks are free rather than a new pairwise special case. `side_stone`'s own start angle is widened when a halo/trilogy shares the head, so most such combinations clear by construction; this catches what's still too tight (any halo+trilogy pairing, since neither can move for the other). `field` is `"<name_a>+<name_b>"`. |
+| `halo_overcrowding`  | (`halo` present) Per-accent arc `2π·R / halo_stone_count < halo_stone_diameter`, where `R = stone_diameter/2 + halo_gap + halo_stone_diameter/2`. |
+| `trilogy_overcrowding` | (`trilogy` present) The side stone's chord (straight-line) distance from the centre stone, `2·head_r·sin(φ/2)` where `φ = (stone_r + side_stone_gap + side_r) / head_r`, is less than `stone_r + side_r` — the two girdles would overlap. |
+| `side_stone_overcrowding` | (`side_stone` present) Two checks, first violation wins: (a) the row's required arc `(accent_count_per_side - 1) · (accent_stone_diameter + accent_gap)` exceeds the arc budget between its (possibly widened) start angle and 110°, flagging `accent_count_per_side`; else (b) adjacent accents' chord distance `2·band_outer_r·sin(dφ/2)` is less than `accent_stone_diameter`, flagging `accent_gap` — the same arc-vs-chord divergence as `trilogy_overcrowding`. |
 
 **Retired (docs/adr/0002):** `halo_min_wall` (`halo_gap < MIN_WALL_MM`) and
 `halo_min_accent_tip` (a derived-diameter proxy) were CP1-era placeholders,
@@ -214,7 +217,8 @@ to (classify a field as placement vs. wall before writing a proxy for it).
 flat 7-key dict (`ringcad/params.py`) additively — `/generate-ring` keeps using
 params until the RNG-15 cutover.
 
-- `from_params(p) -> SolitaireSpec`: maps the 7 keys into groups; `shank_taper`
+- `from_params(p) -> RingSpec`: maps the 7 keys into groups (no feature
+  present); `shank_taper`
   is restored to its default (`DEFAULT_SHANK_TAPER = 1.7`).
 - `to_params(spec) -> dict`: flattens back to the canonical `PARAM_KEYS` order,
   **dropping** `shank_taper`; `prong_count` is returned as an `int`.
@@ -230,20 +234,15 @@ Canonical key order (`PARAM_KEYS`): `inner_diameter`, `band_width`,
 
 ## Versioning policy
 
-- `version` and `archetype` are `Literal`s, so every spec is self-describing.
-- **RNG-16 archetypes are additive:** new archetype values + new optional
-  groups; existing solitaire specs stay valid. The JSON Schema shifts from a
-  single model to a `oneOf` over archetype variants at that point — a non-
-  breaking widening for solitaire consumers.
+- `version` is a `Literal`, so every spec is self-describing.
+- **New features are additive:** a new optional top-level group; existing
+  specs (with or without any feature) stay valid.
 - A breaking change bumps `version` to a new `Literal`.
 
 ## Regenerating the schema
 
 The committed `ringspec.schema.json` is generated from the model. Regenerate
 after any model change:
-
-`RingSpec` is now a union alias, so the schema comes from a `TypeAdapter`
-(`model_json_schema` no longer exists on the alias):
 
 ```bash
 python -c "import json; from pydantic import TypeAdapter; from ringcad.ringspec.models import RingSpec; print(json.dumps(TypeAdapter(RingSpec).json_schema(), indent=2))" > docs/ringspec/ringspec.schema.json

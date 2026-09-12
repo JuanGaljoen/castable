@@ -3,14 +3,19 @@
 // RNG-6 + RNG-12: photo upload -> /classify-ring -> pre-fill the ring form as a
 // structured editor over a RingSpec. Plain script (no modules), operates by id.
 // The endpoint returns {ring_detected, detected_style, note, spec}; `spec` is a
-// full, validated RingSpec (archetype + shank/setting/stones + the archetype's
-// group + shared-field confidence). We select the detected archetype, pre-fill
-// every field, and flag low-confidence estimates. Every field stays editable.
+// full, validated RingSpec (shank/setting/stones + whichever of halo/trilogy/
+// side_stone are present + shared-field confidence). RNG-24: any subset of
+// features can be present at once, so we check every feature the spec
+// actually carries (not a single selected archetype), pre-fill every field,
+// and flag low-confidence estimates. Every field stays editable.
 (function () {
   var MAX_EDGE = 1024;
   // Groups whose {field: value} pairs map 1:1 onto input ids of the same name.
   var SHARED_GROUPS = ["shank", "setting", "stones"];
-  // RingSpec envelope keys that are NOT an archetype group object.
+  // Feature-group spec keys (RNG-24). Which of these a spec carries is what
+  // the photo "detected"; app.js owns what that means for the form.
+  var FEATURE_KEYS = ["halo", "trilogy", "side_stone"];
+  // RingSpec envelope keys that are NOT a feature group object.
   var META_KEYS = { version: 1, archetype: 1, shank: 1, setting: 1,
                     stones: 1, confidence: 1, motifs: 1 };
   var LOW_CONFIDENCE = 0.5;
@@ -172,19 +177,27 @@
     );
   }
 
-  // Pre-fill the form from a RingSpec: select the detected archetype (and fire
-  // change so app.js toggles the right fieldset), fill shared + group fields,
-  // then flag any low-confidence shared estimate and any field RNG-32's
-  // coherence repair adjusted to make the spec buildable.
+  function detectedFeatures(spec) {
+    return FEATURE_KEYS.filter(function (name) {
+      return !!spec[name];
+    });
+  }
+
+  // Pre-fill the form from a RingSpec: announce every feature the spec
+  // actually carries (RNG-24 — any subset, not one archetype) so app.js
+  // reveals those fieldsets, fill shared + group fields, then flag any
+  // low-confidence shared estimate and any field RNG-32's coherence repair
+  // adjusted to make the spec buildable. The user corrects numbers; they are
+  // never asked to assemble the ring themselves.
   function applySpec(spec, adjustments) {
     clearLowConfidence();
     clearAdjusted();
 
-    var select = $("archetype");
-    if (select && spec.archetype) {
-      select.value = spec.archetype;
-      select.dispatchEvent(new Event("change"));
-    }
+    document.dispatchEvent(
+      new CustomEvent("ring:set-features", {
+        detail: { features: detectedFeatures(spec) },
+      })
+    );
 
     SHARED_GROUPS.forEach(function (groupKey) {
       var group = spec[groupKey];
@@ -204,7 +217,8 @@
       shapeSelect.dispatchEvent(new Event("change"));
     }
 
-    // The one non-meta key is the active archetype's own group object.
+    // Every non-meta, non-null key is a PRESENT feature's own group object —
+    // any subset can be present at once (RNG-24), not one archetype's worth.
     Object.keys(spec).forEach(function (key) {
       if (!META_KEYS[key] && spec[key] && typeof spec[key] === "object") {
         Object.keys(spec[key]).forEach(function (k) {
@@ -230,16 +244,16 @@
     });
   }
 
-  function showDetections(data, spec) {
+  function showDetections(data) {
     var el = $("photo-detections");
     if (!el) {
       return;
     }
-    var text = "Detected: " + (data.detected_style || "ring");
-    if (spec && spec.archetype) {
-      text += " · building " + spec.archetype.replace(/_/g, " ");
-    }
-    el.textContent = text;
+    // Describes the PHOTO, nothing else. What the app then did with it is
+    // visible in the form itself -- the matching sections appear, already
+    // filled in -- so narrating it here only repeated the UI in internal
+    // vocabulary.
+    el.textContent = "Detected: " + (data.detected_style || "ring");
     el.hidden = false;
   }
 
@@ -251,15 +265,18 @@
       if (label) {
         label.hidden = false;
       }
-      showDetections(data, data.spec);
-      var note = data.note || "Estimates applied. Verify before generating.";
-      if (adjustments.length) {
-        note +=
-          " " + adjustments.length +
-          (adjustments.length === 1 ? " value was" : " values were") +
-          " adjusted so this ring can be cast (marked below).";
-      }
-      setStatus(note);
+      showDetections(data);
+      // Three places were all saying a version of the same thing: the
+      // detections line describes the photo, the standing "Estimates only"
+      // label carries the caveat, so the status line keeps ONLY what is
+      // actionable and specific to this run.
+      setStatus(
+        adjustments.length
+          ? adjustments.length +
+              (adjustments.length === 1 ? " value was" : " values were") +
+              " adjusted so this ring can be cast (marked below)."
+          : ""
+      );
     } else {
       setStatus(
         (data && data.note) ||

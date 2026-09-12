@@ -112,3 +112,38 @@ def test_photo_js_referenced_as_plain_defer_script(body):
         assert "photo.js" not in im.group(1), (
             "photo.js must not appear in the import map"
         )
+
+
+# ---- RNG-24: the photo drives which features are on the ring ---------------
+def _source(name):
+    import pathlib
+    return pathlib.Path(
+        pathlib.Path(__file__).parent.parent / "static" / name
+    ).read_text()
+
+
+def test_photo_announces_detected_features_rather_than_setting_controls():
+    """The product rule this ticket is really about: a photo showing a halo
+    WITH pave shoulders must produce both, and the user must never have to
+    assemble that by hand.
+
+    photo.js says WHICH features the spec carries; app.js owns what that
+    means for the form. Asserted as a seam, not as DOM poking -- photo.js
+    reaching into checkboxes/fieldsets itself is exactly the coupling that
+    made "which archetype is selected" the source of truth instead of "what
+    did the photo actually show".
+    """
+    photo = _source("photo.js")
+    assert 'CustomEvent("ring:set-features"' in photo, (
+        "photo.js must announce the detected feature set as an event"
+    )
+    for widget in ("feature-halo", "feature-trilogy", "feature-side_stone"):
+        assert widget not in photo, (
+            f"photo.js must not drive {widget} directly -- it reports what the "
+            "photo showed, it does not operate the form's controls"
+        )
+
+    app = _source("app.js")
+    assert 'addEventListener("ring:set-features"' in app, (
+        "app.js must listen for the detected feature set"
+    )

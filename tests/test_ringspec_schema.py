@@ -16,9 +16,7 @@ import pytest
 from pydantic import TypeAdapter, ValidationError
 
 from ringcad.ringspec import (
-    HaloSpec,
     RingSpec,
-    SolitaireSpec,
     spec_errors,
     validate_spec,
 )
@@ -120,18 +118,21 @@ def test_spec_errors_are_json_serializable(spec):
 
 def test_valid_spec_passes_validate_spec():
     spec = validate_spec(GOOD_SPEC)
-    assert isinstance(spec, SolitaireSpec)
+    assert spec.halo is None and spec.trilogy is None and spec.side_stone is None
 
 
 # --- AC4: generated JSON Schema + committed example --------------------------
 def test_model_json_schema_exposes_top_level_groups():
+    """RNG-24: RingSpec is a plain model now, not a discriminated union — the
+    feature groups are ordinary optional top-level properties."""
     schema = TypeAdapter(RingSpec).json_schema()
     assert isinstance(schema, dict)
-    assert "oneOf" in schema
-    assert "discriminator" in schema
-    defs = schema.get("$defs", {})
-    assert "SolitaireSpec" in defs
-    assert "HaloSpec" in defs
+    assert "oneOf" not in schema
+    assert "discriminator" not in schema
+    props = schema.get("properties", {})
+    assert "halo" in props
+    assert "trilogy" in props
+    assert "side_stone" in props
 
 
 def test_committed_example_exists_and_validates():
@@ -139,4 +140,4 @@ def test_committed_example_exists_and_validates():
     with open(EXAMPLE_PATH) as fh:
         data = json.load(fh)
     spec = validate_spec(data)
-    assert isinstance(spec, SolitaireSpec)
+    assert spec.halo is None and spec.trilogy is None and spec.side_stone is None

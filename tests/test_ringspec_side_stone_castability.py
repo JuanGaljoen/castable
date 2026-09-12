@@ -22,7 +22,7 @@ import math
 
 import pytest
 
-from ringcad.ringspec import SideStoneSpec, validate_castability, validate_spec
+from ringcad.ringspec import validate_castability, validate_spec
 
 SETTING = {"prong_count": 6, "setting_height": 6.0}
 
@@ -55,7 +55,7 @@ def _side_stone_spec(shank=None, stones=None, side_stone=None):
             },
         }
     )
-    assert isinstance(spec, SideStoneSpec)
+    assert spec.side_stone is not None
     return spec
 
 

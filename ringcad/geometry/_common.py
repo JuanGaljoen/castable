@@ -16,7 +16,9 @@ from build123d import (
 
 from ringcad.mesh_validator import MIN_PRONG_TIP_MM, MIN_WALL_MM
 from ringcad.ringspec import RingSpec, to_params
-from ringcad.ringspec.models import SHANK_THICKNESS_TAPER, SHANK_WIDTH_TAPER
+from ringcad.ringspec.models import (
+    SHANK_THICKNESS_TAPER, SHANK_WIDTH_TAPER, effective_thickness_taper,
+)
 from ringcad.ringspec.sections import (
     SectionProfile, head_r as _section_head_r, knife_edge_apex_fraction,
     section_for,
@@ -95,11 +97,13 @@ def clamps(spec: RingSpec) -> dict:
     peg and hub radii, which are not girdle-following.
     """
     p = to_params(spec)
-    flat = getattr(spec, "archetype", None) == "side_stone"
+    flat = getattr(spec, "side_stone", None) is not None
     taper = FLAT_TAPER if flat else SHANK_TAPER
     # A flat band is flat on BOTH axes — the side-stone row needs a constant
     # outer radius for its seats and rails to sit ON the surface (RNG-11).
-    t_taper = FLAT_TAPER if flat else SHANK_THICKNESS_TAPER
+    # Single-sourced from ringspec.models (RNG-24): the spec-layer castability
+    # checks need this same fact and cannot import this module.
+    t_taper = effective_thickness_taper(spec)
     shank = getattr(spec, "shank", None)
     profile = section_for(
         getattr(shank, "outer_profile", "domed"),

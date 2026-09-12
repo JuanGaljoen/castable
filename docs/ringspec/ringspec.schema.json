@@ -142,62 +142,6 @@
       "title": "Halo",
       "type": "object"
     },
-    "HaloSpec": {
-      "additionalProperties": false,
-      "description": "Halo archetype: a solitaire centre plus a ring of accent stones.",
-      "properties": {
-        "version": {
-          "const": "1.0",
-          "default": "1.0",
-          "title": "Version",
-          "type": "string"
-        },
-        "archetype": {
-          "const": "halo",
-          "default": "halo",
-          "title": "Archetype",
-          "type": "string"
-        },
-        "shank": {
-          "$ref": "#/$defs/Shank"
-        },
-        "setting": {
-          "$ref": "#/$defs/Setting"
-        },
-        "stones": {
-          "$ref": "#/$defs/Stones"
-        },
-        "halo": {
-          "$ref": "#/$defs/Halo"
-        },
-        "motifs": {
-          "items": {
-            "$ref": "#/$defs/Motif"
-          },
-          "title": "Motifs",
-          "type": "array"
-        },
-        "confidence": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/FieldConfidence"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        }
-      },
-      "required": [
-        "shank",
-        "setting",
-        "stones",
-        "halo"
-      ],
-      "title": "HaloSpec",
-      "type": "object"
-    },
     "Motif": {
       "additionalProperties": false,
       "description": "Decorative element placeholder (empty list is valid for a solitaire).",
@@ -350,114 +294,6 @@
       "title": "SideStone",
       "type": "object"
     },
-    "SideStoneSpec": {
-      "additionalProperties": false,
-      "description": "Side-stone archetype: a solitaire centre plus a channel-set accent row\ndown each shoulder.",
-      "properties": {
-        "version": {
-          "const": "1.0",
-          "default": "1.0",
-          "title": "Version",
-          "type": "string"
-        },
-        "archetype": {
-          "const": "side_stone",
-          "default": "side_stone",
-          "title": "Archetype",
-          "type": "string"
-        },
-        "shank": {
-          "$ref": "#/$defs/Shank"
-        },
-        "setting": {
-          "$ref": "#/$defs/Setting"
-        },
-        "stones": {
-          "$ref": "#/$defs/Stones"
-        },
-        "side_stone": {
-          "$ref": "#/$defs/SideStone"
-        },
-        "motifs": {
-          "items": {
-            "$ref": "#/$defs/Motif"
-          },
-          "title": "Motifs",
-          "type": "array"
-        },
-        "confidence": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/FieldConfidence"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        }
-      },
-      "required": [
-        "shank",
-        "setting",
-        "stones",
-        "side_stone"
-      ],
-      "title": "SideStoneSpec",
-      "type": "object"
-    },
-    "SolitaireSpec": {
-      "additionalProperties": false,
-      "description": "Solitaire archetype: one centre stone in a prong setting on a shank.",
-      "properties": {
-        "version": {
-          "const": "1.0",
-          "default": "1.0",
-          "title": "Version",
-          "type": "string"
-        },
-        "archetype": {
-          "const": "solitaire",
-          "default": "solitaire",
-          "title": "Archetype",
-          "type": "string"
-        },
-        "shank": {
-          "$ref": "#/$defs/Shank"
-        },
-        "setting": {
-          "$ref": "#/$defs/Setting"
-        },
-        "stones": {
-          "$ref": "#/$defs/Stones"
-        },
-        "motifs": {
-          "items": {
-            "$ref": "#/$defs/Motif"
-          },
-          "title": "Motifs",
-          "type": "array"
-        },
-        "confidence": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/FieldConfidence"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        }
-      },
-      "required": [
-        "shank",
-        "setting",
-        "stones"
-      ],
-      "title": "SolitaireSpec",
-      "type": "object"
-    },
     "Stones": {
       "additionalProperties": false,
       "description": "Centre-stone sizing and shape for the seat module.\n\n`stone_diameter` is the SHORT axis (the width); the long axis is\n`stone_diameter * length_ratio`. Both shape fields are defaulted, so every\nspec written before RNG-23 stays valid and still means a round stone.\n\nA ratio rather than an explicit length: it is the quantity a photo actually\nshows (feeding RNG-26), and `length_ratio == 1.0` makes round fall out of the\nsame code path instead of needing a branch. The 2.5 cap is a castability\nguard -- an ellipse's tightest bend is `semi_minor^2 / semi_major`, so\nelongation directly thins the metal at the tips.",
@@ -530,85 +366,83 @@
       },
       "title": "Trilogy",
       "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The versioned contract (RNG-24): one model, features as optional groups.\n\n`halo`/`trilogy`/`side_stone` are independently optional \u2014 a ring is a base\n(shank/setting/stones) plus whichever features are present, not a choice of\nexactly one archetype. This is CP1 (contract + migration): the schema\nallows any subset, but `validate_castability`'s temporary\n`multi_feature_unvalidated` gate still rejects more than one present until\nCP2 lands real cross-feature checks (docs/adr, specs/RNG-24.md).",
+  "properties": {
+    "version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Version",
+      "type": "string"
     },
-    "TrilogySpec": {
-      "additionalProperties": false,
-      "description": "Trilogy archetype: a solitaire centre plus two symmetric side stones.",
-      "properties": {
-        "version": {
-          "const": "1.0",
-          "default": "1.0",
-          "title": "Version",
-          "type": "string"
+    "shank": {
+      "$ref": "#/$defs/Shank"
+    },
+    "setting": {
+      "$ref": "#/$defs/Setting"
+    },
+    "stones": {
+      "$ref": "#/$defs/Stones"
+    },
+    "halo": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Halo"
         },
-        "archetype": {
-          "const": "trilogy",
-          "default": "trilogy",
-          "title": "Archetype",
-          "type": "string"
-        },
-        "shank": {
-          "$ref": "#/$defs/Shank"
-        },
-        "setting": {
-          "$ref": "#/$defs/Setting"
-        },
-        "stones": {
-          "$ref": "#/$defs/Stones"
-        },
-        "trilogy": {
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "trilogy": {
+      "anyOf": [
+        {
           "$ref": "#/$defs/Trilogy"
         },
-        "motifs": {
-          "items": {
-            "$ref": "#/$defs/Motif"
-          },
-          "title": "Motifs",
-          "type": "array"
-        },
-        "confidence": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/FieldConfidence"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
+        {
+          "type": "null"
         }
-      },
-      "required": [
-        "shank",
-        "setting",
-        "stones",
-        "trilogy"
       ],
-      "title": "TrilogySpec",
-      "type": "object"
+      "default": null
+    },
+    "side_stone": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SideStone"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "motifs": {
+      "items": {
+        "$ref": "#/$defs/Motif"
+      },
+      "title": "Motifs",
+      "type": "array"
+    },
+    "confidence": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FieldConfidence"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
-  "discriminator": {
-    "mapping": {
-      "halo": "#/$defs/HaloSpec",
-      "side_stone": "#/$defs/SideStoneSpec",
-      "solitaire": "#/$defs/SolitaireSpec",
-      "trilogy": "#/$defs/TrilogySpec"
-    },
-    "propertyName": "archetype"
-  },
-  "oneOf": [
-    {
-      "$ref": "#/$defs/SolitaireSpec"
-    },
-    {
-      "$ref": "#/$defs/HaloSpec"
-    },
-    {
-      "$ref": "#/$defs/TrilogySpec"
-    },
-    {
-      "$ref": "#/$defs/SideStoneSpec"
-    }
-  ]
+  "required": [
+    "shank",
+    "setting",
+    "stones"
+  ],
+  "title": "RingSpec",
+  "type": "object"
 }

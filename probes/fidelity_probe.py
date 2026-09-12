@@ -23,7 +23,6 @@ import json
 import os
 import sys
 import time
-import typing
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -168,18 +167,36 @@ def exit_code(results: list[Result]) -> int:
     return 1 if any(r.verdict is Verdict.FAIL for r in results) else 0
 
 
-def supported_archetypes() -> set[str]:
-    """Read the archetype tags off the RingSpec union.
+def archetype_label(spec: dict | None) -> str | None:
+    """The corpus's single-name view of what was built.
 
-    Derived rather than hardcoded so a new archetype needs no edit here.
+    RingSpec has carried no `archetype` field since RNG-24 -- a ring is a
+    base plus whichever features are present -- so the label is derived from
+    the groups the spec actually has. A ring with one feature still reads
+    exactly as it did ("halo"), so existing manifest expectations are
+    unaffected; a genuinely combined ring reads "halo+side_stone" and will
+    report as a MISMATCH against a single-name expectation, which is honest
+    signal (amber, never red) rather than something to paper over.
     """
-    from ringcad.ringspec.models import RingSpec
+    if spec is None:
+        return None
+    from ringcad.classify import SUPPORTED_FEATURES
 
-    (union,) = typing.get_args(RingSpec)[:1]  # strip the Annotated wrapper
-    return {
-        member.model_fields["archetype"].default
-        for member in typing.get_args(union)
-    }
+    present = [name for name in SUPPORTED_FEATURES if spec.get(name)]
+    return "+".join(present) if present else "solitaire"
+
+
+def supported_archetypes() -> set[str]:
+    """The archetype tags `classify.py` can emit.
+
+    RNG-24 retired RingSpec's discriminated union (there is no longer a type
+    to reflect archetype tags off), so this reads `classify.SUPPORTED_
+    ARCHETYPES` -- the one place that list is still a plain enumeration --
+    rather than duplicating it here.
+    """
+    from ringcad.classify import SUPPORTED_ARCHETYPES
+
+    return set(SUPPORTED_ARCHETYPES)
 
 
 def probe(client, photo: Path) -> Record:
@@ -238,7 +255,7 @@ def probe(client, photo: Path) -> Record:
             stage="generate",
             generated=False,
             ring_detected=True,
-            archetype=spec.get("archetype"),
+            archetype=archetype_label(spec),
             detected_style=body.get("detected_style"),
             note=body.get("note"),
             spec=spec,
@@ -251,7 +268,7 @@ def probe(client, photo: Path) -> Record:
         stage="generate",
         generated=True,
         ring_detected=True,
-        archetype=spec.get("archetype"),
+        archetype=archetype_label(spec),
         detected_style=body.get("detected_style"),
         note=body.get("note"),
         spec=spec,

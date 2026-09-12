@@ -16,7 +16,7 @@ import pytest
 from ringcad.classify import ClassifyResult, RingClassification
 
 
-def _result(outer="domed", inner="domed", archetype="solitaire", **kw):
+def _result(outer="domed", inner="domed", features=(), **kw):
     return ClassifyResult(
         ok=True,
         ring_detected=True,
@@ -24,9 +24,8 @@ def _result(outer="domed", inner="domed", archetype="solitaire", **kw):
         shank_taper="straight",
         note="",
         prong_count=6,
-        features=[],
+        features=list(features),
         estimates={"band_width": 2.2, "band_thickness": 1.9},
-        archetype=archetype,
         outer_profile=outer,
         inner_profile=inner,
         **kw,
