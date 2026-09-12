@@ -324,18 +324,41 @@ HALO_DEFAULTS = {
 }
 
 
-def test_archetype_selector_present_solitaire_default(body):
-    block = _select_block(body, "archetype")
-    assert block, "no <select id=archetype> found"
-    assert re.search(r'name\s*=\s*"archetype"', block, re.IGNORECASE)
-    assert re.search(r'<option\b[^>]*value\s*=\s*"solitaire"', block, re.IGNORECASE)
-    assert re.search(r'<option\b[^>]*value\s*=\s*"halo"', block, re.IGNORECASE)
-    opt_solitaire = re.search(
-        r'<option\b[^>]*value\s*=\s*"solitaire"[^>]*>', block, re.IGNORECASE
+def test_the_form_never_offers_to_add_a_feature(body):
+    """RNG-24: the photo is the only thing that puts a feature on the ring.
+
+    No archetype select, no feature toggles, no "add a feature" control --
+    this reproduces a ring you photographed, it does not offer you parts to
+    assemble one from. A feature can still be REMOVED (vision is not always
+    right); that asymmetry is the design, not an oversight.
+    """
+    assert not re.search(r'<select\b[^>]*id\s*=\s*"archetype"', body, re.I), (
+        "the archetype selector should be gone -- features are composable now"
     )
-    assert opt_solitaire and "selected" in opt_solitaire.group(0).lower(), (
-        "option value=solitaire must be selected by default"
+    assert "add-feature" not in body, (
+        "nothing in the form may offer to add a feature"
     )
+    for feature in ("halo", "trilogy", "side_stone"):
+        assert not _input_tag_with(body, type="checkbox", id=f"feature-{feature}"), (
+            f"no feature toggle for {feature} may appear in the form"
+        )
+
+
+def test_each_feature_fieldset_can_be_removed(body):
+    """Anything you can add, you can take off again -- with an accessible
+    name, since three buttons all reading "Remove" are useless to a screen
+    reader (WCAG 2.1 AA)."""
+    for feature in ("halo", "trilogy", "side_stone"):
+        button = re.search(
+            rf'<button\b[^>]*class\s*=\s*"remove-feature"[^>]*'
+            rf'data-feature\s*=\s*"{feature}"[^>]*>',
+            body,
+            re.I,
+        )
+        assert button, f"no remove control for {feature}"
+        assert re.search(r'aria-label\s*=\s*"[^"]+"', button.group(0), re.I), (
+            f"the {feature} remove button needs a distinguishing aria-label"
+        )
 
 
 def test_halo_fields_present_with_defaults_and_hidden_by_default(body):
@@ -377,14 +400,6 @@ TRILOGY_DEFAULTS = {
 }
 
 
-def test_trilogy_option_present(body):
-    block = _select_block(body, "archetype")
-    assert block, "no <select id=archetype> found"
-    assert re.search(r'<option\b[^>]*value\s*=\s*"trilogy"', block, re.IGNORECASE), (
-        "no <option value=trilogy> in the archetype selector"
-    )
-
-
 def test_trilogy_fields_present_with_defaults_and_hidden_by_default(body):
     for key in TRILOGY_NUMBER_KEYS:
         assert f'name="{key}"' in body, f"missing control name={key}"
@@ -424,14 +439,6 @@ SIDE_STONE_DEFAULTS = {
     "accent_count_per_side": "3",
     "accent_gap": "0.3",
 }
-
-
-def test_side_stone_option_present(body):
-    block = _select_block(body, "archetype")
-    assert block, "no <select id=archetype> found"
-    assert re.search(
-        r'<option\b[^>]*value\s*=\s*"side_stone"', block, re.IGNORECASE
-    ), "no <option value=side_stone> in the archetype selector"
 
 
 def test_side_stone_fields_present_with_defaults_and_hidden_by_default(body):
@@ -496,3 +503,30 @@ def test_vendored_three_served(client):
         assert resp.status_code == 200, (
             f"vendored three file not served (got {resp.status_code}): {path}"
         )
+
+
+# ===========================================================================
+# RNG-24: the form's features and app.js's registry must agree
+# ===========================================================================
+def test_every_feature_fieldset_is_known_to_the_registry(body):
+    """A fieldset the registry does not know about is dead markup: the photo
+    could detect that feature and nothing would appear, and its values would
+    never be sent. The two lists are written in different files, so pin them
+    against each other rather than trusting they were updated together."""
+    import pathlib
+
+    app_js = (
+        pathlib.Path(__file__).parent.parent / "static" / "app.js"
+    ).read_text()
+    registry = re.search(r"const FEATURES = \{.*?\n\};", app_js, re.S)
+    assert registry, "no FEATURES registry in app.js"
+    registered = set(re.findall(r"^  (\w+):", registry.group(0), re.M))
+
+    in_form = set(re.findall(r'class="remove-feature"[^>]*data-feature="(\w+)"', body))
+    assert in_form, "no feature fieldsets found in the form"
+    assert in_form <= registered, (
+        f"form offers features app.js does not know: {sorted(in_form - registered)}"
+    )
+    assert registered <= in_form, (
+        f"registry knows features the form never shows: {sorted(registered - in_form)}"
+    )

@@ -255,10 +255,4 @@ def make_coherent(spec: dict, confidence: dict | None = None
             break
         adjustments.append(repair(working, violations[0], confidence))
         model = validate_spec(working)
-    # RNG-24: RingSpec has no stored `archetype` field to round-trip through
-    # model_dump, but classify.py's callers (and its tests) still key the
-    # returned dict on one -- restore it from the derived property rather
-    # than have every caller learn the new feature-group shape in CP1, which
-    # is CP3's migration to make, not this checkpoint's.
-    working = {**working, "archetype": model.archetype}
     return working, adjustments

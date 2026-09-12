@@ -68,8 +68,8 @@ def _install_client(monkeypatch, *, parsed_output=None, raises=None):
 # structured-output schema has no optional fields). The helper supplies a full
 # set; group dims default to 0.0 ("not estimated") and are overridden per test.
 _FULL = dict(
-    ring_detected=True, style="solitaire", archetype="solitaire", prong_count=6,
-    shank_taper="straight", features=["polished"],
+    ring_detected=True, style="solitaire", prong_count=6,
+    shank_taper="straight", features=[],
     band_width=2.2, band_thickness=1.9, stone_diameter=6.5,
     stone_height=4.0, setting_height=6.0,
     halo_stone_diameter=0.0, halo_stone_count=0.0, halo_gap=0.0,
@@ -220,33 +220,39 @@ from ringcad.classify import RingConfidence  # noqa: E402
 
 
 def _halo(**overrides):
-    base = dict(archetype="halo", style="halo",
+    base = dict(features=["halo"], style="halo",
                 halo_stone_diameter=1.3, halo_stone_count=14,
                 halo_gap=0.5, halo_stone_height=1.2)
     base.update(overrides)
     return _ring(**base)
 
 
-# ---- AC1: detected archetype maps to a valid RingSpec ----------------------
+# ---- AC1: detected feature(s) map onto a valid RingSpec --------------------
 def test_detected_halo_builds_valid_halo_spec(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     _install_client(monkeypatch, parsed_output=_halo())
     spec = classify_ring(IMG, JPEG).to_spec()
-    assert spec["archetype"] == "halo"
-    assert "halo" in spec
+    assert spec["halo"] is not None
     # returned spec is a valid RingSpec and a castable /generate-ring body
     validated = validate_spec(spec)
     assert is_castable(validated)
 
 
-@pytest.mark.parametrize("archetype", ["solitaire", "halo", "trilogy",
-                                       "side_stone"])
-def test_every_archetype_builds_valid_spec(monkeypatch, archetype):
+@pytest.mark.parametrize("feature", ["", "halo", "trilogy", "side_stone"])
+def test_every_feature_builds_valid_spec(monkeypatch, feature):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
-    _install_client(monkeypatch,
-                    parsed_output=_ring(archetype=archetype, style=archetype))
+    features = [feature] if feature else []
+    _install_client(
+        monkeypatch,
+        parsed_output=_ring(features=features, style=feature or "solitaire"),
+    )
     spec = classify_ring(IMG, JPEG).to_spec()
-    assert spec["archetype"] == archetype
+    if feature:
+        assert spec[feature] is not None
+    else:
+        assert spec["halo"] is None
+        assert spec["trilogy"] is None
+        assert spec["side_stone"] is None
     validate_spec(spec)  # must not raise
 
 
@@ -256,9 +262,9 @@ def test_group_dims_clamped_to_model_bounds():
     # Unit-level, BEFORE the RNG-32 coherence pass: `_group_estimates` only
     # clamps each field to its own schema bound, one field at a time.
     data = _halo(halo_stone_count=99, halo_stone_diameter=0.1)
-    estimates = classify._group_estimates("halo", data)
-    assert estimates["halo_stone_count"] == 24
-    assert estimates["halo_stone_diameter"] == 0.9
+    estimates = classify._group_estimates(["halo"], data)
+    assert estimates["halo"]["halo_stone_count"] == 24
+    assert estimates["halo"]["halo_stone_diameter"] == 0.9
 
 
 def test_group_dims_clamped_then_made_castable(monkeypatch):
@@ -304,15 +310,41 @@ def test_confidence_clamped_to_unit_interval(monkeypatch):
     assert spec["confidence"]["band_width"] == 1.0
 
 
-# ---- AC1: unsupported detected style -> fallback note names both -----------
-def test_divergent_style_produces_fallback_note(monkeypatch):
+# ---- RNG-24: the note is the estimates caveat, NOT app narration ----------
+def test_note_does_not_narrate_what_the_app_built(monkeypatch):
+    """Describing the photo is `style`'s job; the note is only ever the
+    estimates caveat.
+
+    RNG-12's note announced a forced substitution ("building the nearest
+    supported style"), which earned its place while the archetype union was
+    throwing information away. RNG-24 builds what it detects, so the
+    sentence became an announcement of a non-event -- and worse, it matched
+    feature NAMES against free text, so a photo described as "pave band
+    shoulders" produced "also building side stone": internal vocabulary,
+    about a substitution that never happened.
+    """
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
-    _install_client(monkeypatch,
-                    parsed_output=_ring(archetype="solitaire",
-                                        style="cathedral pave"))
+    _install_client(
+        monkeypatch,
+        parsed_output=_ring(
+            features=["halo", "side_stone"],
+            style="round solitaire with diamond halo and pave band shoulders",
+            note="rough estimate",
+        ),
+    )
     result = classify_ring(IMG, JPEG)
-    assert "cathedral pave" in result.note
-    assert "solitaire" in result.note
+    assert result.note == "rough estimate"
+    for word in ("building", "side stone", "nearest supported"):
+        assert word not in result.note
+
+
+def test_style_still_carries_the_photo_description(monkeypatch):
+    """The description has to survive somewhere -- it is what the user reads
+    to check we looked at the right ring."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    described = "round solitaire with diamond halo and pave band shoulders"
+    _install_client(monkeypatch, parsed_output=_ring(style=described))
+    assert classify_ring(IMG, JPEG).to_json()["detected_style"] == described
 
 
 def test_matching_style_keeps_plain_note(monkeypatch):
@@ -378,27 +410,27 @@ def test_coherent_spec_needs_no_adjustments(monkeypatch):
     assert body["adjustments"] == []
 
 
-def test_side_stone_archetype_repairs_the_channel_band(monkeypatch):
+def test_side_stone_feature_repairs_the_channel_band(monkeypatch):
     """The comment-2 counterexample: a 2mm band with a channel setting that
     needs 3.1mm to hold the stone plus a wall each side."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     _install_client(
         monkeypatch,
         parsed_output=_ring(
-            archetype="side_stone", band_width=2.0,
+            features=["side_stone"], band_width=2.0,
             accent_stone_diameter=1.5, accent_stone_height=1.2,
             accent_count_per_side=3, accent_gap=0.3,
         ),
     )
     spec = classify_ring(IMG, JPEG).to_spec()
-    assert spec["archetype"] == "side_stone"
+    assert spec["side_stone"] is not None
     assert is_castable(validate_spec(spec))
     assert spec["shank"]["band_width"] >= 3.1
 
 
-def test_falls_back_to_solitaire_when_archetype_repair_does_not_converge(monkeypatch):
+def test_falls_back_to_no_features_when_repair_does_not_converge(monkeypatch):
     """The fallback chain's middle link: a halo whose repair loop can't reach
-    a castable spec within budget must fall back to a solitaire built from
+    a castable spec within budget must fall back to no features, built from
     the same shared estimates, not raise or return garbage."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     _install_client(monkeypatch, parsed_output=_halo())
@@ -413,19 +445,19 @@ def test_falls_back_to_solitaire_when_archetype_repair_does_not_converge(monkeyp
 
     monkeypatch.setattr(classify, "is_castable", fake_is_castable)
     spec = classify_ring(IMG, JPEG).to_spec()
-    assert spec["archetype"] == "solitaire"
+    assert spec["halo"] is None
     assert is_castable(validate_spec(spec))
 
 
 def test_falls_back_to_pure_defaults_when_nothing_converges(monkeypatch):
-    """The fallback chain's last link: even the solitaire attempt failing to
-    converge must still return the guaranteed-castable pure defaults, never
-    an uncastable spec or an exception."""
+    """The fallback chain's last link: even the no-features attempt failing
+    to converge must still return the guaranteed-castable pure defaults,
+    never an uncastable spec or an exception."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     _install_client(monkeypatch, parsed_output=_ring())
     monkeypatch.setattr(classify, "is_castable", lambda model: False)
     spec = classify_ring(IMG, JPEG).to_spec()
-    assert spec["archetype"] == "solitaire"
+    assert spec.get("halo") is None
     assert spec["stones"]["stone_diameter"] == classify._SHARED_DEFAULTS["stone_diameter"]
     assert spec["shank"]["band_width"] == classify._SHARED_DEFAULTS["band_width"]
 
@@ -446,7 +478,7 @@ def test_falls_back_to_pure_defaults_when_nothing_converges(monkeypatch):
 # reachable failure; the last resort is a safety net for inputs this
 # pipeline cannot currently produce, not something to force a test through.
 # The fallback chain's actual mechanics are already covered by
-# test_falls_back_to_solitaire_when_archetype_repair_does_not_converge and
+# test_falls_back_to_no_features_when_repair_does_not_converge and
 # test_falls_back_to_pure_defaults_when_nothing_converges above, which
 # force non-convergence via a fake is_castable rather than a hand-built
 # adversarial spec -- the honest way to test a branch that real inputs
@@ -571,3 +603,52 @@ def test_settle_on_step_grid_prefers_nearest_when_it_is_already_castable():
     }
     stepped = classify._settle_on_step_grid(coherent)
     assert stepped["shank"]["band_thickness"] == pytest.approx(1.9)
+
+
+# --- RNG-24 CP3: a multi-feature spec must survive its own round trip -------
+def test_multi_feature_spec_round_trips_without_raising(monkeypatch):
+    """The bug a real photo found on the first upload, after a fully green
+    suite: vision read a halo WITH side-stone shoulders -- the exact
+    combination this ticket exists to stop discarding -- and /classify-ring
+    returned a 500.
+
+    `make_coherent` used to re-attach a single `archetype` label to the
+    dumped spec. On a two-feature ring that label is just "halo", and
+    re-validating that dict then hit the LEGACY exclusive-archetype rule,
+    which rejects a "halo" spec that also carries `side_stone`. The spec
+    poisoned itself on the way back through its own validator.
+
+    No test caught it because none round-tripped a MULTI-feature classify
+    result; every fixture had at most one.
+    """
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    _install_client(
+        monkeypatch,
+        parsed_output=_ring(
+            features=["halo", "side_stone"],
+            style="halo with pave shoulders",
+            band_width=3.2,
+            halo_stone_diameter=1.3, halo_stone_count=10,
+            halo_gap=0.5, halo_stone_height=1.2,
+            accent_stone_diameter=1.5, accent_stone_height=1.2,
+            accent_count_per_side=3, accent_gap=0.3,
+        ),
+    )
+    body = classify_ring(IMG, JPEG).to_json()   # must not raise
+    spec = body["spec"]
+    assert spec["halo"] is not None
+    assert spec["side_stone"] is not None
+    assert is_castable(validate_spec(spec))
+
+
+def test_coherent_spec_carries_no_archetype_key():
+    """A spec has no single archetype any more (RNG-24). Re-attaching one
+    is what broke the round trip above, so nothing may put it back."""
+    from ringcad.ringspec.coherence import make_coherent
+
+    coherent, _ = make_coherent({
+        "shank": {"inner_diameter": 16.5, "band_width": 2.2, "band_thickness": 1.9},
+        "setting": {"prong_count": 6, "setting_height": 6.0},
+        "stones": {"stone_diameter": 6.5, "stone_height": 4.0},
+    })
+    assert "archetype" not in coherent

@@ -263,6 +263,29 @@ fieldset:not(.photo-upload) legend { grid-column: 1 / -1; }
   color: var(--faint);
 }
 
+/* Feature composition (RNG-24). The photo puts features on the ring; the
+   only control is a quiet Remove, for when vision saw something that isn't
+   there. */
+.remove-feature {
+  margin-left: 0.6rem;
+  font-family: var(--sans);
+  font-size: 0.66rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 0.16rem 0.45rem;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--line-2);
+  border-radius: 5px;
+  cursor: pointer;
+}
+.remove-feature:hover { border-color: var(--err); color: var(--err); }
+.remove-feature:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
 .field input.field-error,
 .field select.field-error {
   border-color: var(--err);

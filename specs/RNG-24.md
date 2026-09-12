@@ -179,11 +179,58 @@ the repo's checkpoint rule.
       the head and neither can move for the other, so this is the genuine case the
       design's own note anticipated, not a gate that only ever says yes.
 
-- [ ] **CP3 — vision + UI.** `classify.py` emits a feature set (not an archetype enum);
-      `coherence.py` repairs across features; the `ARCHETYPES` registry becomes feature
-      checkboxes with an `active` set rather than a single value.
+- [x] **CP3 — vision + UI.** `classify.py` emits a feature set (not an archetype enum);
+      the form stops offering a style choice at all.
       · files: `ringcad/classify.py`, `ringcad/ringspec/coherence.py`, `static/app.js`,
-      `static/photo.js`, `templates/index.html`
+      `static/photo.js`, `templates/index.html`, `static/styles.css`,
+      `probes/fidelity_probe.py`
+
+      **The UI half was rescoped mid-checkpoint, by the ticket's owner, after
+      looking at it.** The plan said "feature checkboxes with an `active` set". Built
+      that; the objection was that hand-picking features reads as a product
+      CONFIGURATOR, and that meeting a parts-picker above the dimensions puts style
+      selection in front of the photo. Rebuilt behind an "Add a feature" disclosure at
+      the foot of the form; that was rejected too. **Final shape: the form offers no way
+      to add a feature at all.** The photo is the only thing that puts one on a ring;
+      each feature's fieldset carries a Remove, because vision is not always right and
+      the user needs to be able to drop something that isn't there. The asymmetry
+      (remove, but never add) is the design.
+
+      Worth recording because the *backend* half was never in question: retiring the
+      union is what lets a photo of a halo-with-shoulders produce both. The picker was
+      a thin layer on top, built twice and discarded twice, and neither version was
+      load-bearing. **Scope the UI for a photo-reproduction tool, not a configurator.**
+
+      **A real 500, found by the first real upload, behind a fully green suite.**
+      CP1 had `make_coherent` re-attach a single `archetype` label to the dumped spec,
+      as back-compat for callers that still keyed on one. On a genuinely multi-feature
+      spec that label is just `"halo"` — and re-validating that dict then hits the
+      LEGACY exclusive-archetype rule, which rejects a "halo" spec for also carrying
+      `side_stone`. **The spec poisoned itself passing back through its own validator.**
+      CP1's own notes called the label "meaningful only while at most one feature is
+      present" and then kept it anyway; CP3 is exactly when that stopped being true.
+      No test caught it because every fixture had at most ONE feature — the suite
+      tested the shape it was written against, not the shape the ticket creates.
+      Shim removed; `probes/fidelity_probe.py` derives its single-name label from the
+      groups actually present (`archetype_label`), which reads identically for a
+      one-feature ring and honestly as `halo+side_stone` for a combined one.
+
+      **`coherence.py` needed no repair changes.** `cross_feature_overcrowding` has no
+      dedicated repair and should not have one: when two features simply do not fit
+      together there is no single obvious field to move. It falls through to the
+      fallback chain like any other unrepairable violation, which is the honest answer.
+
+      **Copy, twice corrected by the owner.** `_note` announced "also building side
+      stone" against a photo described as "pave band shoulders" — internal vocabulary,
+      matched by substring against free text, about a substitution that never happened.
+      It is now the estimates caveat only; describing the photo is `style`'s job, and
+      `style` is now prompted for a jeweller's sentence or two rather than a terse
+      category label. The status line keeps only what is actionable for that run.
+
+      **Filed, not built: RNG-44 (pave retention).** The corpus photo's shoulders are
+      pave-set and `SideStone.retention` is `Literal["channel"]`, so the app sets them
+      the wrong way. Vision reads it correctly and says "pave" twice. Out of scope here
+      (RNG-11 deferred pave deliberately); the evidence is recorded on the ticket.
 
 ## Tests (seams, not internals)
 

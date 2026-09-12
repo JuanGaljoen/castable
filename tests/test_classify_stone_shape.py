@@ -15,7 +15,7 @@ import pytest
 from ringcad.classify import ClassifyResult, RingClassification
 
 
-def _result(shape="round", ratio=1.0, archetype="solitaire", **kw):
+def _result(shape="round", ratio=1.0, features=(), **kw):
     return ClassifyResult(
         ok=True,
         ring_detected=True,
@@ -23,9 +23,8 @@ def _result(shape="round", ratio=1.0, archetype="solitaire", **kw):
         shank_taper="straight",
         note="",
         prong_count=6,
-        features=[],
+        features=list(features),
         estimates={"stone_diameter": 6.5, "stone_height": 4.0},
-        archetype=archetype,
         stone_shape=shape,
         stone_length_ratio=ratio,
         **kw,
@@ -132,7 +131,7 @@ def test_assembled_oval_spec_is_schema_valid_and_castable():
     assert [v.code for v in validate_castability(validated)] == []
 
 
-def test_shape_survives_on_a_non_solitaire_archetype():
-    spec = _result(shape="oval", ratio=1.5, archetype="halo").to_spec()
-    assert spec["archetype"] == "halo"
+def test_shape_survives_alongside_a_feature():
+    spec = _result(shape="oval", ratio=1.5, features=["halo"]).to_spec()
+    assert spec["halo"] is not None
     assert spec["stones"]["shape"] == "oval"

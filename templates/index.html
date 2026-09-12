@@ -52,22 +52,9 @@
           <div class="actions">
             <button type="button" id="estimate-btn">Estimate from photo</button>
           </div>
-          <p id="photo-status" class="photo-status" role="status" aria-live="polite"></p>
           <p id="photo-detections" class="photo-detections" aria-live="polite" hidden></p>
+          <p id="photo-status" class="photo-status" role="status" aria-live="polite"></p>
           <p id="estimates-label" class="estimates-label" role="note" hidden>Estimates only, verify before generating.</p>
-        </fieldset>
-
-        <fieldset>
-          <legend>Style</legend>
-          <div class="field">
-            <label for="archetype">Ring style</label>
-            <select id="archetype" name="archetype">
-              <option value="solitaire" selected>Solitaire</option>
-              <option value="halo">Halo</option>
-              <option value="trilogy">Trilogy</option>
-              <option value="side_stone">Side-stone</option>
-            </select>
-          </div>
         </fieldset>
 
         <fieldset>
@@ -172,7 +159,10 @@
         </fieldset>
 
         <fieldset id="halo-fields" hidden>
-          <legend>Halo settings (mm)</legend>
+          <legend>Halo settings (mm)
+            <button type="button" class="remove-feature" data-feature="halo"
+                    aria-label="Remove halo from this ring">Remove</button>
+          </legend>
 
           <div class="field">
             <label for="halo_stone_diameter">Accent stone diameter</label>
@@ -209,7 +199,10 @@
         </fieldset>
 
         <fieldset id="trilogy-fields" hidden>
-          <legend>Trilogy side stones (mm)</legend>
+          <legend>Trilogy side stones (mm)
+            <button type="button" class="remove-feature" data-feature="trilogy"
+                    aria-label="Remove trilogy side stones from this ring">Remove</button>
+          </legend>
 
           <div class="field">
             <label for="side_stone_diameter">Side stone diameter</label>
@@ -237,7 +230,10 @@
         </fieldset>
 
         <fieldset id="side-stone-fields" hidden>
-          <legend>Side-stone band (mm)</legend>
+          <legend>Side-stone band (mm)
+            <button type="button" class="remove-feature" data-feature="side_stone"
+                    aria-label="Remove side-stone band from this ring">Remove</button>
+          </legend>
 
           <div class="field">
             <label for="accent_stone_diameter">Accent stone diameter</label>

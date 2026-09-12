@@ -30,12 +30,13 @@ from ringcad.ringspec.cuts import profile_for
 NEW_CUTS = ("cushion", "emerald", "pear", "marquise")
 
 
-def _result(shape="round", ratio=1.0, archetype="solitaire"):
+def _result(shape="round", ratio=1.0, features=()):
     return ClassifyResult(
         ok=True, ring_detected=True, style=f"{shape} solitaire",
-        shank_taper="straight", note="", prong_count=6, features=[],
+        shank_taper="straight", note="", prong_count=6,
+        features=list(features),
         estimates={"stone_diameter": 6.5, "stone_height": 4.0},
-        archetype=archetype, stone_shape=shape, stone_length_ratio=ratio,
+        stone_shape=shape, stone_length_ratio=ratio,
     )
 
 
