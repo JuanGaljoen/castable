@@ -134,6 +134,18 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
   over one large one. Extract genuinely reusable primitives (accent settings,
   pave beads) as their own unit; do not split a single archetype into
   contract/geometry/UI "tickets" — that is phase-gating dressed up as scope.
+- **The form is a correction surface, not a configurator.** The end goal is
+  *upload a ring photo and get a castable model of that ring*. The photo is
+  the only thing that puts a FEATURE on a ring — the form's job is to let a
+  user fix what vision got wrong (every dimension editable, a Remove on each
+  detected feature), never to offer a catalogue of parts to assemble a ring
+  from. RNG-24 built a feature picker twice — checkboxes, then an "Add a
+  feature" disclosure — and both were rejected on sight: hand-picking
+  features reads as a product configurator, and putting that above the
+  dimensions greets the user with style selection before they have uploaded
+  anything. The backend composability was never in question; only the picker
+  was. **Adding a control is not the same as supporting a capability** — ask
+  whether the photo can supply it before putting it in front of anyone.
 
 ## Tickets (Jira project: RNG)
 
@@ -176,13 +188,26 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 - **RNG-25** Shank cross-section profile family (domed/flat/knife-edge outer x domed/flat inner) [Done] - needs RNG-16; the spec-widening half RNG-19 fenced off
 - **RNG-27** Viewer presentation (metal material, studio lighting, tessellation) [High] - independent; perceived quality, touches no geometry
 - **RNG-19** Geometry aesthetic refinement (proportions, claws, channel, halo) [Done] - surface polish behind the *existing* schema; four checkpoints, and the source of `docs/reference/` + ADR-0008
-- **RNG-24** Composable features (halo + pave on one ring, retire the archetype union) [Medium] - the architectural fix; needs an ADR
+- **RNG-24** Composable features (halo + pave on one ring, retire the archetype union) [Done] - the architectural fix; a photo of a halo with pave shoulders now produces both instead of silently dropping one. Left `docs/adr/0013` and the configurator rule above
 - **RNG-26** Vision estimates proportions from the image, not style averages [Medium] - **unblocked by RNG-23** (`length_ratio` is the first ratio it can fill)
 - **RNG-30** 3D preview keeps stale geometry after the form changes [Medium] - misled RNG-23 QA twice; fold into RNG-27 if that lands first
 - **RNG-28** Accept WebP + HEIC uploads [Low] - deliberately deferred paper cut
 - **RNG-29** Photo error message does not clear when a file is chosen [Low] - found in RNG-23 QA
 - **RNG-42** Band side-wall treatment (flat-sided court, soft square) [Low] - needs RNG-25; found by `docs/reference/band-profiles.png`, a third axis (side-wall/corner) the two-axis profile family doesn't express
 - **RNG-43** Cathedral shoulders that sweep up to the head [Medium] - needs RNG-25 + RNG-16; split out of RNG-25 at Understand because it is setting attachment (the `gallery` connectivity standard), not a band cross-section
+
+**Found by RNG-24 (2026-09-12):**
+
+- **RNG-44** Pave retention for shoulder accents (bead-set, not channel) [Medium] -
+  `SideStone.retention` is `Literal["channel"]`, so a photo showing pave-set
+  shoulders gets a groove cut into the band instead. Found by uploading
+  `probes/corpus/halo-round.png`: vision reads it correctly and says "pave"
+  twice, and the contract is short by one value. RNG-11 deferred pave on
+  purpose (Decision 5) and noted the widening would be additive; this is that
+  widening. **Not the channel module with the walls removed** — pave holds
+  each stone with raised beads of the band's own metal, closest precedent is
+  the RNG-19 CP4 halo plate (build the body, cut the stones out, fuse the
+  beads on). Get a `docs/reference/` sketch first (RNG-37 still open)
 
 **Found by RNG-22's first live corpus run (2026-08-01):**
 
@@ -257,14 +282,22 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 
 ## Current Phase
 
-> **Where we stand (2026-08-16):** the archetype catalogue is complete, vision is
+> **Where we stand (2026-09-12):** the archetype catalogue is complete, vision is
 > live, centre stones can be oval end to end (RNG-23), fidelity is measurable
 > (RNG-22), **the geometry reads as jewelry rather than as fused primitives**
-> (RNG-19), and **the vision layer now emits buildable specs** (RNG-32: 5/5
-> corpus photos generate, up from 3/5). What remains in the fidelity block is
-> **presentation** (RNG-27, still the cheapest large win and touches no
-> geometry) — **vocabulary** (RNG-33 stone cuts, RNG-25 shank profiles) is
-> now done on both fronts.
+> (RNG-19), **the vision layer emits buildable specs** (RNG-32: 5/5 corpus
+> photos generate, up from 3/5), and **a ring is no longer one archetype**
+> (RNG-24: a photo showing a halo AND pave shoulders now produces both).
+> What remains in the fidelity block is **presentation** (RNG-27, still the
+> cheapest large win and touches no geometry) — **vocabulary** (RNG-33 stone
+> cuts, RNG-25 shank profiles) is done on both fronts.
+>
+> **The honest gap is retention, not archetypes.** RNG-24 closed the "we can
+> only say one thing about a ring" problem; RNG-44 is the next one down —
+> vision reads pave shoulders correctly and `retention` can only say
+> `channel`, so the stones land in the wrong setting style. Detection is
+> ahead of vocabulary again, which is the same shape as the RNG-23 gap
+> (vision said "cushion" and had to write `round`).
 >
 > **The lesson RNG-19 leaves is about how defects get found here.** Four real
 > defects — including a halo passing the casting gate with a quarter of the
@@ -479,13 +512,14 @@ the trade figure. **Look the number up; do not argue it.** (2) *Verify the dev
 server is younger than the edit.* It runs with reload off, so "I see no change"
 was twice a stale process, not a bad build.
 
-**Next:** **RNG-27** (material + lighting) is now the cheapest large win and
+**Next:** **RNG-27** (material + lighting) is still the cheapest large win and
 touches no geometry; with RNG-19 and RNG-32 both landed, the remaining "models
 look flat" complaint is presentation, not proportion or castability.
-With RNG-33 and RNG-25 both landed, the vocabulary work is done;
-**RNG-26** is unblocked (`length_ratio` is the first ratio vision can fill), and
-**RNG-35** finishes the trilogy spacing RNG-19 CP1 half-did. Run the probe before
-and after each of them — and **get a reference sketch for whichever archetype you
+**RNG-44** (pave retention) is the sharpest *fidelity* gap — it is the one
+place a real corpus photo is still visibly set the wrong way. **RNG-26** is
+unblocked (`length_ratio` is the first ratio vision can fill), and **RNG-35**
+finishes the trilogy spacing RNG-19 CP1 half-did. Run the probe before and
+after each of them — and **get a reference sketch for whichever archetype you
 touch** (`docs/reference/`), because that, not the suite, is what caught every
 RNG-19 defect.
 
@@ -595,3 +629,54 @@ photo showed; it is now six trade profiles across every archetype.
 - **RNG-42** (band side-wall treatment) and **RNG-43** (cathedral shoulders)
   filed as follow-ups rather than folded in — both are real scope the ticket
   surfaced, neither is a band cross-section.
+
+**RNG-24 (composable features) complete — the archetype union is retired.** A
+ring is a base (`shank`/`setting`/`stones`) plus whichever of
+`halo`/`trilogy`/`side_stone` are present, any subset. The union had quietly
+reintroduced the "monolithic templates" this file's core principle rejects,
+and it was measurably losing information: real corpus photos read as
+halo-with-pave-shoulders and the shoulders vanished, because the contract
+could hold only one answer. **Verified end to end on the real path** — an
+upload of `probes/corpus/halo-round.png` now detects `['halo', 'side_stone']`
+and generates a single raw watertight manifold, no repair.
+
+- **CP1 contract.** One `RingSpec`, optional feature groups. A legacy
+  `archetype` tag is translated at the `validate_spec` edge, so every existing
+  spec, the flat-7 path and the corpus keep working. `spec_errors` lost its
+  union-tag handling; six `isinstance(spec, XSpec)` guards became presence
+  checks, which is what they always meant.
+- **CP2 cross-feature castability.** `compose` builds from the feature set;
+  `ringspec/footprint.py` is the shared currency — each feature reports the
+  annular sector it occupies, and one generic pairwise check replaces a table
+  of per-pair rules that would grow quadratically. `_SIDE_STONE_A_START_DEG`
+  stopped being a constant and became *derived*: a halo sharing the head
+  pushes the accent row further round, and the gate and the builder read the
+  same derived value (ADR-0002's drift class, closed before it could open).
+- **CP3 vision + UI.** `classify.py` emits a feature SET, not one nearest
+  archetype. The form now offers **no way to add a feature at all** — see the
+  configurator rule under `## Rules`, which this ticket paid for twice.
+
+**Two lessons, both about things a green suite cannot tell you.**
+
+1. **`docs/adr/0013` — a back-compat shim outlives its own premise.** CP1
+   re-attached a single `archetype` label to the dumped spec as a courtesy to
+   callers, documented as "meaningful only while at most one feature is
+   present", deferred to CP3. CP3 is the checkpoint that made multi-feature
+   real, and the shim rode into it unchanged: on a halo+side_stone spec the
+   label is `"halo"`, re-validating that dict takes the LEGACY exclusive path,
+   and it rejects the spec for also carrying `side_stone`. **The spec poisoned
+   itself passing back through its own validator** — a 500 on the first real
+   upload, behind 3900 green tests, because every fixture had at most one
+   feature. *When deferring a migration, write the test that goes red when the
+   deferral expires.* A comment is a note to a reader who may never come.
+2. **The picker was never the ticket.** The UI was built twice (checkboxes,
+   then an "Add a feature" disclosure) and thrown away twice, while the
+   backend half — the part that actually stops a photo losing its shoulders —
+   was never in question. The end goal is reproducing a photographed ring, so
+   the form is a correction surface; a parts catalogue is a different product.
+
+**Filed, not built: RNG-44 (pave retention).** Vision reads the corpus photo's
+shoulders as pave-set, correctly, twice — and `retention` is
+`Literal["channel"]`, so the app sets them the wrong way. The stones are
+genuinely there; the setting style is wrong. That is the honest state of
+shoulder fidelity today.
