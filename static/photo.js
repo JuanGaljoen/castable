@@ -285,6 +285,26 @@
     }
   }
 
+  // RNG-29: feedback about the photo must not outlive the photo. Both the
+  // status line and the detections line describe whatever file is in the
+  // input, so choosing a different one retires both -- otherwise a stale
+  // "Choose a JPEG or PNG photo first." reads as though the file just chosen
+  // was rejected, and "Detected: ..." keeps asserting the previous photo's
+  // style over the new one.
+  //
+  // Field markers are deliberately NOT cleared here: the estimates they
+  // caution about are still sitting in the form. Dropping the caution while
+  // its suspect value stays is worse than a stale caution. applySpec clears
+  // them on the next successful run, when the values change too.
+  function clearPhotoFeedback() {
+    setStatus("");
+    var detections = $("photo-detections");
+    if (detections) {
+      detections.textContent = "";
+      detections.hidden = true;
+    }
+  }
+
   function errorMessage(status, data) {
     if (status === 503) {
       return "Photo classification isn't configured. Enter parameters manually below.";
@@ -342,6 +362,10 @@
     var btn = $("estimate-btn");
     if (btn) {
       btn.addEventListener("click", onEstimate);
+    }
+    var fileInput = $("ring-photo");
+    if (fileInput) {
+      fileInput.addEventListener("change", clearPhotoFeedback);
     }
   });
 })();
