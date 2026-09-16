@@ -190,9 +190,14 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 - **RNG-19** Geometry aesthetic refinement (proportions, claws, channel, halo) [Done] - surface polish behind the *existing* schema; four checkpoints, and the source of `docs/reference/` + ADR-0008
 - **RNG-24** Composable features (halo + pave on one ring, retire the archetype union) [Done] - the architectural fix; a photo of a halo with pave shoulders now produces both instead of silently dropping one. Left `docs/adr/0013` and the configurator rule above
 - **RNG-26** Vision estimates proportions from the image, not style averages [Medium] - **unblocked by RNG-23** (`length_ratio` is the first ratio it can fill)
-- **RNG-30** 3D preview keeps stale geometry after the form changes [Medium] - misled RNG-23 QA twice; fold into RNG-27 if that lands first
+- **RNG-30** 3D preview keeps stale geometry after the form changes [Medium] - misled RNG-23 QA twice; fold into RNG-27 if that lands first.
+  The last member of the staleness family RNG-29 closed the rest of — and the one the
+  feedback-lifetime rule does NOT settle: a rendered mesh is neither a claim about the
+  input nor a caution about a value, so decide deliberately rather than by analogy
 - **RNG-28** Accept WebP + HEIC uploads [Low] - deliberately deferred paper cut
-- **RNG-29** Photo error message does not clear when a file is chosen [Low] - found in RNG-23 QA
+- **RNG-29** Photo error message does not clear when a file is chosen [Done] - found in
+  RNG-23 QA; established the feedback-lifetime rule below and the zero-install browser
+  QA path. Also fixed `#photo-detections`, a second instance the ticket never reported
 - **RNG-42** Band side-wall treatment (flat-sided court, soft square) [Low] - needs RNG-25; found by `docs/reference/band-profiles.png`, a third axis (side-wall/corner) the two-axis profile family doesn't express
 - **RNG-43** Cathedral shoulders that sweep up to the head [Medium] - needs RNG-25 + RNG-16; split out of RNG-25 at Understand because it is setting attachment (the `gallery` connectivity standard), not a band cross-section
 
@@ -674,6 +679,48 @@ and generates a single raw watertight manifold, no repair.
    backend half — the part that actually stops a photo losing its shoulders —
    was never in question. The end goal is reproducing a photographed ring, so
    the form is a correction surface; a parts catalogue is a different product.
+
+**RNG-29 (stale photo feedback) complete.** The status line under "Estimate from
+photo" outlived the condition it described: it said "Choose a JPEG or PNG photo
+first." while a valid JPEG sat visibly in the input. Cosmetic in code, genuinely
+misleading in use — it cost real time in RNG-23 QA, where element ids and script
+syntax were checked before anyone realised the message was simply stale.
+
+- **The rule, which is the reusable half: feedback about an input must not
+  outlive that input's value — but "feedback" splits two ways.** *Claims about
+  the file* (the status line, `#photo-detections`) die with the file, because
+  they assert something no longer true. *Cautions about values* (the amber
+  low-confidence and indigo adjusted markers) survive, because the values they
+  caution about are still sitting in the form — **dropping a caution while its
+  suspect value stays is worse than a stale caution.** `applySpec` already
+  clears those on the next successful run, when the values change too.
+- **A second instance the ticket never reported.** `showDetections` un-hides
+  `#photo-detections` and nothing ever re-hid it, so choosing a different photo
+  left "Detected: oval solitaire" asserting the *previous* photo's style. Found
+  by applying the rule above to every element in the panel rather than only to
+  the one in the bug report.
+- **The generate side was checked, as the ticket asked, and was already nearly
+  right.** `clearResult()` retires both the banner and the field markers on
+  every submit. The residual was narrow: the field stayed red while the user
+  typed the correction the message had asked for. Fixed for the marker only —
+  **the banner carries the instruction being followed ("must be at least
+  0.8mm") and must survive the keystrokes that satisfy it.** A state indicator
+  dies with the value; an instruction does not.
+
+> **The lesson is about how this was proved, not about the fix.** The house
+> style for frontend work is Python source-inspection (`tests/test_frontend_*.py`),
+> which for a DOM-event bug can only show the listener is *wired*, never that it
+> *fires* — so the four new tests are honest about that in their own docstring
+> and are not the evidence. The evidence is a browser, and **it needed no new
+> dependency**: `playwright` is already in the venv, and
+> `p.chromium.launch(channel="chrome")` drives the system Chrome with no
+> browser download, against the real dev server. The script lives in the
+> scratchpad, so `requirements.txt` and `tests/test_requirements.py` are
+> untouched. **Then mutation-test the QA script itself** — `git stash push` the
+> fix, rerun, `git stash pop`: four target checks went red and three deliberate
+> controls stayed green. A QA script never run against the broken code is just
+> a script that passes. Committing this harness properly (declaring playwright,
+> owning browser setup in CI) is a real ticket, not a rider on a Low paper cut.
 
 **Filed, not built: RNG-44 (pave retention).** Vision reads the corpus photo's
 shoulders as pave-set, correctly, twice — and `retention` is
