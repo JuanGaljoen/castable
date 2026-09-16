@@ -427,3 +427,18 @@ if (accentDiaEl) accentDiaEl.addEventListener("change", fitBandToChannel);
 const shapeSelect = document.getElementById("shape");
 shapeSelect.addEventListener("change", applyShapeState);
 applyShapeState();
+
+// RNG-29: an error about a field must not outlive that field's value. The
+// banner and these markers are both retired by clearResult() on the next
+// submit, so what was left was the narrow window in between: the field stayed
+// red while the user typed the very correction the message asked for. Only the
+// marker goes -- the banner carries the instruction being followed ("must be
+// at least 0.8mm") and must survive the keystrokes that satisfy it.
+for (const key of NUMBER_KEYS.concat(["prong_count"], FEATURE_FIELD_KEYS)) {
+  const el = document.getElementById(key);
+  if (!el) continue;
+  el.addEventListener("input", () => {
+    el.classList.remove("field-error");
+    el.removeAttribute("aria-invalid");
+  });
+}
