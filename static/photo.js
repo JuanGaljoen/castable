@@ -366,6 +366,15 @@
     var fileInput = $("ring-photo");
     if (fileInput) {
       fileInput.addEventListener("change", clearPhotoFeedback);
+      // The empty input's own "No file chosen" is hidden by CSS until a file
+      // is picked; the only no-photo message is onEstimate's. CSS cannot see
+      // whether a file input holds a file, so mirror it onto a class. Run once
+      // up front too, for a file the browser restores on back-navigation.
+      var syncHasFile = function () {
+        fileInput.classList.toggle("has-file", fileInput.files.length > 0);
+      };
+      fileInput.addEventListener("change", syncHasFile);
+      syncHasFile();
     }
   });
 })();

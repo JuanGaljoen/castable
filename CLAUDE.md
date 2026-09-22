@@ -84,8 +84,12 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 
 ## UI Design Specs
 
-- **Layout:** form on the left, 3D viewer on the right (desktop); stacked
-  vertically on mobile.
+- **Layout:** single-view workspace on desktop — **no page scroll**. Sidebar on
+  the left (~1/3: photo, then fields two per row, Generate/Download pinned at its
+  foot); the 3D viewer fills the right ~2/3 at full height and is the centre
+  piece. Base fields must fit at 1440x900 with no inner scroll, before AND after
+  a generate; only detected features may push the sidebar body into its own
+  scroll. Stacked vertically on mobile (<880px), page scrolls there.
 - **Form:** inputs for all 7 parameters with sensible defaults; `prong_count`
   is a dropdown limited to 4 or 6.
 - **Actions:** Generate button POSTs JSON to `/generate-ring`; Download STL

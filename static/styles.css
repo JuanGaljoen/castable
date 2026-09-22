@@ -453,6 +453,7 @@ button:focus-visible,
 .photo-upload .field { margin-bottom: 0.55rem; }
 
 .photo-upload input[type="file"] {
+  font-family: var(--sans);   /* a filename, not a number: narrower than mono */
   font-size: 0.8rem;
   color: var(--muted);
   padding: 0.4rem;
@@ -474,6 +475,11 @@ button:focus-visible,
   cursor: pointer;
 }
 .photo-upload input[type="file"]::file-selector-button:hover { border-color: var(--accent); }
+/* No "No file chosen": the input says nothing until a file is picked (the
+   button keeps its own colour). The only no-photo message is the one Estimate
+   gives when clicked without a file. has-file is mirrored by photo.js; screen
+   readers still get the native "no file selected". */
+.photo-upload input[type="file"]:not(.has-file) { color: transparent; }
 
 .photo-status,
 .photo-detections {
@@ -523,4 +529,171 @@ button:focus-visible,
 @media (max-width: 880px) {
   #viewer-canvas,
   .viewer-placeholder { height: 320px; }
+}
+
+/* ---------- Desktop workspace: single view, viewer as centre piece ----------
+   Sidebar (~1/3) on the left, viewer (~2/3) filling the height on the right.
+   The page never scrolls; only the sidebar body does, and only when detected
+   features add more rows than the screen holds. Actions stay pinned below it. */
+@media (min-width: 881px) {
+  html, body { height: 100%; }
+  body {
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .page-header {
+    flex: none;
+    max-width: none;
+    width: 100%;
+    margin: 0;
+    padding: 0.5rem 1.25rem;
+    align-items: center;
+  }
+  .header-text { display: flex; align-items: baseline; gap: 0.75rem; }
+  .page-header h1 { font-size: 1.15rem; }
+  .subtitle { margin: 0; }
+
+  .layout {
+    flex: 1;
+    min-height: 0;
+    max-width: none;
+    width: 100%;
+    margin: 0;
+    grid-template-columns: minmax(380px, 1fr) 2fr;
+    align-items: stretch;
+    gap: 1rem;
+    padding: 0 1.25rem 1rem;
+  }
+
+  /* Sidebar: heading, scrolling fieldsets, pinned actions. */
+  .form-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 0.75rem 0 0;
+  }
+  /* The fieldset legends already title every section, so the panel heading
+     stays for screen readers (aria-labelledby) but takes no room. */
+  .form-panel h2 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  #ring-form {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0.15rem 1rem 0.25rem;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-2) transparent;
+  }
+
+  fieldset { margin-bottom: 0.6rem; padding: 0.6rem 0.8rem; }
+  fieldset:not(.photo-upload) { gap: 0.4rem 0.8rem; padding-top: 0.4rem; }
+  .field label { margin-bottom: 0.18rem; }
+  .field input,
+  .field select { padding-block: 0.3rem; }
+  .hint { margin-top: 0.15rem; }
+
+  /* Photo row: file input and Estimate side by side, hint spanning both.
+     `display: contents` lifts the field's label/input/hint into the grid. */
+  .photo-upload { display: grid; grid-template-columns: 1fr auto; gap: 0 0.6rem; }
+  .photo-upload .field { display: contents; }
+  .photo-upload legend,
+  .photo-upload label,
+  .photo-upload .hint,
+  .photo-upload > p { grid-column: 1 / -1; }
+  .photo-upload label { margin-bottom: 0.18rem; }
+  .photo-upload input[type="file"] { grid-column: 1; }
+  .photo-upload .actions { grid-column: 2; grid-row: 2; margin: 0; }
+  .photo-upload .actions button { height: 100%; }
+
+  /* Footer grid: feedback above, Generate | Download side by side below, so a
+     successful run doesn't grow the footer into the fields. Source order
+     (Generate, status, error, mesh-status, Download) is unchanged, so tab
+     order and the mesh-status-above-download contract hold. */
+  .sidebar-footer {
+    flex: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "status mesh"
+      "error  error"
+      "gen    dl";
+    column-gap: 0.6rem;
+    align-items: center;
+    padding: 0.65rem 1rem 0.85rem;
+    border-top: 1px solid var(--line);
+  }
+  .sidebar-footer .actions { grid-area: gen; margin: 0; }
+  .sidebar-footer .download-actions { grid-area: dl; margin: 0; }
+  .sidebar-footer:has(#download-btn[hidden]) .actions { grid-column: 1 / -1; }
+  .sidebar-footer .download-actions .button-link,
+  .sidebar-footer #generate-btn { width: 100%; }
+  .sidebar-footer .status { grid-area: status; margin: 0 0 0.6rem; }
+  /* Empty live region stays in the a11y tree (display:none can drop
+     announcements); it just takes no space. */
+  .sidebar-footer .status:empty { margin: 0; }
+  .sidebar-footer .error { grid-area: error; margin: 0 0 0.6rem; }
+  .sidebar-footer .mesh-status {
+    grid-area: mesh;
+    margin: 0 0 0.6rem;
+    padding: 0.35rem 0.65rem;
+  }
+
+  /* Viewer: the canvas IS the panel; heading and toggle float over it. */
+  .viewer-panel {
+    position: relative;
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+  .viewer-panel h2 {
+    position: absolute;
+    top: 0.85rem;
+    left: 1rem;
+    margin: 0;
+    z-index: 1;
+    color: #ededf0;   /* sits on the always-dark stage in both themes */
+    pointer-events: none;
+  }
+  #viewer-canvas,
+  .viewer-placeholder {
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+  }
+  .viewer-actions {
+    position: absolute;
+    right: 1rem;
+    bottom: 1rem;
+    margin: 0;
+    z-index: 1;
+  }
+  /* Over the dark stage in both themes, so pin dark-stage colours. */
+  #wireframe-toggle {
+    color: #ededf0;
+    background: rgba(10, 10, 12, 0.72);
+    border-color: #3c3c47;
+  }
+  #wireframe-toggle:hover { border-color: #6f8dff; color: #8aa2ff; }
+  #wireframe-toggle[aria-pressed="true"] {
+    color: #8aa2ff;
+    background: rgba(24, 30, 56, 0.85);
+    border-color: #6f8dff;
+  }
 }

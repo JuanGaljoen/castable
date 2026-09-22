@@ -78,3 +78,27 @@ def test_editing_a_flagged_field_clears_its_error_marker():
         src,
         re.DOTALL,
     ), "the marker must be cleared for sighted AND assistive-tech users"
+
+
+# --- the empty file input makes no claim of its own -------------------------
+# "No file chosen" is the input asserting an absence nobody asked about yet; the
+# only no-photo message is setStatus's, shown when Estimate is clicked without a
+# file. CSS cannot see whether a file input holds a file, so photo.js mirrors it
+# onto a class and the stylesheet hides the native text until one is chosen.
+# Browser-QA'd for the rendering; this pins the wiring.
+def test_file_input_mirrors_its_value_onto_a_class():
+    src = _source("photo.js")
+    assert re.search(
+        r'classList\.toggle\(\s*"has-file"', src
+    ), "photo.js never mirrors 'a file is chosen' onto the input"
+
+
+def test_empty_file_input_hides_its_native_text():
+    css = _source("styles.css")
+    rule = re.search(
+        r'input\[type="file"\]:not\(\.has-file\)\s*\{([^}]*)\}', css
+    )
+    assert rule, "no rule for the file input before a file is chosen"
+    assert "color: transparent" in rule.group(1), (
+        "the empty input still shows 'No file chosen'"
+    )
