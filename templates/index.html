@@ -40,6 +40,7 @@
     <section class="panel form-panel" aria-labelledby="form-heading">
       <h2 id="form-heading">Ring parameters</h2>
       <form id="ring-form" novalidate-hint="native validation enabled">
+        <div class="sidebar-body">
         <fieldset class="photo-upload">
           <legend>Start from a photo (optional)</legend>
           <div class="field">
@@ -50,7 +51,7 @@
             <span class="hint" id="ring-photo-hint">JPEG or PNG. Estimates pre-fill the form below.</span>
           </div>
           <div class="actions">
-            <button type="button" id="estimate-btn">Estimate from photo</button>
+            <button type="button" id="estimate-btn">Estimate</button>
           </div>
           <p id="photo-detections" class="photo-detections" aria-live="polite" hidden></p>
           <p id="photo-status" class="photo-status" role="status" aria-live="polite"></p>
@@ -275,7 +276,9 @@
             <span class="hint" id="retention-hint">How the accents are held; pave is coming later</span>
           </div>
         </fieldset>
+        </div>
 
+        <div class="sidebar-footer">
         <div class="actions">
           <button id="generate-btn" type="submit">Generate</button>
         </div>
@@ -294,6 +297,7 @@
 
         <div class="actions download-actions">
           <a id="download-btn" class="button-link" download="ring.stl" hidden>Download STL</a>
+        </div>
         </div>
       </form>
     </section>
