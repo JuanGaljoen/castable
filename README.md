@@ -3,32 +3,38 @@
 Parametric jewelry-ring generator. Enter ring parameters (or upload a photo),
 and the app generates a watertight 3D model in-process with build123d (an
 OpenCASCADE B-rep kernel), validates the mesh, previews it in the browser, and
-exports a clean STL (and STEP) ready for lost-wax casting. Four ring styles are
-supported — **solitaire, halo, trilogy, and side-stone band** — with round or
-oval centre stones.
+exports a clean STL (and STEP) ready for lost-wax casting. A ring is a centre
+stone on a band plus **any combination of a halo, trilogy side stones and a
+side-stone band**, with six centre-stone cuts (round, oval, cushion, emerald,
+pear, marquise) and six band cross-sections.
 
 ## Features
 
-- **Parametric geometry** — each ring style is a composition of reusable
-  build123d modules (`shank`, `seat`, `prong_setting`, `bezel`, `gallery`,
-  `accent_seat`, `accent_prong`, …) fused into one watertight manifold; a
-  pluggable `StoneOutline` seam makes stone shape (round / oval) orthogonal to
-  the modules that follow it.
+- **Parametric geometry** — every ring is a composition of reusable build123d
+  modules (`shank`, `seat`, `prong_setting`, `bezel`, `gallery`,
+  `accent_seat`, `accent_prong`, …) fused into one watertight manifold.
+  Features compose freely (a halo *and* side-stone shoulders on one ring), and a
+  pluggable `StoneOutline` seam makes the stone cut orthogonal to the modules
+  that follow it.
 - **Typed contract (RingSpec)** — requests are validated against a versioned,
   typed RingSpec schema; castability is checked *before* any geometry runs.
 - **Casting-ready output** — manufacturing limits (min wall 0.8 mm, min prong tip
   0.7 mm, single watertight body, zero non-manifold edges) are enforced in the
   geometry, not just hinted in the UI.
-- **Mesh validation + auto-repair** — every generated STL is checked for
-  castability and conservatively repaired (no remeshing) before download. The
-  verdict rides back on response headers and a green/red indicator.
+- **Mesh validation** — geometry is watertight by construction; every generated
+  STL is still checked for castability, with conservative repair (no remeshing)
+  as a fallback. The verdict rides back on response headers and a green/red
+  indicator.
 - **STL + STEP export** — STL for print/preview, STEP for CAD interchange.
-- **3D preview** — Three.js viewer with orbit/zoom/pan and a wireframe toggle.
+- **3D preview** — the centre piece of a single-view workspace: a Three.js viewer
+  with orbit/zoom/pan and a wireframe toggle, beside a sidebar holding the form.
 - **Photo-assisted entry (optional)** — upload a ring photo and Claude vision
-  detects the ring style and populates a full, schema-valid RingSpec (archetype,
-  dimensions, stone shape, per-field confidence) that pre-fills the form; every
-  estimate stays user-overridable, and low-confidence fields are flagged. Works
-  without an API key (the feature degrades gracefully to manual entry).
+  detects the ring's features, stone cut and proportions, and populates a full,
+  schema-valid RingSpec that pre-fills the form. The form is a correction
+  surface, not a configurator: every value stays editable, each detected feature
+  has a Remove, low-confidence fields are flagged, and any value adjusted to make
+  the estimates buildable together is marked. Works without an API key (degrades
+  gracefully to manual entry).
 
 ## Screenshots
 
@@ -45,7 +51,7 @@ sequenceDiagram
     participant V as validate_spec
     participant G as compose(spec)
     participant M as Mesh gate
-    U->>F: POST /generate-ring {archetype, shank, setting, stones, ...}
+    U->>F: POST /generate-ring {shank, setting, stones, halo?, trilogy?, side_stone?}
     F->>V: parse + validate RingSpec
     V-->>F: 400 naming the bad field (if invalid)
     F->>G: build modules, fuse into one solid
@@ -90,8 +96,8 @@ flask --app ringcad.app run
 python app.py
 ```
 
-Open <http://127.0.0.1:5000>, enter the parameters, click **Generate**, then
-preview and download the STL.
+Open <http://127.0.0.1:5000>, enter the parameters (or choose a photo and click
+**Estimate**), click **Generate**, then preview and download the STL.
 
 > Note: the built-in Flask server is for development only. Use a production WSGI
 > server (gunicorn/uWSGI) to deploy.
@@ -126,15 +132,19 @@ The shared core (the solitaire's slice of RingSpec):
 | `inner_diameter` | Finger size (mm)              |
 | `band_width`     | Shank width (mm)              |
 | `band_thickness` | Shank thickness (mm, >= 0.8)  |
-| `stone_diameter` | Stone seat sizing (mm; the short axis for oval stones) |
+| `outer_profile`  | Band outside: `domed` / `flat` / `knife_edge` |
+| `inner_profile`  | Band inside: `domed` (comfort fit) / `flat` |
+| `stone_diameter` | Stone seat sizing (mm; the width for elongated cuts) |
 | `stone_height`   | Stone height (mm)             |
 | `prong_count`    | 4 or 6 only                   |
 | `setting_height` | Gallery / setting height (mm) |
 
-Centre stones also take a `shape` (`round` / `oval`) and, for ovals, a
-`length_ratio`. Each other archetype adds its own group on top — `halo`
-(accent size/count), `trilogy` (side-stone size/ratio), `side_stone`
-(accent row + `retention`) — selectable in the form's style dropdown.
+Centre stones also take a `shape` (`round`, `oval`, `cushion`, `emerald`,
+`pear`, `marquise`) and, for elongated cuts, a `length_ratio` (length ÷ width).
+Optional feature groups add on top, in any combination: `halo` (accent
+size/count/gap), `trilogy` (side-stone size/gap), `side_stone` (accent row +
+`retention`, `channel` only for now). Features are put on a ring by the photo;
+the form shows each detected one with a **Remove**, and offers no way to add one.
 
 Defaults and sane ranges live in `docs/parameter-ranges.md`. The RingSpec contract
 (`docs/ringspec/`) validates types and ranges; non-castable specs (e.g. a wall
@@ -146,8 +156,8 @@ under 0.8 mm) are rejected with a structured error before geometry runs.
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /`               | The single-page app                                                                                                                          |
 | `GET /health`         | `{"status": "ok"}`                                                                                                                           |
-| `POST /generate-ring` | Accepts a structured RingSpec JSON body (`archetype` + its groups) — or, for back-compat, the flat 7 solitaire params with no `archetype` key. Returns a binary STL (`model/stl`) with `X-Mesh-Valid` / `X-Mesh-Repaired` headers. `?format=step` returns STEP (`model/step`). Non-castable or malformed input returns a 400 JSON error naming the field. |
-| `POST /classify-ring` | Accepts an image (multipart `image`); returns `{ring_detected, detected_style, note, spec}` where `spec` is a validated RingSpec with per-field confidence, or 503 if no API key is configured |
+| `POST /generate-ring` | Accepts a structured RingSpec JSON body (`shank` / `setting` / `stones` plus any of `halo` / `trilogy` / `side_stone`; a legacy `archetype` tag is still accepted and translated) — or, for back-compat, the flat 7 solitaire params. Returns a binary STL (`model/stl`) with `X-Mesh-Valid` / `X-Mesh-Repaired` headers. `?format=step` returns STEP (`model/step`). Non-castable or malformed input returns a 400 JSON error naming the field. |
+| `POST /classify-ring` | Accepts an image (multipart `image`); returns `{ring_detected, detected_style, note, spec, adjustments}` where `spec` is a validated, buildable RingSpec with per-field confidence and `adjustments` lists any field changed to make it castable; 503 if no API key is configured |
 
 Example:
 
