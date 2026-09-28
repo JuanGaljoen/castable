@@ -242,6 +242,10 @@
       var id = parts[parts.length - 1];
       flagAdjusted(id, adjustment.old_value, adjustment.new_value);
     });
+
+    // Every value above was assigned silently (no input events), so say so:
+    // app.js re-checks whether Generate has anything new to build.
+    document.dispatchEvent(new CustomEvent("ring:spec-applied"));
   }
 
   function showDetections(data) {
