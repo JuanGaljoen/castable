@@ -280,10 +280,12 @@
 
         <div class="sidebar-footer">
         <div class="actions">
-          <button id="generate-btn" type="submit">Generate</button>
+          <button id="generate-btn" type="submit" aria-describedby="generate-hint">Generate</button>
+          <p id="generate-hint" class="hint generate-hint" hidden>No changes since the last generate — edit a value to generate again.</p>
         </div>
 
         <p id="status" class="status" aria-live="polite" role="status"></p>
+        <p id="generate-announce" class="visually-hidden" aria-live="polite" role="status"></p>
 
         <div id="error" class="error" role="alert" aria-live="assertive" tabindex="-1" hidden>
           <p class="error-message" id="error-message"></p>
@@ -293,22 +295,29 @@
           </details>
         </div>
 
-        <p id="mesh-status" class="mesh-status" role="status" aria-live="polite" hidden></p>
-
-        <div class="actions download-actions">
-          <a id="download-btn" class="button-link" download="ring.stl" hidden>Download STL</a>
-        </div>
         </div>
       </form>
     </section>
 
     <section id="viewer" class="panel viewer-panel" aria-labelledby="viewer-heading">
-      <h2 id="viewer-heading">3D preview</h2>
+      <div class="viewer-header">
+        <div class="viewer-title">
+          <h2 id="viewer-heading">3D preview</h2>
+          <p id="mesh-status" class="mesh-status" role="status" aria-live="polite" hidden></p>
+        </div>
+        <div class="viewer-toolbar">
+          <a id="download-btn" class="button-link icon-button" download="ring.stl"
+             aria-label="Download STL" title="Download STL" hidden>
+            <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" width="18" height="18"
+                 fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>
+            </svg>
+          </a>
+          <button type="button" id="wireframe-toggle" aria-pressed="false" disabled>Wireframe</button>
+        </div>
+      </div>
       <canvas id="viewer-canvas" aria-label="3D preview of the generated ring" hidden></canvas>
       <p id="viewer-message" class="viewer-placeholder">Generate a ring to see an interactive 3D preview here.</p>
-      <div class="viewer-actions">
-        <button type="button" id="wireframe-toggle" aria-pressed="false" disabled>Wireframe</button>
-      </div>
     </section>
   </main>
 

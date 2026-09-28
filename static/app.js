@@ -67,6 +67,16 @@ function activeFeatures() {
 const form = document.getElementById("ring-form");
 const generateBtn = document.getElementById("generate-btn");
 const statusEl = document.getElementById("status");
+const announceEl = document.getElementById("generate-announce");
+const generateHintEl = document.getElementById("generate-hint");
+
+// The request body of the last SUCCESSFUL generate. Generate stays disabled
+// while the form would post exactly this again: rebuilding identical geometry
+// costs up to a minute and shows nothing new. Comparing the request, not
+// counting keystrokes, means editing a value back disables it again. A failed
+// run never records, so Generate stays available to retry.
+let lastGeneratedBody = null;
+let generating = false;
 const errorEl = document.getElementById("error");
 const errorMessageEl = document.getElementById("error-message");
 const stderrDetails = document.getElementById("stderr-details");
@@ -228,8 +238,19 @@ function fitBandToChannel() {
   }
 }
 
+function syncGenerateEnabled() {
+  if (generating) return;
+  const unchanged =
+    lastGeneratedBody !== null &&
+    JSON.stringify(gatherRequestBody()) === lastGeneratedBody;
+  generateBtn.disabled = unchanged;
+  generateHintEl.hidden = !unchanged;
+}
+
 function setLoading(isLoading) {
+  generating = isLoading;
   generateBtn.disabled = isLoading;
+  if (isLoading) generateHintEl.hidden = true;
   if (isLoading) {
     statusEl.textContent = "Generating… this can take up to a minute.";
   }
@@ -258,6 +279,7 @@ function clearResult() {
 
   downloadBtn.hidden = true;
   downloadBtn.removeAttribute("href");
+  announceEl.textContent = "";
 
   clearMeshStatus();
   clearFieldErrors();
@@ -270,6 +292,12 @@ function clearMeshStatus() {
 }
 
 function renderMeshStatus(valid, repaired, detail) {
+  // A clean mesh is the normal case (watertight by construction, RNG-17), so
+  // an always-green badge carries no information. Speak only when it's off.
+  if (valid && !repaired) {
+    clearMeshStatus();
+    return;
+  }
   meshStatusEl.classList.remove("mesh-status--valid", "mesh-status--invalid");
   meshStatusEl.classList.add(valid ? "mesh-status--valid" : "mesh-status--invalid");
   let text = valid ? "Castable mesh" : "Not castable";
@@ -284,7 +312,9 @@ function showSuccess(blob) {
   currentObjectUrl = URL.createObjectURL(blob);
   downloadBtn.href = currentObjectUrl;
   downloadBtn.hidden = false;
-  statusEl.textContent = "Done — download ready.";
+  // The render + Download appearing is the visible success; this is for AT.
+  statusEl.textContent = "";
+  announceEl.textContent = "Done — download ready.";
   downloadBtn.focus();
   document.dispatchEvent(new CustomEvent("ring:generated", { detail: { blob } }));
 }
@@ -375,6 +405,9 @@ async function generate(event) {
     return;
   }
 
+  const requestBody = JSON.stringify(gatherRequestBody());
+  if (requestBody === lastGeneratedBody) return;   // Enter in a field
+
   clearResult();
   setLoading(true);
 
@@ -382,7 +415,7 @@ async function generate(event) {
     const res = await fetch("/generate-ring", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(gatherRequestBody()),
+      body: requestBody,
     });
 
     if (res.ok) {
@@ -391,6 +424,7 @@ async function generate(event) {
       const detail = res.headers.get("X-Mesh-Repair-Detail") || "";
       renderMeshStatus(valid, repaired, detail);
       const blob = await res.blob();
+      lastGeneratedBody = requestBody;
       showSuccess(blob);
     } else {
       const data = await parseJsonSafe(res);
@@ -401,13 +435,20 @@ async function generate(event) {
     renderError("Could not reach the server, try again.", null, null);
   } finally {
     setLoading(false);
+    syncGenerateEnabled();
   }
 }
 
 form.addEventListener("submit", generate);
+form.addEventListener("input", syncGenerateEnabled);
+form.addEventListener("change", syncGenerateEnabled);
+document.addEventListener("ring:spec-applied", syncGenerateEnabled);
 
 for (const button of document.querySelectorAll(".remove-feature")) {
-  button.addEventListener("click", () => removeFeature(button.dataset.feature));
+  button.addEventListener("click", () => {
+    removeFeature(button.dataset.feature);
+    syncGenerateEnabled();
+  });
 }
 
 // photo.js drives the same machinery rather than reaching into the form

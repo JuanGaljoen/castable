@@ -262,6 +262,7 @@ fieldset:not(.photo-upload) legend { grid-column: 1 / -1; }
   font-size: 0.7rem;
   color: var(--faint);
 }
+.generate-hint { margin: 0.4rem 0 0; text-align: center; }
 
 /* Feature composition (RNG-24). The photo puts features on the ring; the
    only control is a quiet Remove, for when vision saw something that isn't
@@ -326,7 +327,6 @@ fieldset:not(.photo-upload) legend { grid-column: 1 / -1; }
 
 /* ---------- Buttons ---------- */
 .actions { margin-top: 0.4rem; }
-.download-actions { margin-top: 0.85rem; }
 
 button,
 .button-link {
@@ -351,15 +351,18 @@ button,
 #generate-btn { width: 100%; padding-block: 0.7rem; }
 #generate-btn:hover { background: var(--btn-bg-hover); }
 
-/* Secondary / ghost: estimate-from-photo + wireframe toggle */
+/* Secondary / ghost: estimate-from-photo + the viewer toolbar. Generate is
+   the one filled button on screen. */
 #estimate-btn,
-#wireframe-toggle {
+#wireframe-toggle,
+.button-link {
   background: transparent;
   color: var(--text);
   border-color: var(--line-2);
 }
 #estimate-btn:hover,
-#wireframe-toggle:hover { border-color: var(--accent); color: var(--accent-2); }
+#wireframe-toggle:hover,
+.button-link:hover { border-color: var(--accent); color: var(--accent-2); }
 
 #wireframe-toggle[aria-pressed="true"] {
   background: var(--accent-soft);
@@ -367,13 +370,6 @@ button,
   color: var(--accent-2);
 }
 
-/* Download: success-toned */
-.button-link {
-  background: var(--ok);
-  color: var(--ok-fg);
-  font-weight: 600;
-}
-.button-link::before { content: "\2193"; font-weight: 700; }
 
 button:disabled {
   opacity: 0.4;
@@ -390,6 +386,19 @@ button:focus-visible,
 }
 
 /* ---------- Status / errors ---------- */
+/* Announced to assistive tech, not drawn (WCAG 4.1.3 needs it programmatic,
+   not visible). */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
 .status {
   margin: 0.8rem 0 0;
   font-size: 0.85rem;
@@ -501,7 +510,7 @@ button:focus-visible,
 .estimates-label::before { content: "\24D8  "; font-weight: 400; }
 
 /* ---------- Viewer ---------- */
-.viewer-panel { display: flex; flex-direction: column; }
+.viewer-panel { position: relative; display: flex; flex-direction: column; }
 
 #viewer-canvas,
 .viewer-placeholder {
@@ -524,7 +533,40 @@ button:focus-visible,
   color: var(--faint);
 }
 
-.viewer-actions { margin-top: 0.8rem; }
+/* Header row: title + castability chip on the left, toolbar on the right. */
+.viewer-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.9rem;
+}
+.viewer-title { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+.viewer-title h2 { margin: 0; }
+.viewer-toolbar { display: flex; gap: 0.5rem; }
+.viewer-toolbar button,
+.viewer-toolbar .button-link {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+}
+/* Icon-only: square, same height as its text neighbours. */
+.viewer-toolbar .icon-button {
+  width: 1.9rem;   /* ≈ the stretched height, so it reads square */
+  padding: 0;
+  align-self: stretch;
+}
+/* In the header the mesh status is quiet inline text beside the title, not a
+   pill competing with it; the glyph still carries state (not colour alone). */
+.viewer-title .mesh-status,
+.viewer-title .mesh-status--valid,
+.viewer-title .mesh-status--invalid {
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  font-size: 0.8rem;
+}
 
 @media (max-width: 880px) {
   #viewer-canvas,
@@ -622,78 +664,68 @@ button:focus-visible,
   .photo-upload .actions { grid-column: 2; grid-row: 2; margin: 0; }
   .photo-upload .actions button { height: 100%; }
 
-  /* Footer grid: feedback above, Generate | Download side by side below, so a
-     successful run doesn't grow the footer into the fields. Source order
-     (Generate, status, error, mesh-status, Download) is unchanged, so tab
-     order and the mesh-status-above-download contract hold. */
+  /* Footer: progress/error feedback above, Generate full width below, so a
+     run doesn't grow the footer into the fields. The result (castability,
+     Download) lives on the viewer. */
   .sidebar-footer {
     flex: none;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     grid-template-areas:
-      "status mesh"
-      "error  error"
-      "gen    dl";
-    column-gap: 0.6rem;
+      "status"
+      "error"
+      "gen";
     align-items: center;
     padding: 0.65rem 1rem 0.85rem;
     border-top: 1px solid var(--line);
   }
   .sidebar-footer .actions { grid-area: gen; margin: 0; }
-  .sidebar-footer .download-actions { grid-area: dl; margin: 0; }
-  .sidebar-footer:has(#download-btn[hidden]) .actions { grid-column: 1 / -1; }
-  .sidebar-footer .download-actions .button-link,
   .sidebar-footer #generate-btn { width: 100%; }
   .sidebar-footer .status { grid-area: status; margin: 0 0 0.6rem; }
   /* Empty live region stays in the a11y tree (display:none can drop
      announcements); it just takes no space. */
   .sidebar-footer .status:empty { margin: 0; }
   .sidebar-footer .error { grid-area: error; margin: 0 0 0.6rem; }
-  .sidebar-footer .mesh-status {
-    grid-area: mesh;
-    margin: 0 0 0.6rem;
-    padding: 0.35rem 0.65rem;
-  }
 
-  /* Viewer: the canvas IS the panel; heading and toggle float over it. */
+  /* Viewer: the canvas IS the panel; the header row floats over it. */
   .viewer-panel {
     position: relative;
     min-height: 0;
     padding: 0;
     overflow: hidden;
   }
-  .viewer-panel h2 {
+  .viewer-header {
     position: absolute;
-    top: 0.85rem;
+    top: 0.75rem;
     left: 1rem;
+    right: 1rem;
     margin: 0;
     z-index: 1;
-    color: #ededf0;   /* sits on the always-dark stage in both themes */
-    pointer-events: none;
+    pointer-events: none;   /* let drags on empty header space orbit the model */
   }
+  .viewer-toolbar,
+  .viewer-title .mesh-status { pointer-events: auto; }
+  .viewer-panel h2 { color: #ededf0; }   /* always-dark stage, both themes */
   #viewer-canvas,
   .viewer-placeholder {
     height: 100%;
     border: 0;
     border-radius: 0;
   }
-  .viewer-actions {
-    position: absolute;
-    right: 1rem;
-    bottom: 1rem;
-    margin: 0;
-    z-index: 1;
-  }
   /* Over the dark stage in both themes, so pin dark-stage colours. */
-  #wireframe-toggle {
+  #wireframe-toggle,
+  .viewer-toolbar .button-link {
     color: #ededf0;
     background: rgba(10, 10, 12, 0.72);
     border-color: #3c3c47;
   }
-  #wireframe-toggle:hover { border-color: #6f8dff; color: #8aa2ff; }
+  #wireframe-toggle:hover,
+  .viewer-toolbar .button-link:hover { border-color: #6f8dff; color: #8aa2ff; }
   #wireframe-toggle[aria-pressed="true"] {
     color: #8aa2ff;
     background: rgba(24, 30, 56, 0.85);
     border-color: #6f8dff;
   }
+  .viewer-title .mesh-status--valid { color: #54c79a; }
+  .viewer-title .mesh-status--invalid { color: #ff8f8f; }
 }

@@ -530,3 +530,122 @@ def test_every_feature_fieldset_is_known_to_the_registry(body):
     assert registered <= in_form, (
         f"registry knows features the form never shows: {sorted(registered - in_form)}"
     )
+
+
+# ---- Download lives on the viewer, not in the sidebar footer --------------
+def test_download_button_sits_in_the_viewer(body):
+    """#download-btn belongs to the 3D preview (a small control in its top
+    right), not the config form: the file it saves is the model on screen.
+
+    SCOPE: static shell only; the corner placement is CSS, checked in a browser.
+    """
+    viewer = re.search(r'<section[^>]*id="viewer".*?</section>', body, re.S)
+    form = re.search(r"<form\b.*?</form>", body, re.S)
+    assert viewer and form
+    assert 'id="download-btn"' in viewer.group(0), (
+        "#download-btn must be inside the #viewer section"
+    )
+    assert 'id="download-btn"' not in form.group(0), (
+        "#download-btn must not remain in the sidebar form"
+    )
+
+
+# ---- Viewer owns its result: status chip + one toolbar (docs/research/
+# viewer-actions-and-status-ui.md) -----------------------------------------
+def _viewer(body):
+    viewer = re.search(r'<section[^>]*id="viewer".*?</section>', body, re.S)
+    assert viewer, "no #viewer section"
+    return viewer.group(0)
+
+
+def test_mesh_status_describes_the_model_so_it_sits_in_the_viewer(body):
+    """The castability chip describes the rendered model, so it lives beside
+    it (NN/g: indicators in close proximity to what they describe)."""
+    assert 'id="mesh-status"' in _viewer(body)
+
+
+def test_wireframe_and_download_share_one_viewer_toolbar(body):
+    """Viewer controls are one group, not two stray buttons in two corners."""
+    toolbar = re.search(
+        r'<div[^>]*class="viewer-toolbar"[^>]*>.*?</div>', _viewer(body), re.S
+    )
+    assert toolbar, "no .viewer-toolbar in #viewer"
+    assert 'id="wireframe-toggle"' in toolbar.group(0)
+    assert 'id="download-btn"' in toolbar.group(0)
+
+
+def test_success_is_announced_but_not_printed(body):
+    """'Done — download ready' is redundant on screen once the model renders
+    and Download appears, but screen readers still need it (WCAG 4.1.3): it
+    goes to a visually hidden live region, not the visible #status line."""
+    tag = re.search(r'<[^>]*id="generate-announce"[^>]*>', body)
+    assert tag, "no #generate-announce live region"
+    assert "visually-hidden" in tag.group(0)
+    assert 'aria-live="polite"' in tag.group(0)
+    js = open("static/app.js", encoding="utf-8").read()
+    fn = re.search(r"function showSuccess\(blob\)\s*\{.*?\n\}", js, re.S).group(0)
+    assert "announceEl.textContent" in fn
+    assert "statusEl.textContent = \"Done" not in fn
+
+
+# ---- Generate is disabled until the geometry changes ----------------------
+# SCOPE: wiring only (the Flask client runs no JS); that the button actually
+# disables and re-enables is checked in a browser.
+def _js(name):
+    return open(f"static/{name}", encoding="utf-8").read()
+
+
+def test_generate_explains_why_it_is_disabled(body):
+    """A disabled button that says nothing reads as broken: the hint names
+    what re-enables it, and the button points at it."""
+    btn = re.search(r'<button[^>]*id="generate-btn"[^>]*>', body).group(0)
+    assert 'aria-describedby="generate-hint"' in btn
+    hint = re.search(r'<[^>]*id="generate-hint"[^>]*>', body)
+    assert hint and "hidden" in hint.group(0)
+
+
+def test_generate_compares_the_request_not_keystrokes():
+    """'Changed' means the request would differ from the last successful one,
+    so editing a value back disables Generate again."""
+    js = _js("app.js")
+    assert "lastGeneratedBody" in js
+    sync = re.search(r"function syncGenerateEnabled\(\)\s*\{.*?\n\}", js, re.S)
+    assert sync and "JSON.stringify(gatherRequestBody())" in sync.group(0)
+    for evt in ('form.addEventListener("input", syncGenerateEnabled)',
+                'form.addEventListener("change", syncGenerateEnabled)'):
+        assert evt in js, f"missing: {evt}"
+
+
+def test_photo_estimate_reenables_generate():
+    """applySpec assigns .value silently (no input events), so it announces
+    when it's done and app.js re-checks."""
+    assert 'new CustomEvent("ring:spec-applied")' in _js("photo.js")
+    assert 'addEventListener("ring:spec-applied", syncGenerateEnabled)' in _js("app.js")
+
+
+# ---- Download is an icon button that doesn't shove Wireframe ---------------
+def test_download_is_an_icon_button_with_an_accessible_name(body):
+    """Icon-only, so the name lives in aria-label (plus a native title
+    tooltip for sighted mouse users); the svg itself is decorative."""
+    a = re.search(r'<a[^>]*id="download-btn".*?</a>', body, re.S).group(0)
+    assert 'aria-label="Download STL"' in a
+    assert 'title="Download STL"' in a
+    assert re.search(r'<svg[^>]*aria-hidden="true"', a)
+
+
+def test_download_appears_left_of_wireframe_so_nothing_shifts(body):
+    """Download is hidden until a success; if it sat at the trailing edge,
+    Wireframe would jump sideways when it appeared."""
+    assert body.index('id="download-btn"') < body.index('id="wireframe-toggle"')
+
+
+# ---- Mesh status speaks only when something is off ------------------------
+def test_clean_mesh_shows_no_status():
+    """A valid, unrepaired mesh is the normal case (watertight by construction
+    since RNG-17), so an always-green badge says nothing. The status appears
+    only for 'not castable' or 'auto-repaired'."""
+    js = _js("app.js")
+    fn = re.search(r"function renderMeshStatus\([^)]*\)\s*\{.*?\n\}", js, re.S).group(0)
+    assert re.search(r"if \(valid && !repaired\)\s*\{\s*clearMeshStatus\(\);\s*return;", fn), (
+        "renderMeshStatus must stay silent for a clean mesh"
+    )

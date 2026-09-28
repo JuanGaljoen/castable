@@ -85,19 +85,33 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 ## UI Design Specs
 
 - **Layout:** single-view workspace on desktop — **no page scroll**. Sidebar on
-  the left (~1/3: photo, then fields two per row, Generate/Download pinned at its
+  the left (~1/3: photo, then fields two per row, Generate pinned at its
   foot); the 3D viewer fills the right ~2/3 at full height and is the centre
-  piece. Base fields must fit at 1440x900 with no inner scroll, before AND after
-  a generate; only detected features may push the sidebar body into its own
-  scroll. Stacked vertically on mobile (<880px), page scrolls there.
+  piece. The viewer owns the result: a header row over the canvas carries the
+  title + castability status (left) and one toolbar of secondary-weight
+  controls (right): an icon-only Download (aria-label + title "Download STL")
+  LEFT of Wireframe, so Wireframe never shifts when Download appears.
+  Generate is the only filled button on screen. Base fields must fit at 1440x900 with no inner scroll, before AND
+  after a generate; only detected features may push the sidebar body into its
+  own scroll. Stacked vertically on mobile (<880px), page scrolls there.
 - **Form:** inputs for all 7 parameters with sensible defaults; `prong_count`
   is a dropdown limited to 4 or 6.
 - **Actions:** Generate button POSTs JSON to `/generate-ring`; Download STL
   button appears on success and keeps working after the viewer is added.
+  Generate is disabled (with a hint saying why) while the form would post the
+  same request as the last successful generate — compared by request body, so
+  editing a value back disables it again; a failed run leaves it enabled.
 - **Viewer:** Three.js canvas, OrbitControls (orbit/zoom/pan), ambient + two
   directional lights, wireframe toggle button; re-renders on each new STL.
-- **Mesh status:** indicator above the Download button - green "valid" /
-  red "invalid". Download works regardless of validation status.
+- **Mesh status:** quiet inline text (glyph + colour, no pill) beside the
+  "3D preview" heading (proximity: it describes the model), shown **only when
+  something is off** - red "Not castable" or "auto-repaired". A clean mesh is
+  the norm (watertight by construction, RNG-17), so it shows nothing; the
+  dimensional casting rules are enforced earlier, by the spec gate. Download
+  works regardless of validation status. Success ("Done — download ready.") is
+  announced via a visually hidden live region, not printed — the render and
+  the Download button are the visible confirmation. See
+  `docs/research/viewer-actions-and-status-ui.md`.
 - **Errors:** error message displayed on generation failure.
 - **Photo flow:** upload (jpg/png) -> `/classify-ring` -> form pre-filled with
   estimates. Show clear "Estimates only, verify before generating" label; every
