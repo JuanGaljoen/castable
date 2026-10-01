@@ -306,13 +306,20 @@
           <p id="mesh-status" class="mesh-status" role="status" aria-live="polite" hidden></p>
         </div>
         <div class="viewer-toolbar">
-          <a id="download-btn" class="button-link icon-button" download="ring.stl"
-             aria-label="Download STL" title="Download STL" hidden>
-            <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" width="18" height="18"
-                 fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>
-            </svg>
-          </a>
+          <div class="download-menu" hidden>
+            <button type="button" id="download-btn" class="icon-button"
+                    aria-haspopup="menu" aria-expanded="false" aria-controls="download-options"
+                    aria-label="Download" title="Download">
+              <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" width="18" height="18"
+                   fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>
+              </svg>
+            </button>
+            <ul id="download-options" class="download-options" role="menu" aria-label="Download format" hidden>
+              <li role="none"><button type="button" role="menuitem" tabindex="-1" data-format="stl">STL <span class="download-hint">print &amp; cast</span></button></li>
+              <li role="none"><button type="button" role="menuitem" tabindex="-1" data-format="step">STEP <span class="download-hint">editable CAD</span></button></li>
+            </ul>
+          </div>
           <button type="button" id="wireframe-toggle" aria-pressed="false" disabled>Wireframe</button>
         </div>
       </div>

@@ -355,6 +355,7 @@ button,
    the one filled button on screen. */
 #estimate-btn,
 #wireframe-toggle,
+#download-btn,
 .button-link {
   background: transparent;
   color: var(--text);
@@ -362,6 +363,7 @@ button,
 }
 #estimate-btn:hover,
 #wireframe-toggle:hover,
+#download-btn:hover,
 .button-link:hover { border-color: var(--accent); color: var(--accent-2); }
 
 #wireframe-toggle[aria-pressed="true"] {
@@ -556,6 +558,56 @@ button:focus-visible,
   padding: 0;
   align-self: stretch;
 }
+/* RNG-48: Download opens a format menu. The panel drops below the trigger,
+   right-aligned to it so it never runs off the viewer's edge. */
+.download-menu { position: relative; display: flex; }
+.download-options {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 2;
+  min-width: 11.5rem;
+  margin: 0;
+  padding: 0.3rem;
+  list-style: none;
+  background: var(--panel);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.viewer-toolbar .download-options button {
+  width: 100%;
+  min-height: 2rem;            /* >= 24px target, WCAG 2.5.8 */
+  justify-content: space-between;
+  padding: 0.4rem 0.6rem;
+  background: transparent;
+  color: var(--text);
+  border: 0;
+  border-radius: 6px;
+}
+.viewer-toolbar .download-options button:hover,
+.viewer-toolbar .download-options button:focus-visible {
+  background: var(--accent-soft);
+  color: var(--accent-2);
+}
+.download-hint { color: var(--muted); font-weight: 400; }
+/* Busy while a STEP builds: the arrow becomes a spinner. */
+#download-btn.is-busy { cursor: progress; }
+#download-btn.is-busy svg { display: none; }
+#download-btn.is-busy::after {
+  content: "";
+  width: 0.85rem;
+  height: 0.85rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: download-spin 0.8s linear infinite;
+}
+@keyframes download-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  #download-btn.is-busy::after { animation: none; border-right-color: currentColor; opacity: 0.6; }
+}
+
 /* In the header the mesh status is quiet inline text beside the title, not a
    pill competing with it; the glyph still carries state (not colour alone). */
 .viewer-title .mesh-status,
@@ -714,13 +766,23 @@ button:focus-visible,
   }
   /* Over the dark stage in both themes, so pin dark-stage colours. */
   #wireframe-toggle,
+  #download-btn,
   .viewer-toolbar .button-link {
     color: #ededf0;
     background: rgba(10, 10, 12, 0.72);
     border-color: #3c3c47;
   }
   #wireframe-toggle:hover,
+  #download-btn:hover,
   .viewer-toolbar .button-link:hover { border-color: #6f8dff; color: #8aa2ff; }
+  .download-options { background: #101013; border-color: #3c3c47; }
+  .viewer-toolbar .download-options button { color: #ededf0; }
+  .viewer-toolbar .download-options button:hover,
+  .viewer-toolbar .download-options button:focus-visible {
+    background: rgba(111, 141, 255, 0.16);
+    color: #8aa2ff;
+  }
+  .download-hint { color: #9b9ba6; }
   #wireframe-toggle[aria-pressed="true"] {
     color: #8aa2ff;
     background: rgba(24, 30, 56, 0.85);

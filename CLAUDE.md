@@ -89,14 +89,17 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
   foot); the 3D viewer fills the right ~2/3 at full height and is the centre
   piece. The viewer owns the result: a header row over the canvas carries the
   title + castability status (left) and one toolbar of secondary-weight
-  controls (right): an icon-only Download (aria-label + title "Download STL")
-  LEFT of Wireframe, so Wireframe never shifts when Download appears.
+  controls (right): an icon-only Download (aria-label + title "Download")
+  LEFT of Wireframe, so Wireframe never shifts when Download appears. Download
+  is a menu button (RNG-48): **STL** saves the in-memory blob, **STEP** is
+  rebuilt on demand from the request that drew the preview (never the live
+  form), busy + announced while it builds, aborted by a new Generate.
   Generate is the only filled button on screen. Base fields must fit at 1440x900 with no inner scroll, before AND
   after a generate; only detected features may push the sidebar body into its
   own scroll. Stacked vertically on mobile (<880px), page scrolls there.
 - **Form:** inputs for all 7 parameters with sensible defaults; `prong_count`
   is a dropdown limited to 4 or 6.
-- **Actions:** Generate button POSTs JSON to `/generate-ring`; Download STL
+- **Actions:** Generate button POSTs JSON to `/generate-ring`; the Download
   button appears on success and keeps working after the viewer is added.
   Generate is disabled (with a hint saying why) while the form would post the
   same request as the last successful generate — compared by request body, so
@@ -213,6 +216,8 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
   feedback-lifetime rule does NOT settle: a rendered mesh is neither a claim about the
   input nor a caution about a value, so decide deliberately rather than by analogy
 - **RNG-28** Accept WebP + HEIC uploads [Low] - deliberately deferred paper cut
+- **RNG-48** Download format menu on the viewer: STL or STEP [Done] - the backend
+  had `?format=step` all along and nothing in the UI could ask for it
 - **RNG-29** Photo error message does not clear when a file is chosen [Done] - found in
   RNG-23 QA; established the feedback-lifetime rule below and the zero-install browser
   QA path. Also fixed `#photo-detections`, a second instance the ticket never reported
