@@ -82,11 +82,15 @@ const errorMessageEl = document.getElementById("error-message");
 const stderrDetails = document.getElementById("stderr-details");
 const stderrText = document.getElementById("stderr-text");
 const downloadBtn = document.getElementById("download-btn");
+const downloadMenuEl = document.querySelector(".download-menu");
+const downloadOptionsEl = document.getElementById("download-options");
 const meshStatusEl = document.getElementById("mesh-status");
 
 // Retained across generations; the viewer (RNG-4) will read these.
 let currentBlob = null;
 let currentObjectUrl = null;
+// The in-flight STEP build (RNG-48), so a new Generate can cancel it.
+let stepController = null;
 
 // Structured RingSpec JSON (RNG-9 CP4, widened RNG-24): shared shank/setting/
 // stones plus a group for EVERY active feature — any subset, not one
@@ -277,8 +281,9 @@ function clearResult() {
   stderrDetails.hidden = true;
   stderrText.textContent = "";
 
-  downloadBtn.hidden = true;
-  downloadBtn.removeAttribute("href");
+  if (stepController) stepController.abort();
+  closeDownloadMenu(false);
+  downloadMenuEl.hidden = true;
   announceEl.textContent = "";
 
   clearMeshStatus();
@@ -310,8 +315,7 @@ function renderMeshStatus(valid, repaired, detail) {
 function showSuccess(blob) {
   currentBlob = blob;
   currentObjectUrl = URL.createObjectURL(blob);
-  downloadBtn.href = currentObjectUrl;
-  downloadBtn.hidden = false;
+  downloadMenuEl.hidden = false;
   // The render + Download appearing is the visible success; this is for AT.
   statusEl.textContent = "";
   announceEl.textContent = "Done — download ready.";
@@ -438,6 +442,128 @@ async function generate(event) {
     syncGenerateEnabled();
   }
 }
+
+// ---- Download format menu (RNG-48) ----------------------------------------
+// WAI-ARIA menu button: Enter/Space/ArrowDown open on the first item,
+// ArrowUp on the last; arrows/Home/End move; Escape closes back to the
+// trigger; Tab or a click elsewhere just closes.
+function menuItems() {
+  return Array.from(downloadOptionsEl.querySelectorAll('[role="menuitem"]'));
+}
+
+function openDownloadMenu(focusLast) {
+  downloadOptionsEl.hidden = false;
+  downloadBtn.setAttribute("aria-expanded", "true");
+  const items = menuItems();
+  items[focusLast ? items.length - 1 : 0].focus();
+}
+
+function closeDownloadMenu(returnFocus) {
+  if (downloadOptionsEl.hidden) return;
+  downloadOptionsEl.hidden = true;
+  downloadBtn.setAttribute("aria-expanded", "false");
+  if (returnFocus) downloadBtn.focus();
+}
+
+function saveBlobUrl(url, filename) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+// The STL is already in memory: it is what the viewer rendered.
+function downloadStl() {
+  if (currentObjectUrl) saveBlobUrl(currentObjectUrl, "ring.stl");
+}
+
+function setStepBusy(busy) {
+  downloadBtn.classList.toggle("is-busy", busy);
+  if (busy) downloadBtn.setAttribute("aria-busy", "true");
+  else downloadBtn.removeAttribute("aria-busy");
+}
+
+// STEP is rebuilt on demand from the request that drew the preview -- never
+// the live form, which may have moved on since (the RNG-30 staleness family).
+async function downloadStep() {
+  if (stepController || lastGeneratedBody === null) return;
+  stepController = new AbortController();
+  setStepBusy(true);
+  announceEl.textContent = "Preparing STEP file… this can take up to a minute.";
+  try {
+    const res = await fetch("/generate-ring?format=step", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: lastGeneratedBody,
+      signal: stepController.signal,
+    });
+    if (!res.ok) {
+      announceEl.textContent = "";
+      showError(res.status, await parseJsonSafe(res));
+      return;
+    }
+    const url = URL.createObjectURL(await res.blob());
+    saveBlobUrl(url, "ring.step");
+    URL.revokeObjectURL(url);
+    announceEl.textContent = "STEP download ready.";
+  } catch (err) {
+    if (err.name === "AbortError") return;   // a new Generate replaced the ring
+    console.error("Network error building STEP", err);
+    announceEl.textContent = "";
+    renderError("Could not build the STEP file, try again.", null, null);
+  } finally {
+    stepController = null;
+    setStepBusy(false);
+  }
+}
+
+downloadBtn.addEventListener("click", () => {
+  if (stepController) return;
+  if (downloadOptionsEl.hidden) openDownloadMenu(false);
+  else closeDownloadMenu(true);
+});
+
+downloadBtn.addEventListener("keydown", (event) => {
+  if (stepController) return;
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    event.preventDefault();
+    openDownloadMenu(event.key === "ArrowUp");
+  }
+});
+
+downloadOptionsEl.addEventListener("keydown", (event) => {
+  const items = menuItems();
+  const i = items.indexOf(document.activeElement);
+  const moves = {
+    ArrowDown: (i + 1) % items.length,
+    ArrowUp: (i - 1 + items.length) % items.length,
+    Home: 0,
+    End: items.length - 1,
+  };
+  if (event.key in moves) {
+    event.preventDefault();
+    items[moves[event.key]].focus();
+  } else if (event.key === "Escape") {
+    event.preventDefault();
+    closeDownloadMenu(true);
+  } else if (event.key === "Tab") {
+    closeDownloadMenu(false);
+  }
+});
+
+downloadOptionsEl.addEventListener("click", (event) => {
+  const item = event.target.closest('[role="menuitem"]');
+  if (!item) return;
+  closeDownloadMenu(true);
+  if (item.dataset.format === "step") downloadStep();
+  else downloadStl();
+});
+
+document.addEventListener("click", (event) => {
+  if (!downloadMenuEl.contains(event.target)) closeDownloadMenu(false);
+});
 
 form.addEventListener("submit", generate);
 form.addEventListener("input", syncGenerateEnabled);

@@ -566,8 +566,9 @@ def test_mesh_status_describes_the_model_so_it_sits_in_the_viewer(body):
 
 def test_wireframe_and_download_share_one_viewer_toolbar(body):
     """Viewer controls are one group, not two stray buttons in two corners."""
+    # Up to the canvas, not the first </div>: the download menu nests a div.
     toolbar = re.search(
-        r'<div[^>]*class="viewer-toolbar"[^>]*>.*?</div>', _viewer(body), re.S
+        r'<div[^>]*class="viewer-toolbar"[^>]*>.*?<canvas', _viewer(body), re.S
     )
     assert toolbar, "no .viewer-toolbar in #viewer"
     assert 'id="wireframe-toggle"' in toolbar.group(0)
@@ -626,11 +627,75 @@ def test_photo_estimate_reenables_generate():
 # ---- Download is an icon button that doesn't shove Wireframe ---------------
 def test_download_is_an_icon_button_with_an_accessible_name(body):
     """Icon-only, so the name lives in aria-label (plus a native title
-    tooltip for sighted mouse users); the svg itself is decorative."""
-    a = re.search(r'<a[^>]*id="download-btn".*?</a>', body, re.S).group(0)
-    assert 'aria-label="Download STL"' in a
-    assert 'title="Download STL"' in a
-    assert re.search(r'<svg[^>]*aria-hidden="true"', a)
+    tooltip for sighted mouse users); the svg itself is decorative. It opens
+    a format menu (RNG-48), so the name is the action, not one format."""
+    btn = re.search(r'<button[^>]*id="download-btn".*?</button>', body, re.S).group(0)
+    assert 'aria-label="Download"' in btn
+    assert 'title="Download"' in btn
+    assert re.search(r'<svg[^>]*aria-hidden="true"', btn)
+
+
+# ---- RNG-48: Download opens a format menu (STL / STEP) ---------------------
+def _download_menu(body):
+    menu = re.search(
+        r'<div[^>]*class="download-menu"[^>]*>.*?</ul>\s*</div>', body, re.S
+    )
+    assert menu, "no .download-menu wrapper"
+    return menu.group(0)
+
+
+def test_download_is_a_menu_button(body):
+    """WAI-ARIA menu button: the trigger says it has a menu, whether it is
+    open, and which element the menu is."""
+    btn = re.search(r'<button[^>]*id="download-btn"[^>]*>', body).group(0)
+    assert 'aria-haspopup="menu"' in btn
+    assert 'aria-expanded="false"' in btn
+    assert 'aria-controls="download-options"' in btn
+
+
+def test_download_menu_offers_stl_and_step(body):
+    menu = _download_menu(body)
+    assert re.search(r'<ul[^>]*id="download-options"[^>]*role="menu"', menu)
+    assert re.search(r'<ul[^>]*id="download-options"[^>]*hidden', menu), (
+        "the menu starts closed"
+    )
+    items = re.findall(r'<button[^>]*role="menuitem"[^>]*data-format="(\w+)"', menu)
+    assert items == ["stl", "step"]
+
+
+def test_download_menu_hidden_until_a_ring_exists(body):
+    """The wrapper, not the button, carries hidden: one attribute to flip."""
+    assert re.search(r'<div[^>]*class="download-menu"[^>]*\bhidden\b', body)
+
+
+def test_step_rebuilds_the_ring_on_screen_not_the_form():
+    """STEP is built on demand from the request that drew the preview.
+    Reading the form instead would ship a different ring once it has moved
+    on (the RNG-30 staleness family)."""
+    js = _js("app.js")
+    fn = re.search(r"async function downloadStep\(\)\s*\{.*?\n\}", js, re.S)
+    assert fn, "no downloadStep()"
+    fn = fn.group(0)
+    assert "/generate-ring?format=step" in fn
+    assert "body: lastGeneratedBody" in fn
+    assert "gatherRequestBody" not in fn
+    assert 'download = "ring.step"' in fn or "\"ring.step\"" in fn
+
+
+def test_stl_download_needs_no_request():
+    js = _js("app.js")
+    fn = re.search(r"function downloadStl\(\)\s*\{.*?\n\}", js, re.S)
+    assert fn, "no downloadStl()"
+    assert "fetch(" not in fn.group(0)
+    assert "currentObjectUrl" in fn.group(0)
+
+
+def test_new_generate_aborts_an_in_flight_step():
+    """clearResult runs on every Generate; a STEP for the old ring must never
+    land after the preview has changed."""
+    js = _js("app.js")
+    fn = re.search(r"function clearResult\(\)\s*\{.*?\n\}", js, re.S).group(0)
+    assert "stepController.abort()" in fn
 
 
 def test_download_appears_left_of_wireframe_so_nothing_shifts(body):
