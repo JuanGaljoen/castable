@@ -155,6 +155,11 @@ def create_app() -> Flask:
                 500,
             )
 
+        # STEP deliberately skips the mesh checks below. They measure OUR STL
+        # tessellation; a STEP file is the exact B-rep, re-meshed by whatever
+        # opens it, so mesh repair has nothing to act on and our body count
+        # could refuse a file that opens fine (RNG-39 cases measure as one B-rep
+        # solid). The UI only requests STEP for a body whose STL already passed.
         if fmt == "step":
             return Response(
                 data,
