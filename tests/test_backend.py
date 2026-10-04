@@ -122,17 +122,50 @@ def test_non_castable_body_returns_400_with_violations(client):
     )
 
 
-# ---- RNG-15: geometry failure -> 400 generic error (no subprocess stderr) --
-def test_geometry_failure_returns_400_generic(client, monkeypatch):
-    def boom(spec):
-        raise RuntimeError("kernel exploded")
+# ---- Geometry failure -> 500 generic error, exception text kept server-side --
+# A body that reaches the kernel has already passed the schema and the casting
+# gate, so a kernel exception is OUR fault (500), and its text (OCCT internals,
+# e.g. "Null TopoDS_Shape") is for the log, never the client.
+_KERNEL_MSG = "kernel exploded"
 
-    monkeypatch.setattr("ringcad.app.build_solitaire", boom)
-    resp = client.post("/generate-ring", json=VALID_BODY)
-    assert resp.status_code == 400
+
+def _boom(*_args):
+    raise RuntimeError(_KERNEL_MSG)
+
+
+def _assert_generic_500(resp):
+    assert resp.status_code == 500
     data = resp.get_json()
     assert data["error"] == "Geometry generation failed"
+    assert data["detail"]
+    assert _KERNEL_MSG not in resp.get_data(as_text=True)
     assert "openscad_stderr" not in data
+
+
+def test_geometry_failure_returns_500_generic(client, monkeypatch):
+    monkeypatch.setattr("ringcad.app.build_solitaire", _boom)
+    _assert_generic_500(client.post("/generate-ring", json=VALID_BODY))
+
+
+def test_structured_geometry_failure_returns_500_generic(client, monkeypatch):
+    monkeypatch.setattr("ringcad.app.compose", _boom)
+    _assert_generic_500(client.post("/generate-ring", json=VALID_HALO_BODY))
+
+
+def test_step_export_failure_returns_500_generic(client, monkeypatch):
+    monkeypatch.setattr("ringcad.app.build_solitaire", lambda spec: _Sentinel())
+    monkeypatch.setattr("ringcad.app.to_step_bytes", _boom)
+    _assert_generic_500(
+        client.post("/generate-ring?format=step", json=VALID_BODY)
+    )
+
+
+def test_geometry_failure_is_logged_with_traceback(client, monkeypatch, caplog):
+    monkeypatch.setattr("ringcad.app.build_solitaire", _boom)
+    client.post("/generate-ring", json=VALID_BODY)
+    assert any(
+        r.exc_info and _KERNEL_MSG in str(r.exc_info[1]) for r in caplog.records
+    )
 
 
 # ---- AC5: GET /health -> 200 exact body ------------------------------------

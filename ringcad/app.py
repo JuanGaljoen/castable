@@ -116,21 +116,26 @@ def create_app() -> Flask:
                 "format",
             )
 
+        # The body has passed the schema AND the casting gate, so a kernel
+        # exception here is our failure, not the client's: 500, with the OCCT
+        # text kept in the log rather than shown to the user.
         try:
             solid = compose(spec) if structured else build_solitaire(spec)
-        except Exception as exc:  # noqa: BLE001 — surface any kernel failure as 400
+            data = to_step_bytes(solid) if fmt == "step" else None
+        except Exception:  # noqa: BLE001 — any kernel failure is a 500
+            app.logger.exception("geometry generation failed")
             return (
                 jsonify(
                     {
                         "error": "Geometry generation failed",
-                        "detail": str(exc),
+                        "detail": "The model could not be built. Try "
+                        "different values or a different ring style.",
                     }
                 ),
-                400,
+                500,
             )
 
         if fmt == "step":
-            data = to_step_bytes(solid)
             return Response(
                 data,
                 mimetype="model/step",

@@ -131,8 +131,9 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
   `archetype` key (-> `from_params` -> `build_solitaire`). New archetypes are
   requested structured, per RNG-9; solitaire keeps both. Returns binary STL on success with `X-Mesh-*` headers;
   `?format=step` returns STEP (`model/step`). Castability violations and
-  malformed input return a 400 JSON error naming the field. Geometry built
-  in-process via build123d.
+  malformed input return a 400 JSON error naming the field. A kernel failure on
+  a spec that passed the gate is a 500 with a fixed message — the exception is
+  logged, never sent to the client. Geometry built in-process via build123d.
 - `GET /health` - returns `{"status": "ok"}`.
 - `POST /classify-ring` - accepts an image, returns Claude vision estimates
   toward a RingSpec (style/archetype, prong count, shank taper, features) +
