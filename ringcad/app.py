@@ -25,9 +25,20 @@ from ringcad.ringspec import (
 
 _SUPPORTED_FORMATS = ("stl", "step")
 
+_MAX_IMAGE_BYTES = 8 * 1024 * 1024
+# The cap bounds the whole request, so it leaves headroom over the file limit
+# for the multipart envelope; the exact 8 MB is held in the handler.
+_MAX_REQUEST_BYTES = _MAX_IMAGE_BYTES + 1024 * 1024
 
-def _validation_response(error: str, detail: str = "", field=None):
-    return jsonify({"error": error, "detail": detail, "field": field}), 400
+
+def _validation_response(error: str, detail: str = "", field=None, status=400):
+    return jsonify({"error": error, "detail": detail, "field": field}), status
+
+
+def _too_large_response():
+    return _validation_response(
+        "Image too large", "maximum size is 8 MB", "image", 413
+    )
 
 
 def _sniff_media_type(b: bytes):
@@ -47,6 +58,15 @@ def create_app() -> Flask:
         template_folder="../templates",
         static_folder="../static",
     )
+    # Without a cap Werkzeug accepts any body, spooling it to disk before the
+    # handler's size check can refuse it. With one, an oversized request is
+    # refused from Content-Length before it is read.
+    app.config["MAX_CONTENT_LENGTH"] = _MAX_REQUEST_BYTES
+
+    @app.errorhandler(413)
+    def request_too_large(_exc):
+        # JSON, not Werkzeug's HTML page: photo.js reads `detail` (RNG-6 AC10).
+        return _too_large_response()
 
     @app.get("/")
     def index():
@@ -196,10 +216,8 @@ def create_app() -> Flask:
             return _validation_response(
                 "Empty image", "uploaded file was empty", "image"
             )
-        if len(image_bytes) > 8 * 1024 * 1024:
-            return _validation_response(
-                "Image too large", "maximum size is 8 MB", "image"
-            )
+        if len(image_bytes) > _MAX_IMAGE_BYTES:
+            return _too_large_response()
         media_type = _sniff_media_type(image_bytes)
         if media_type is None:
             return _validation_response(

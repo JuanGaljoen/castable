@@ -137,7 +137,9 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 - `GET /health` - returns `{"status": "ok"}`.
 - `POST /classify-ring` - accepts an image, returns Claude vision estimates
   toward a RingSpec (style/archetype, prong count, shank taper, features) +
-  estimated dimensions.
+  estimated dimensions. Images over 8 MB get a JSON 413; `MAX_CONTENT_LENGTH`
+  refuses an oversized request from its `Content-Length` before the body is
+  read, and the handler holds the exact 8 MB file limit under it.
 
 ## Rules
 
