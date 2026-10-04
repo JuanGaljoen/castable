@@ -1,20 +1,20 @@
-"""trilogy() -- the trilogy composition module (RNG-10 CP2).
+"""trilogy() -- the trilogy composition module.
 
 Places two symmetric side settings (`accent_seat` + 4 `accent_prong` each) on
 the shank shoulder flanking the centre stone, each tied to the shank via a
-short gallery-post pedestal -- the gallery's HUB alone (specs/RNG-10.md
-Decision 2), not the full rail+hub+bridges gallery: a single flanking stone
-has no ring to carry a rail around.
+short gallery-post pedestal -- the gallery's HUB alone, not the full
+rail+hub+bridges gallery: a single flanking stone has no ring to carry a rail
+around.
 
 Connectivity is watertight BY CONSTRUCTION: the post shares its axis with the
 side accent_seat's own bearing cylinder above it, so their overlap is a
 genuine axial (not tangential) interpenetration; its base embeds deep into
-the shank band -- a transversal plunge, never a tangent graze (the CP3
-non-manifold trap this project has hit before).
+the shank band -- a transversal plunge, never a tangent graze, which is what
+produces non-manifold edges (docs/adr/0001).
 
 Local +Z setting frame laid onto the global +X head axis via `placement(c)`,
-rotated by the derived angular offset (Decision 4) -- the same contract as
-the CP2 accent primitives and the CP3 halo/gallery modules.
+rotated by the derived angular offset -- the same contract as the accent
+primitives and the halo and gallery modules.
 """
 from __future__ import annotations
 
@@ -26,10 +26,12 @@ from ._common import ACCENT_FUSE_EPS, HEAD_INSET, MIN_WALL, clamps, placement
 from .accent_prong import accent_prong
 from .accent_seat import accent_seat
 
-# Side-prong count: fixed at 4 for v1 (specs/RNG-10.md Decision 1), not a field.
+# Side-prong count: fixed at 4, not a field -- standard three-stone side
+# stones do not need more.
 SIDE_PRONG_COUNT = 4
 # Post radius: a fixed construction margin off MIN_WALL, independent of
-# side_stone_gap (Decision 2/5) -- mirrors the gallery hub's wall discipline.
+# side_stone_gap, which is a placement field, not a wall field -- mirrors the
+# gallery hub's wall discipline.
 POST_R = max(MIN_WALL * 1.1, 0.9)
 # How far the post embeds into the shank band below the shoulder surface (>>
 # ACCENT_FUSE_EPS; comfortably inside even the thinnest in-range band).
@@ -37,8 +39,8 @@ POST_EMBED = 0.5
 # How far the post's top plunges past the accent seat's bearing floor -- a
 # true transversal overlap, not a graze.
 POST_OVERLAP = 0.2
-# Fraction of the placement angle the side setting's frame is TILTED by (RNG-19).
-# 1.0 is the pre-RNG-19 behaviour (frame fully rotated, tables splayed outward);
+# Fraction of the placement angle the side setting's frame is TILTED by.
+# 1.0 rotates the frame fully, splaying the tables outward;
 # 0.0 would leave every table exactly parallel to the centre's, which is too
 # rigid for a ring whose shoulders genuinely curve. Chosen from the tilt it
 # produces, not from the ratio: on the corpus trilogy (51-degree offset) this
@@ -49,7 +51,7 @@ SIDE_TILT_FRACTION = 0.35
 
 def _side_loc(spec, c: dict, sign: float) -> Location:
     """Rigid placement for one side setting: positioned at the derived angular
-    offset (specs/RNG-10.md Decision 4) but tilted only a FRACTION of it.
+    offset but tilted only a FRACTION of it.
     `sign` is +1.0/-1.0."""
     # Width-consumer of the outline, not a curve-walker: the side settings flank
     # along the band, which is local Y -- the axis an N-S oval is LONGEST on. Using
@@ -60,11 +62,11 @@ def _side_loc(spec, c: dict, sign: float) -> Location:
     phi_deg = sign * math.degrees(
         (stone_r + spec.trilogy.side_stone_gap + side_r) / c["head_r"]
     )
-    # RNG-19: `Rot(0, 0, phi) * placement(c)` rotated the WHOLE frame, so each
-    # side stone's table faced radially outward at the full offset -- 51 degrees
-    # on a real photo-derived spec, turning the flanking heads into wings. Real
-    # three-stone rings read as one line: the sides tilt gently with the
-    # shoulder, nowhere near the full placement angle
+    # `Rot(0, 0, phi) * placement(c)` would rotate the WHOLE frame, so each
+    # side stone's table would face radially outward at the full offset -- 51
+    # degrees on a real photo-derived spec, turning the flanking heads into
+    # wings. Real three-stone rings read as one line: the sides tilt gently
+    # with the shoulder, nowhere near the full placement angle
     # (docs/jewelry-design-principles.md).
     #
     # Position keeps the full offset (it is a clearance requirement -- the side
@@ -117,8 +119,8 @@ def trilogy_parts(spec, c: dict | None = None) -> list:
     post_r, seat_r, *prongs_r]` -- both sides symmetric about the centre.
 
     `compose` fuses these leaves alongside the centre modules' leaves in ONE
-    general fuse (the RNG-17/halo robustness lesson: never hand `compose` a
-    pre-fused compound for a heavy module).
+    general fuse (docs/adr/0001: never hand `compose` a pre-fused compound for
+    a heavy module).
     """
     c = c if c is not None else clamps(spec)
     return _side_parts(spec, c, -1.0) + _side_parts(spec, c, 1.0)

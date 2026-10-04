@@ -1,5 +1,5 @@
 """Request validation for the ring generation endpoint — a thin view over
-RingSpec (RNG-15).
+RingSpec.
 
 Validation is unified on Pydantic: the flat 7-key request body is validated by
 constructing a RingSpec (`from_params`), and the canonical 7-key dict is read

@@ -1,4 +1,4 @@
-"""bezel() — a closed-base collar (cup) that wraps the stone (RNG-16 AC3).
+"""bezel() — a closed-base collar (cup) that wraps the stone.
 
 The collar wall is an outer Cylinder minus an inner Cylinder; the inner bore is
 positioned to leave a solid base disk at the bottom. The base sits on the head

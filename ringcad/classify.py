@@ -1,4 +1,4 @@
-"""Claude vision ring classifier (RNG-6).
+"""Claude vision ring classifier.
 
 Wraps a single Anthropic vision call behind `classify_ring`, which NEVER raises:
 any SDK/parse/timeout failure is logged and surfaced as a result with ok=False.
@@ -44,18 +44,18 @@ CLAMP_BOUNDS = {
 # Shared-dim defaults for fields the photo did not (or must not) estimate. They
 # match the form defaults / docs/parameter-ranges.md so an assembled spec is
 # always complete and castable. inner_diameter (finger size) is NEVER guessed
-# from a photo (RNG-6 rule) -- it stays at this default with confidence None.
+# from a photo -- it stays at this default with confidence None.
 DEFAULT_INNER_DIAMETER = 16.5  # ~US6
 
-# RNG-38: every stepped dimension input in templates/index.html uses step="0.1"
-# (counts use step="1", already satisfied since they're int by construction).
-# Nothing before this rounded a value to that grid, so the browser's native
-# number-input validation silently blocked Generate whenever an estimate --
-# or a coherence-repaired value -- wasn't an exact multiple of 0.1.
+# Every stepped dimension input in templates/index.html uses step="0.1" (counts
+# use step="1", already satisfied since they're int by construction). Values
+# must land on that grid: the browser's native number-input validation silently
+# blocks Generate whenever an estimate -- or a coherence-repaired value -- isn't
+# an exact multiple of 0.1.
 DIMENSION_STEP = 0.1
 # `length_ratio` is a RATIO, not a millimetre, and it needs a finer grid than
-# one (RNG-33 CP4). At step 0.1 the per-cut conventional defaults CP1 researched
-# do not survive the round trip: cushion's 1.02 lands on 1.00 and marquise's
+# one. At step 0.1 the per-cut conventional defaults (ringspec/cuts.py) do not
+# survive the round trip: cushion's 1.02 lands on 1.00 and marquise's
 # 1.95 on 2.00 -- which is exactly the "one shared default makes three of four
 # wrong on sight" failure the per-cut bands exist to prevent, reintroduced by a
 # rounding rule rather than by a wrong number. The form input carries
@@ -76,11 +76,11 @@ _SHARED_DEFAULTS = {
     "prong_count": 6,
 }
 
-# RNG-12/RNG-24: which features the module library can build, and each one's
-# group key + Pydantic group model (source of truth for the group field
-# bounds). The group fields are read off the model, so a new feature needs no
-# per-field clamp table here. RNG-24 retired the archetype union -- a ring is
-# a base plus whichever of these are PRESENT, any subset, not a choice of one.
+# Which features the module library can build, and each one's group key +
+# Pydantic group model (source of truth for the group field bounds). The group
+# fields are read off the model, so a new feature needs no per-field clamp table
+# here. A ring is a base plus whichever of these are PRESENT, any subset, not a
+# choice of one archetype.
 _FEATURE_GROUPS = {
     "halo": ("halo", Halo),
     "trilogy": ("trilogy", Trilogy),
@@ -106,13 +106,13 @@ _MAX_LENGTH_RATIO = next(
 # the same reason as `_MAX_LENGTH_RATIO` above: a second hand-written list is a
 # second thing to forget when cut #7 lands (docs/adr/0002). `_stone_shape`
 # degrades anything not in here to round, so a stale copy would silently throw
-# away a cut the geometry can already build -- which is precisely the bug
-# RNG-33 exists to fix, reintroduced one layer up.
+# away a cut the geometry can already build: vision would name the cut
+# correctly and the spec would still say round.
 _BUILDABLE_SHAPES = frozenset(
     get_args(Stones.model_fields["shape"].annotation)
 )
 
-# Same rule, same reason, for the shank cross-section (RNG-25): read off the
+# Same rule, same reason, for the shank cross-section: read off the
 # RingSpec Literals rather than a second hand-written list.
 _BUILDABLE_OUTER_PROFILES = frozenset(
     get_args(Shank.model_fields["outer_profile"].annotation)
@@ -192,7 +192,7 @@ class RingConfidence(BaseModel):
     are omitted from the schema (structured-output constraint stripping) and
     clamped in code. EVERY field is required (no defaults): strict structured
     output treats a defaulted field as optional, and many optional fields blow
-    up server-side compilation (RNG-21). 0.0 means "no confidence".
+    up server-side compilation (docs/adr/0004). 0.0 means "no confidence".
     inner_diameter is absent -- never guessed."""
 
     band_width: float
@@ -205,7 +205,7 @@ class RingConfidence(BaseModel):
 
 class RingClassification(BaseModel):
     """Structured output schema for messages.parse. `style` is the free-text
-    detected style; `features` (RNG-24) is EVERY supported feature actually
+    detected style; `features` is EVERY supported feature actually
     present -- any subset of {halo, trilogy, side_stone}, not a choice of
     one -- and only a listed feature's group dims are read; the rest are
     ignored. No inner_diameter field (never guessed).
@@ -213,12 +213,12 @@ class RingClassification(BaseModel):
     EVERY field is REQUIRED (no defaults). Strict structured output treats a
     field with a default as optional, and a schema with many optional fields
     incurs exponential compilation cost -- the real Messages API then hangs and
-    times out (RNG-21, the "17 params with type arrays or anyOf" 400 was the
-    same root cause surfacing as a hard reject). The model instead fills every
-    dimension field and uses 0 for one it cannot estimate or that does not
-    apply to any listed feature; parsing treats 0 as "not estimated" and falls
-    back to the shared/group default. See tests/test_classify_schema for the
-    guard."""
+    times out (docs/adr/0004; the API's "17 params with type arrays or anyOf"
+    400 is the same root cause surfacing as a hard reject). The model instead
+    fills every dimension field and uses 0 for one it cannot estimate or that
+    does not apply to any listed feature; parsing treats 0 as "not estimated"
+    and falls back to the shared/group default. See tests/test_classify_schema
+    for the guard."""
 
     ring_detected: bool
     style: str
@@ -230,12 +230,12 @@ class RingClassification(BaseModel):
     stone_diameter: float
     stone_height: float
     setting_height: float
-    # Shank cross-section (RNG-25). Plain `str`, like `stone_shape` below and
+    # Shank cross-section. Plain `str`, like `stone_shape` below and
     # for the same ADR-0004 reason: a Literal or optional would add a union
     # param. Degraded in code by `_shank_profile`.
     outer_profile: str
     inner_profile: str
-    # Centre-stone shape (RNG-23). Plain `str`/`float`, not a Literal or an
+    # Centre-stone shape. Plain `str`/`float`, not a Literal or an
     # optional: either would add a union param, and ADR-0004 keeps this schema
     # flat and required. The value is validated in code, where an unsupported cut
     # degrades to "round" instead of failing the whole classification.
@@ -261,7 +261,7 @@ class RingClassification(BaseModel):
 
 @dataclass(frozen=True)
 class ClassifyResult:
-    """`features` (RNG-24) is the validated feature SET actually present --
+    """`features` is the validated feature SET actually present --
     any subset of `SUPPORTED_FEATURES`, filtered from vision's raw list (an
     empty list means a plain centre stone, no extra feature). Not one
     archetype choice."""
@@ -290,7 +290,7 @@ class ClassifyResult:
 
     def _coherent_spec(self) -> tuple[dict | None, list[Adjustment]]:
         """Assemble a spec, then repair it against its own casting-gate
-        violations (RNG-32) rather than trusting vision's per-field
+        violations rather than trusting vision's per-field
         estimates to already cohere -- each field is individually clamped to
         its own range in `_assemble`, but nothing there checks a field
         against its siblings (a stone taller than its own head is
@@ -301,10 +301,11 @@ class ClassifyResult:
         estimates (repaired) -> pure-default, no features, which is
         guaranteed castable (tests/test_ringspec_coherence.py's
         test_defaults_are_castable_after_coherence). A schema-invalid
-        assembly (extreme snapped counts, RNG-19's tightened gate) skips
-        straight to the next link rather than repairing garbage.
+        assembly (e.g. extreme snapped counts) skips straight to the next link
+        rather than repairing garbage; a spec the casting gate rejects is
+        repaired first, and falls through only if repair cannot fix it.
 
-        `cross_feature_overcrowding` (RNG-24 CP2) has no dedicated repair --
+        `cross_feature_overcrowding` has no dedicated repair --
         there is no single obvious field to move when two features simply
         don't fit together -- so a genuinely overcrowded combination falls
         straight through to the next, safer link, the same as any other
@@ -348,7 +349,7 @@ class ClassifyResult:
         guaranteed-castable defaults (and a round stone -- shape is skipped
         along with it, since a bad shape reading is exactly the kind of
         thing that resort exists to shed). `groups` is `{group_key: {field:
-        value}}` for whichever features are present (RNG-24) -- any subset,
+        value}}` for whichever features are present -- any subset,
         not one archetype's worth."""
         est = self.estimates if estimates is None else estimates
         spec = {
@@ -394,17 +395,17 @@ class ClassifyResult:
             "detected_style": self.style,
             "note": self.note,
             "spec": spec,
-            # RNG-32: fields the repair moved to make the spec castable, so
-            # the frontend can flag them alongside the existing low-confidence
-            # markers (CP3) -- "estimates only, verify" extends to "and this
-            # one was adjusted for buildability".
+            # Fields the repair moved to make the spec castable, so the
+            # frontend can flag them alongside the low-confidence markers --
+            # "estimates only, verify" extends to "and this one was adjusted
+            # for buildability".
             "adjustments": [a.model_dump() for a in adjustments],
         }
 
 
 def _settle_on_step_grid(coherent: dict) -> dict | None:
     """Land `coherent` on the form's 0.1 step grid without breaking
-    castability, or return None if none of the three tries manage it (RNG-38).
+    castability, or return None if none of the three tries manage it.
 
     Nearest is right almost always. "ceil"/"floor" are a direct castability
     re-check, not another repair pass -- deliberately, since a repair margin
@@ -432,7 +433,7 @@ def _to_step(value: float, step: float, step_round) -> float:
 
 
 def _round_to_step(spec: dict, direction: str = "nearest") -> dict:
-    """Round every float dimension in `spec` to DIMENSION_STEP (RNG-38).
+    """Round every float dimension in `spec` to DIMENSION_STEP.
 
     A generic type-driven walk, not a per-field allowlist: every float leaf
     in a dimension group IS a stepped form field, and every int leaf is
@@ -464,8 +465,8 @@ def _round_to_step(spec: dict, direction: str = "nearest") -> dict:
 
 def _shank_profile(outer: str, inner: str) -> dict:
     """Normalise the vision layer's shank profile into RingSpec's shank
-    fields (RNG-25). Each axis degrades independently to `domed` (court, the
-    pre-RNG-25 default) rather than failing the whole classification -- the
+    fields. Each axis degrades independently to `domed` (court, the schema
+    default) rather than failing the whole classification -- the
     same never-500 rule `_stone_shape` follows, simpler here because there is
     no ratio to clamp, only two independent categorical choices."""
     outer_name = (outer or "").strip().lower()
@@ -486,9 +487,8 @@ def _stone_shape(shape: str, ratio: float) -> dict:
     Degrades rather than fails: a cut we cannot build (princess, trillion,
     heart) becomes a round stone of the same size instead of a spec that fails
     validation. That keeps the never-500 rule and leaves the field editable,
-    which the "estimates only" framing already promises. RNG-33 widened the
-    buildable set from two shapes to six, so the degrade path is now for genuine
-    strangers rather than for most of the catalogue.
+    which the "estimates only" framing already promises. With six buildable
+    cuts, the degrade path is for genuine strangers, not most of the catalogue.
 
     The ratio answers two DIFFERENT questions, and conflating them is what makes
     a marquise render as a lens:
@@ -504,7 +504,7 @@ def _stone_shape(shape: str, ratio: float) -> dict:
 
     A ratio of 1.0 IS a circle for an OVAL, so an oval that thin is recorded as
     round -- calling it oval would be a claim the geometry then has to
-    special-case (RNG-23). That rule is about oval, not about 1.0: a square
+    special-case. That rule is about oval, not about 1.0: a square
     cushion is genuinely 1.00 and still has rounded corners and outward-bowed
     sides, so it stays a cushion.
     """
@@ -563,7 +563,7 @@ def _group_estimates(features: list[str], data: "RingClassification") -> dict:
     """Clamp each PRESENT feature's group dims to its RingSpec field bounds;
     int-typed counts are rounded and snapped to int. Fields the model left
     null are omitted so the schema default applies. Returns `{group_key:
-    {field: value}}` for every feature actually present (RNG-24) -- a feature
+    {field: value}}` for every feature actually present -- a feature
     NOT in `features` contributes nothing, even if vision left a stray
     nonzero value on one of its dimension fields."""
     out: dict = {}
@@ -616,14 +616,14 @@ def _valid_features(raw: list[str]) -> list[str]:
 def _note(model_note: str) -> str:
     """The note is about the ESTIMATES, not about what the app did with them.
 
-    RNG-12 had this announce a forced substitution ("detected a cathedral
-    pave halo -- building the nearest supported style"), which was worth
-    saying while the archetype union was throwing information away. RNG-24
-    builds what it detects, so that sentence became an announcement of a
-    non-event -- and it was phrased in internal vocabulary ("also building
-    side stone") against a description that said "pave band shoulders",
-    because it matched feature NAMES against free text. Describing the photo
-    is `style`'s job; this is only ever the estimates caveat.
+    Announcing a forced substitution ("detected a cathedral pave halo --
+    building the nearest supported style") was worth saying only when a ring
+    could be just one archetype and information was thrown away. The app now
+    builds what it detects, so that sentence would announce a non-event. It
+    also read badly: matching feature NAMES against free text put internal
+    vocabulary ("also building side stone") beside a description that said
+    "pave band shoulders". Describing the photo is `style`'s job; this is only
+    ever the estimates caveat.
     """
     return model_note or DEFAULT_NOTE
 

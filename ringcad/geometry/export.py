@@ -1,9 +1,9 @@
-"""STL / STEP byte exporters for build123d solids (RNG-15 AC4).
+"""STL / STEP byte exporters for build123d solids.
 
 Both write to a tempfile via build123d's `export_stl` / `export_step`, then read
 the bytes back. STEP keeps OCCT's default ISO-10303 header (we don't strip it).
 
-RNG-17: build123d/OCCT's `export_stl` emits spurious *null* triangles — zero-area
+build123d/OCCT's `export_stl` emits spurious *null* triangles — zero-area
 faces with a repeated vertex at every sphere/loft pole (it even warns "null
 triangulation"). The fused B-rep solid is already a single watertight manifold
 (`solid.solids()` is length 1), but those degenerate triangles leave the *mesh*

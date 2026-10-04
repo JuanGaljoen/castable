@@ -1,4 +1,4 @@
-"""CutProfile — everything a centre-stone cut knows about itself (RNG-33).
+"""CutProfile — everything a centre-stone cut knows about itself.
 
 **Kernel-free by design.** This module imports no `build123d`, so both sides can
 read the same numbers:
@@ -12,13 +12,13 @@ read the same numbers:
 
 Spec layer owns the shape FACTS; geometry layer owns the kernel CONSTRUCTION.
 
-Frame convention, inherited from RNG-23: local **X is across the band**, local
-**Y is along the finger**, so an elongated stone is set N-S with its long axis on
-Y. `half_short` is `stone_diameter / 2`; the long semi-axis is
+Frame convention, shared with the geometry outlines: local **X is across the
+band**, local **Y is along the finger**, so an elongated stone is set N-S with
+its long axis on Y. `half_short` is `stone_diameter / 2`; the long semi-axis is
 `half_short * length_ratio`.
 
 Two parametrisations coexist, deliberately. `RoundProfile` and `OvalProfile` keep
-RNG-23's ECCENTRIC angle (`p cos t, q sin t`) so their geometry is untouched;
+the ECCENTRIC angle (`p cos t, q sin t`) so their geometry stays bit-identical;
 every new cut uses the POLAR angle, which is what a ray-cast against a polygon or
 a piecewise arc naturally gives. That is safe because theta never crosses an
 outline boundary -- one outline's `prong_layout` and its `point_at` always speak
@@ -143,12 +143,11 @@ class CutProfile:
         pear and marquise walk a 2048-point polyline to build an arc table,
         which measures at 2.7ms.
 
-        That did not matter while only the geometry layer asked. RNG-33 CP4 put
-        it in `castability._min_prong_tip`, which every spec validation and every
-        one of `coherence.make_coherent`'s repair passes calls -- so an
-        uncached 2.7ms landed in the hot path of the gate. Profiles are frozen
-        singletons, so caching on the instance is safe and the entries are
-        bounded by the six cuts times the two legal prong counts.
+        `castability._min_prong_tip` asks for it, and every spec validation and
+        every one of `coherence.make_coherent`'s repair passes calls that -- so
+        an uncached 2.7ms would sit in the hot path of the gate. Profiles are
+        frozen singletons, so caching on the instance is safe and the entries
+        are bounded by the six cuts times the two legal prong counts.
         """
         return list(self._layout_cached(n))
 
@@ -238,7 +237,7 @@ class CutProfile:
         """`n` polar angles spaced equally by ARC LENGTH, not by angle.
 
         Equal angles crowd features toward the ends of an elongated shape, where
-        the curve travels fastest per radian (RNG-23). `offset` shifts the whole
+        the curve travels fastest per radian. `offset` shifts the whole
         set by that fraction of one step.
         """
         pts = self._polyline(half_short, ratio)
@@ -308,12 +307,13 @@ class CutProfile:
         """Fixed prongs first, then share the rest evenly BY ARC in each gap.
 
         The angular positions of a pear's or marquise's side prongs are not
-        published anywhere -- the trade describes them only as "two on each side
-        curve". Rather than invent angles, distribute them by arc length (the
-        repo's existing convention since RNG-23) within the gaps the fixed
-        prongs leave. On a shape symmetric about the long axis this is symmetric
-        BY CONSTRUCTION, and it lands the pear's 4th prong exactly on the round
-        end and the marquise's side prongs exactly on the widest point.
+        published anywhere -- the trade describes them only as "two on each
+        side curve". Rather than invent angles, distribute them by arc length
+        (the repo's convention for spacing features around an outline) within
+        the gaps the fixed prongs leave. On a shape symmetric about the long
+        axis this is symmetric BY CONSTRUCTION, and it lands the pear's 4th
+        prong exactly on the round end and the marquise's side prongs exactly
+        on the widest point.
         """
         want = n - len(fixed)
         if want <= 0:
@@ -363,7 +363,7 @@ class RoundProfile(CutProfile):
 @dataclass(frozen=True)
 class OvalProfile(CutProfile):
     """An ellipse, semi-major along local Y. Parametrised by ECCENTRIC angle,
-    exactly as RNG-23 left it, so no existing oval geometry moves."""
+    so oval geometry stays bit-identical."""
 
     def _polyline(self, half_short, ratio, samples=_SAMPLES):
         p, q = half_short, half_short * ratio
@@ -376,7 +376,7 @@ class OvalProfile(CutProfile):
 
     def _prong_layout(self, n):
         """Tips fall midway between adjacent claws -- the 10-2-4-8 layout at
-        n=4 (RNG-23). The apex is the worst place to hold a min tip AND the
+        n=4. The apex is the worst place to hold a min tip AND the
         classic snag point, so no claw belongs there."""
         step = TWO_PI / n
         return [(_TIP_ANGLE + (k + 0.5) * step, ProngType.CLAW)
@@ -506,8 +506,8 @@ class EmeraldProfile(CutProfile):
         """Corners, not flat sides -- and a plain CLAW at each, not a V.
 
         **This was a V until 2026-08-25, and that was an inference, not a
-        source.** CP1 reasoned that a cut corner is a vertex and that "V is the
-        prong that wraps a vertex", which is true of a pear's point and a
+        source.** The reasoning was that a cut corner is a vertex and that "V is
+        the prong that wraps a vertex", which is true of a pear's point and a
         marquise's. It is not true here, and the research note says so in as
         many words: "no source explicitly names emerald-cut corners". The
         design sketch does -- `docs/reference/emerald.png` is captioned "4 PRONG

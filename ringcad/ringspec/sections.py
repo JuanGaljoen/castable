@@ -1,4 +1,4 @@
-"""SectionProfile — the shank's cross-section, as two independent axes (RNG-25).
+"""SectionProfile — the shank's cross-section, as two independent axes.
 
 **Kernel-free by design**, mirroring `cuts.py`'s split for the centre stone:
 this module imports no `build123d`, so `ringcad.ringspec.castability` and
@@ -18,11 +18,11 @@ other; s=0 is the centreline). `outer(s)`/`inner(s)` return the surface's
 offset from the band's inner radius, in units of `th` -- the section's
 thickness AT THE CENTRELINE. The actual band radius at a given `s` is then
 `inner_r + th * outer(s)` (outer surface) or `inner_r + th * inner(s)` (inner
-surface); `geometry/_common.py` (CP2) is what turns that into a build123d face.
+surface); `geometry/section.py` is what turns that into a build123d face.
 
 **`domed` + `domed` is `court`** -- today's `Ellipse(th/2, w/2)`, reproduced
-exactly (see `test_domed_domed_reproduces_the_current_ellipse`), so every spec
-written before RNG-25 renders identically once both fields default to it.
+exactly (see `test_domed_domed_reproduces_the_current_ellipse`), so a spec that
+omits both fields gets the plain court band, unchanged.
 
 **The taper amplitude is SHARED, not fixed, between whichever surfaces are
 non-flat.** A flat surface never moves off its reference (0 for inner, 1 for
@@ -119,11 +119,11 @@ def section_for(outer_profile: str, inner_profile: str) -> SectionProfile:
 
 def knife_edge_apex_fraction(band_width: float, min_wall: float) -> float:
     """`a` in [0, 1]: the flat crown's half-width in `s`, sized so the crown is
-    exactly `min_wall` wide across the band -- castable BY CONSTRUCTION (the
-    RNG-17 bar), not a gate rule. `a -> 1` as `band_width -> min_wall`: the
+    exactly `min_wall` wide across the band -- castable BY CONSTRUCTION, not a
+    gate rule. `a -> 1` as `band_width -> min_wall`: the
     knife edge degenerates smoothly into a flat band rather than being
     rejected, since no source publishes a "how knife-edge is knife-edge
-    enough" threshold to reject it against (specs/RNG-25.md)."""
+    enough" threshold to reject it against."""
     return min(1.0, min_wall / band_width) if band_width > 0 else 1.0
 
 

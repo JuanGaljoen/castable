@@ -1,9 +1,8 @@
 """Reusable mesh validator — the single source of truth for "is this mesh
 castable" (lost-wax).
 
-RNG-1 only *detects*; RNG-5 will extend this with auto-repair. Keep the checks
-here, not buried in tests, so the backend can call the same logic before
-returning an STL.
+Keep the checks here, not buried in tests, so the backend can call the same
+logic before returning an STL.
 """
 from __future__ import annotations
 
@@ -86,7 +85,7 @@ def validate_mesh(obj: MeshLike) -> ValidationResult:
 
 
 # ===========================================================================
-# RNG-5: auto-repair
+# Auto-repair
 # ===========================================================================
 
 

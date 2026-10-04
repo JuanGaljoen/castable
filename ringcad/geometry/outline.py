@@ -1,11 +1,10 @@
-"""StoneOutline — the centre stone's girdle, as a shape the modules can query
-(RNG-23).
+"""StoneOutline — the centre stone's girdle, as a shape the modules can query.
 
-Before this, `c["stone_r"]` was a scalar and six sites assumed the girdle was a
-circle: the seat torus, the claw ring, the bezel wall, the halo accent ring, and
-the trilogy / overcrowding clearances. Adding a shape by branching on it in each
-of those would scatter the same `if` six ways. Instead the shape answers
-questions and the modules stay shape-blind:
+Six sites would otherwise assume the girdle is a circle: the seat torus, the
+claw ring, the bezel wall, the halo accent ring, and the trilogy / overcrowding
+clearances. Adding a shape by branching on it in each of those would scatter
+the same `if` six ways. Instead the shape answers questions and the modules
+stay shape-blind:
 
   * **Curve-walkers** (seat / bezel / prong_setting / halo) place geometry AROUND
     the girdle -- they need `wire()`, `placements()` and `frame_at()`.
@@ -13,8 +12,8 @@ questions and the modules stay shape-blind:
     number, `half_width(axis)`. Handing them a curve would be a fake dependency.
 
 Round is the degenerate case INSIDE this abstraction, never a branch beside it,
-and `RoundOutline` deliberately reproduces the pre-RNG-23 numbers exactly so no
-existing archetype's geometry moves.
+and `RoundOutline` deliberately reproduces the plain-circle construction
+exactly, so round geometry stays bit-identical.
 
 Frame convention (local setting frame, before `placement()` maps it onto the
 global +X head axis): local Y is band-tangential, i.e. along the finger, so an
@@ -51,7 +50,7 @@ TWO_PI = 2 * math.pi
 # extruded wall does not. Only the OUTER wall moves: the bore stays exactly the
 # stone's negative, which is the whole point of docs/adr/0008.
 #
-# **Raised from 0.06 to 0.15 in RNG-33 CP3, and the reason is a defect in
+# **0.15 is larger than the wall alone needs, and the reason is a defect in
 # `expanded` rather than in this number.** `expanded` grows the two semi-axes
 # rather than offsetting the curve (see its own docstring, which calls the
 # approximation out and says the error is largest AT THE TIPS). At a marquise's
@@ -63,8 +62,8 @@ TWO_PI = 2 * math.pi
 # every cut back outside that grazing band.
 #
 # It is a workaround, and a narrow one: it widens the safe band, it does not
-# make the offset true. The honest fix is a real parallel curve, which also
-# owns the halo plate -- filed as RNG-40.
+# make the offset true. The honest fix is a real parallel curve, which would
+# also fix the halo plate, since it uses the same `expanded`.
 GIRDLE_EMBED = 0.15
 
 # The tips of an elongated stone are the ends of the major axis: local +Y / -Y.
@@ -140,7 +139,7 @@ class StoneOutline(Protocol):
 
 
 class RoundOutline:
-    """A circular girdle: the pre-RNG-23 behaviour, unchanged."""
+    """A circular girdle."""
 
     def __init__(self, radius: float) -> None:
         self.radius = float(radius)
@@ -165,7 +164,8 @@ class RoundOutline:
         return [(k * TWO_PI / n, ProngType.ROUND) for k in range(n)]
 
     def tube(self, minor_r: float):
-        # The pre-RNG-23 seat call, unchanged: `Torus(stone_r, collar_tr)`.
+        # Kept as the literal `Torus(stone_r, collar_tr)` so round seats stay
+        # bit-identical.
         return Torus(self.radius, minor_r)
 
     def seat_solid(self, minor_r: float):
@@ -291,10 +291,10 @@ class OvalOutline:
 
 
 class ProfileOutline:
-    """One kernel adapter over ANY `CutProfile` (RNG-33).
+    """One kernel adapter over ANY `CutProfile`.
 
-    RNG-23 promised that a new cut would be a new outline class rather than an
-    edit to six modules. CP1 went one better: every shape-specific fact -- the
+    A new cut must never mean an edit to six modules, and this goes further
+    than one outline class per cut: every shape-specific fact -- the
     girdle construction, the prong rule, the proportions -- lives in the
     profile, so the kernel side is written once and a new cut needs no geometry
     code at all.

@@ -149,6 +149,7 @@ composed by `build_solitaire(spec)` into a single watertight manifold.
 - No JS frameworks; vanilla only.
 - Casting constraints (above) are non-negotiable.
 - Never force push.
+- A comment explains why the code is this way, never which ticket changed it.
 - **Checkpoint archetype builds at module seams.** Build each archetype in
   stages that follow the module-composition boundary — reusable primitive ->
   composition -> API/UI wire-up — and commit at each seam. Every checkpoint

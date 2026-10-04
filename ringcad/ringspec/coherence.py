@@ -1,4 +1,4 @@
-"""Cross-field coherence repair for vision-assembled specs (RNG-32).
+"""Cross-field coherence repair for vision-assembled specs.
 
 `ClassifyResult.to_spec()` clamps each estimate to its own valid range but
 never checks a field against its siblings, so vision can emit a spec that is

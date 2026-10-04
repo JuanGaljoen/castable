@@ -1,4 +1,4 @@
-"""gallery() — the reusable understructure for elevated settings (RNG-9 CP3).
+"""gallery() — the reusable understructure for elevated settings.
 
 A `gallery` ties a raised setting (halo, and later trilogy / cathedral) to the
 shank/center as a single watertight manifold: a continuous 360 degree `Torus`
@@ -8,7 +8,7 @@ it carries no spec slice; the consumer derives its three geometric params
 (`ring_r`, `rail_top_z`, `hub_r`) and supplies a rigid placement `loc`.
 
 Authored in a LOCAL +Z frame (setting axis = local +Z) with `loc` applied LAST
-(`loc * local`), matching the CP2 accent-primitive contract. Every part
+(`loc * local`), matching the accent primitives' contract. Every part
 volumetrically interpenetrates its neighbour (bridge ends embedded `_OV` into
 hub and rail) so the single `fuse` yields one watertight B-rep body by
 construction — no tangency, no `.clean()` needed.
@@ -39,7 +39,7 @@ def gallery(ring_r: float, rail_top_z: float, hub_r: float, *,
     Args:
         ring_r: radius of the rail circle (mm). Ignored when `outline` is given.
         outline: optional StoneOutline the rail should FOLLOW instead of a circle
-            (RNG-23) -- an oval centre stone needs an oval gallery under its halo.
+            -- an oval centre stone needs an oval gallery under its halo.
             Omitted means a circle of radius `ring_r`, which is what
             `RoundOutline(ring_r)` builds anyway, so round output is unchanged.
         rail_top_z: local +Z of the rail tube's top (where seats seat).
@@ -53,7 +53,7 @@ def gallery(ring_r: float, rail_top_z: float, hub_r: float, *,
     ring = outline if outline is not None else RoundOutline(ring_r)
     rail_z = rail_top_z - rail_minor
     # RoundOutline.tube() IS `Torus(ring_r, rail_minor)`, so the circular gallery
-    # is bit-identical to pre-RNG-23.
+    # stays bit-identical to a plain torus rail.
     rail = Pos(0, 0, rail_z) * ring.tube(rail_minor)
     hub = Pos(0, 0, hub_bottom_z) * Cylinder(
         hub_r, rail_top_z - hub_bottom_z,

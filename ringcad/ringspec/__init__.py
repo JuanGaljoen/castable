@@ -1,6 +1,6 @@
 """RingSpec v1 — the versioned, typed contract between vision and geometry.
 
-Public surface for RNG-14. Models + schema validation live in `models`, the
+Models + schema validation live in `models`, the
 7-param round-trip adapters in `adapters`, and the lost-wax castability gate in
 `castability`. See docs/ringspec/contract.md for the full contract.
 """

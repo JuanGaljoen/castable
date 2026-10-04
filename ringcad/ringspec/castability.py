@@ -1,4 +1,4 @@
-"""Castability validation — distinct from schema validation (RNG-14, AC3).
+"""Castability validation — distinct from schema validation.
 
 Schema validation (models.py) only checks structural validity; a well-formed
 spec can still be physically uncastable. `validate_castability` runs the
@@ -30,15 +30,16 @@ from .sections import section_for
 
 # Side-stone row: angular clearance off the centre head (A_START) and the
 # angular limit before the ring base (A_MAX) — mirrored by the actual
-# placement math in ringcad/geometry/side_stone.py (CP2). The 100 degree
+# placement math in ringcad/geometry/side_stone.py. The 100 degree
 # budget between them leaves >= 70 degrees clear of the base on each side, so
 # the ring stays resizable.
 _SIDE_STONE_A_START_DEG = 10.0
 _SIDE_STONE_A_MAX_DEG = 110.0
 
 # Fraction of the inter-prong seat arc that becomes prong wire. The prong-tip
-# diameter is a coarse proxy (plan Risk #2, "fuzzy") pending an RNG-15 pin
-# against the SCAD/build123d geometry; do not treat it as exact.
+# diameter is a coarse proxy, never pinned against the built geometry (the
+# in-kernel `check_prong_setting` measures the real tip); do not treat it as
+# exact.
 _PRONG_WIRE_FRACTION = 0.25
 
 # Section radius of the seat collar, mirrored from ringcad/geometry/seat.py
@@ -93,7 +94,7 @@ def _min_prong_tip(spec: RingSpec) -> list[Violation]:
     rather than by any test. For a round stone `perimeter` IS
     `pi * stone_diameter`, so nothing about round moves.
 
-    The divisor is the number of TIPS, not of prongs (RNG-33 CP3). A V-prong
+    The divisor is the number of TIPS, not of prongs. A V-prong
     FORKS: it lays one arm back along each of the two girdle runs meeting at the
     vertex it wraps, so an emerald at four prongs puts EIGHT arms on the girdle
     and a marquise at six puts eight. Counting placements under-reported
@@ -135,7 +136,7 @@ def _geometric(spec: RingSpec) -> list[Violation]:
     """Cross-field geometric impossibilities."""
     out: list[Violation] = []
     # The stone's LONGEST axis is what has to fit over the bore: `stone_diameter`
-    # is the short axis once a shape is involved (RNG-23), so comparing it alone
+    # is the short axis once a shape is involved, so comparing it alone
     # let a 10mm stone at length_ratio 2.5 -- 25mm long across a 16.5mm bore --
     # through the gate.
     stone_length = spec.stones.stone_diameter * getattr(
@@ -165,20 +166,12 @@ def _geometric(spec: RingSpec) -> list[Violation]:
     return out
 
 
-# RNG-9 CP4 note: `_halo_wall` (halo_gap >= MIN_WALL_MM) and `_halo_accent_tip`
-# (min(dia, height) * _ACCENT_TIP_FRACTION >= MIN_PRONG_TIP_MM) were removed
-# here. Both were CP1-era coarse proxies over spec FIELDS, explicitly flagged
-# "fuzzy... pending a pin against real geometry" — written before CP2/CP3 built
-# the real gallery/accent-seat/accent-prong geometry. That geometry is castable
-# BY CONSTRUCTION (gallery's rail/bridge walls are sized from fixed minima, not
-# derived from `halo_gap`; accent seat/prong walls similarly), proven across the
-# full field range by tests/test_halo_watertight.py's BAND + the CP2/CP3
-# in-kernel self-checks (check_gallery/check_accent_seat/check_accent_prong).
-# The two proxies rejected the RNG-9 golden-halo DEFAULTS
-# (halo_gap=0.5, halo_stone_diameter=1.3/height=1.2) that CP3 proved clean,
-# which would 400 the endpoint's own documented golden example. `_halo_overcrowding`
-# stays: it catches a genuine cross-field impossibility (arc spacing between
-# accents) that construction does not guard against.
+# No `halo_gap >= MIN_WALL` rule: `halo_gap` is a spacing field, not a wall
+# field (docs/adr/0003), and such a proxy rejects the golden-halo defaults
+# (halo_gap=0.5) that build clean. The metal between seats is guarded by
+# `_halo_web` on the real bore geometry; `_halo_overcrowding` catches the
+# genuine cross-field impossibility (accents packed tighter than their own
+# diameter).
 
 
 def _ring_perimeter(semi_minor: float, semi_major: float) -> float:
@@ -200,7 +193,7 @@ def _ring_perimeter(semi_minor: float, semi_major: float) -> float:
 def _halo_overcrowding(spec: RingSpec) -> list[Violation]:
     """Accents packed tighter than their own diameter around the halo ring.
 
-    Measured around the ring the halo ACTUALLY rides. Since RNG-23 CP3 that ring
+    Measured around the ring the halo ACTUALLY rides. That ring
     follows the centre stone's outline, so for an oval stone it is an ellipse and
     is longer than a circle of the short axis. Computing the arc from that circle
     rejected specs the geometry could build -- caught by running a real oval-halo
@@ -229,7 +222,7 @@ def _halo_overcrowding(spec: RingSpec) -> list[Violation]:
 
 
 def _halo_web(spec: RingSpec) -> list[Violation]:
-    """Metal left BETWEEN adjacent halo seats (RNG-19 CP4).
+    """Metal left BETWEEN adjacent halo seats.
 
     `_halo_overcrowding` guards that accents do not overlap each other. This
     guards what survives between them — the web the seats are bored either side
@@ -274,7 +267,7 @@ def _trilogy_overcrowding(spec: RingSpec) -> list[Violation]:
     """Side stone placed close enough to collide with the centre stone.
 
     Not a wall-thickness proxy (docs/adr/0003): `side_stone_gap` is a
-    PLACEMENT field, not a wall field — the side setting's post wall (CP2) is
+    PLACEMENT field, not a wall field — the side setting's post wall is
     a fixed construction margin, independent of it, exactly like the gallery
     rail wall was independent of `halo_gap` (docs/adr/0002). This checks a
     genuine geometric fact instead — the side stone's angular placement is
@@ -298,7 +291,7 @@ def _trilogy_overcrowding(spec: RingSpec) -> list[Violation]:
     # head radius is how far the band's outer surface stands off the finger, and
     # the builder derives it the same way (`_common._clamps`). Reading the width
     # field here is what made this check disagree with the geometry it guards.
-    # Routed through `sections.head_r` (RNG-25) so this and the builder read
+    # Routed through `sections.head_r` so this and the builder read
     # ONE formula regardless of `shank.outer_profile`/`inner_profile`.
     profile = section_for(shank.outer_profile, shank.inner_profile)
     head_r = _section_head_r(
@@ -328,12 +321,12 @@ def _side_stone_overcrowding(spec: RingSpec) -> list[Violation]:
     """Accent row overruns the shoulder span, or adjacent accents collide.
 
     Not a wall-thickness proxy (docs/adr/0003): the channel-wall thickness
-    (CP2) is a fixed construction margin, independent of `accent_gap`,
+    is a fixed construction margin, independent of `accent_gap`,
     exactly like the trilogy post / gallery rail are independent of their own
     gap fields. Checks two real placement facts instead:
 
       (a) the row must fit between its start angle (clears the centre head —
-          A_START, WIDENED when a halo/trilogy also shares it, RNG-24 CP2)
+          A_START, WIDENED when a halo/trilogy also shares it)
           and A_MAX (stays off the ring base) — compared in arc-length mm so
           the Violation stays unit-consistent with every other check here,
           not in degrees. Flags `accent_count_per_side`.
@@ -349,10 +342,10 @@ def _side_stone_overcrowding(spec: RingSpec) -> list[Violation]:
         return []
     ss = spec.side_stone
     shank = spec.shank
-    # Side-stone's band is FLAT by construction on BOTH axes (RNG-11), so
+    # Side-stone's band is FLAT by construction on BOTH axes, so
     # `t_taper` is 1.0 here rather than `SHANK_THICKNESS_TAPER` -- routed
-    # through the same `sections.head_r` as `_trilogy_overcrowding` (and now
-    # single-sourced via `effective_thickness_taper`, RNG-24) so a profile
+    # through the same `sections.head_r` as `_trilogy_overcrowding` (and
+    # single-sourced via `effective_thickness_taper`) so a profile
     # change can't silently diverge the two copies of "the band's outer
     # radius" (docs/adr/0002).
     profile = section_for(shank.outer_profile, shank.inner_profile)
@@ -398,7 +391,7 @@ def _side_stone_overcrowding(spec: RingSpec) -> list[Violation]:
 
 
 def _stone_curvature(spec: RingSpec) -> list[Violation]:
-    """The girdle bends too sharply for the seat collar to follow it (RNG-23).
+    """The girdle bends too sharply for the seat collar to follow it.
 
     A tube of section radius r swept along a curve whose radius of curvature is
     smaller than r self-intersects: the inner wall passes through itself. That is
@@ -446,15 +439,15 @@ def _stone_curvature(spec: RingSpec) -> list[Violation]:
 
 
 def _side_stone_channel(spec: RingSpec) -> list[Violation]:
-    """The band must be able to HOLD a channel (RNG-19 CP3).
+    """The band must be able to HOLD a channel.
 
     Channel setting cuts a groove into the band, so unlike the retention modes
     that sit on the surface it consumes the band's own metal on two axes:
 
       (a) WIDTH — the groove runs across the band's width, so the band must
-          carry the stone plus a MIN_WALL wall each side. This is the
-          arithmetic that made RNG-11 ship raised beads: a 1.5mm accent needs
-          3.1mm of band and real specs supply 2.0mm.
+          carry the stone plus a MIN_WALL wall each side. This rules channel
+          out on most real bands: a 1.5mm accent needs 3.1mm of band and real
+          specs often supply 2.0mm.
       (b) THICKNESS — the groove is cut inward from the outer surface, so the
           metal left under it must still clear MIN_WALL. Otherwise the cut
           severs the band, and per docs/adr/0005 a severed band can still
@@ -502,10 +495,9 @@ def _side_stone_channel(spec: RingSpec) -> list[Violation]:
 
 
 def _cross_feature_overcrowding(spec: RingSpec) -> list[Violation]:
-    """Two features present together must not occupy the same metal (RNG-24
-    CP2). Replaces CP1's blanket `multi_feature_unvalidated` gate: any subset
-    of {halo, trilogy, side_stone} is now genuinely checked rather than
-    outright refused, via the shared `Footprint` currency (footprint.py) —
+    """Two features present together must not occupy the same metal. Any
+    subset of {halo, trilogy, side_stone} is genuinely checked rather than
+    refused outright, via the shared `Footprint` currency (footprint.py) —
     one pairwise check regardless of which two (or three) features are
     involved, so a fourth feature's cross-checks are free.
 

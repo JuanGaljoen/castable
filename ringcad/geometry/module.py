@@ -1,4 +1,4 @@
-"""Module library: the generic module interface + registry + compose (RNG-16).
+"""Module library: the generic module interface + registry + compose.
 
 A `Module` is a named unit that builds a build123d solid from its RingSpec slice
 and self-checks the result for castability. `SimpleModule` adapts the existing
@@ -55,10 +55,11 @@ class SimpleModule:
     An optional `_cuts` callable yields solids SUBTRACTED after that fuse.
     Modules come in both shapes:
 
-      - cut-only — `side_stone` (RNG-19 CP3) declares cuts and no parts, because
+      - cut-only — `side_stone` declares cuts and no parts, because
         a channel setting removes metal from the band rather than adding to it;
-      - parts AND cuts — `halo` (RNG-19 CP4) builds a plate and then bores the
-        accent seats out of it.
+      - parts only — `halo` and `trilogy`. `halo` bores its accent seats
+        into its plate inside `halo_parts` rather than declaring them as cuts
+        (see there for why).
 
     So `_parts` and `_cuts` are independent: declaring cuts does not suppress
     leaves. Only a module with `_cuts` and no `_parts` contributes nothing to
@@ -150,8 +151,8 @@ MODULES: dict[str, Module] = {
 # Kept for callers that want to FORCE a specific module list regardless of
 # what the spec's own feature groups say (e.g. building the bare band for a
 # before/after comparison) — `compose(spec, archetype=...)`. The spec-driven
-# path (no override) no longer consults this: RNG-24 CP2 composes from
-# whichever feature groups are actually present, any subset, not a choice of
+# path (no override) does not consult this: it composes from whichever feature
+# groups are actually present, any subset, not a choice of
 # exactly one archetype (`_spec_module_names`).
 BASE_MODULES: list[str] = ["shank", "seat", "prong_setting"]
 _FEATURE_MODULES: tuple[str, ...] = ("halo", "trilogy", "side_stone")
@@ -166,7 +167,7 @@ ARCHETYPES: dict[str, list[str]] = {
 def _spec_module_names(spec: RingSpec) -> list[str]:
     """The module list a spec's OWN feature groups imply — any subset of
     {halo, trilogy, side_stone} alongside the base three, not a single
-    archetype choice (RNG-24 CP2)."""
+    archetype choice."""
     return BASE_MODULES + [
         name for name in _FEATURE_MODULES if getattr(spec, name) is not None
     ]
@@ -179,7 +180,7 @@ def compose(spec: RingSpec, archetype: str | None = None):
     *leaves[1:])`). Simple modules contribute one leaf (their fused build);
     heavy modules like `halo` contribute many via `parts`. A single general
     fuse over the flat leaf set is robust where pairwise-fusing pre-fused
-    compounds is not (RNG-17 risk #1). A bare solitaire is unchanged: its three
+    compounds is not (docs/adr/0001). A bare solitaire is unchanged: its three
     modules each yield one leaf, so the fuse is identical to before.
 
     `archetype`, when given, FORCES that named module list instead of reading
@@ -231,8 +232,8 @@ def _subtract(solid, cuts):
     Neither cutting strategy is universally safe, and each fails in the way the
     other survives:
 
-      * ONE n-ary `cut(*tools)` is what RNG-19 adopted, because iterating raised
-        `Null TopoDS_Shape` on a 13-accent halo. It is still the default here.
+      * ONE n-ary `cut(*tools)` is the default, because iterating raised
+        `Null TopoDS_Shape` on a 13-accent halo.
       * But on a side-stone band with an ELONGATED centre stone the n-ary cut
         fails SILENTLY and catastrophically: measured, a marquise centre went
         from a 376.95mm3 single solid to 9.25mm3 in 8 pieces -- the tools
@@ -246,11 +247,11 @@ def _subtract(solid, cuts):
     boolean produced, do not trust that it succeeded) turned into a recovery
     rather than only an assertion.
 
-    NOT introduced by the new cuts: an `oval` at length_ratio 2.5 on a
-    side-stone band fails identically on the pre-RNG-33 tree (2982 mesh bodies,
-    2712 non-manifold edges) and the casting gate calls it castable. The new
-    cuts only made it reachable at a DEFAULT ratio rather than at the extreme of
-    the oval range.
+    Not specific to pear and marquise: an `oval` at length_ratio 2.5 on a
+    side-stone band fails the same way (2982 mesh bodies, 2712 non-manifold
+    edges) and the casting gate calls it castable. Pear and marquise only make
+    it reachable at their DEFAULT ratios rather than at the extreme of the oval
+    range.
     """
     result = solid.cut(*cuts)
     if len(result.solids()) == 1:

@@ -17,7 +17,7 @@ def build_solitaire(spec: RingSpec):
 
     Thin wrapper over the module library: composes the "solitaire" archetype
     (shank + seat + prong_setting). Boolean union is commutative and the mesh
-    repair gate absorbs seam differences, so parity with the RNG-15 batch fuse
-    holds.
+    repair gate absorbs seam differences, so composing module by module gives
+    the same ring as one batch fuse of every part.
     """
     return compose(spec)

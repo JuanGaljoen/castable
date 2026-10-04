@@ -71,7 +71,7 @@ V_CUP_REACH_FLOOR = 1.2          # x V_CUP_WALL
 #
 # It does not go lower. Stuller allows 0.2mm for polishing, so 0.70 modelled
 # finishes near 0.50 -- already close to their 0.45mm prong minimum, and the
-# reason specs/RNG-33.md set our tip floor at 0.70 rather than at theirs. The
+# reason our tip floor is 0.70 rather than theirs. The
 # trade's own bezel gauges (28-24ga, 0.25-0.51mm) are thinner still, but those
 # are hand-fabricated from sheet, not cast.
 V_CUP_WALL = 0.70
@@ -84,9 +84,8 @@ V_CUP_LIP = 0.22
 V_CUP_RISE = 0.70
 
 # How far a CLAW's tip leans in over the stone, as a fraction of its girdle
-# reach -- the round setting's original figure, unchanged since RNG-15. It no
-# longer applies to a V, which is a cup wrapping the point rather than a tip
-# folding over it.
+# reach -- the round setting's figure. It does not apply to a V, which is a cup
+# wrapping the point rather than a tip folding over it.
 TIP_LEAN = 0.88
 
 
@@ -185,10 +184,11 @@ def prong_setting(spec: RingSpec, c: dict | None = None):
             # No shaft. The cup welds into the seat plate, and the plate is
             # already carried to the peg by the CLAWS at the other placements --
             # every cut in the catalogue has at least one (a marquise at four
-            # prongs is 2 V + 2 claws; emerald went to all-claws in CP4).
+            # prongs is 2 V + 2 claws; an emerald is all claws).
             #
-            # It used to run one, and the shaft was where the pimple came from.
-            # At a sharp point `expanded` under-offsets (RNG-40), so a pear's cup
+            # A shaft is where the pimple came from. At a sharp point `expanded`
+            # under-offsets (it grows the semi-axes rather than offsetting the
+            # girdle; see outline.py), so a pear's cup
             # front face sits only 0.288mm beyond the girdle against a nominal
             # 0.48 -- and the metal band there is THINNER THAN THE SHAFT, so
             # neither the claw's 0.460 node sphere (0.172mm proud) nor a 0.400
@@ -208,12 +208,12 @@ def prong_setting(spec: RingSpec, c: dict | None = None):
             tip_xy = radial * (reach_r * TIP_LEAN)
             tips = [Vector(tip_xy.X, tip_xy.Y, ring_z + claw_rise)]
 
-        # RNG-19: radii step DOWN continuously from base to tip, and each node's
-        # sphere matches the radius of the cones meeting there. Previously every
-        # node carried the same `wire_r` and the tip node was `tip_r * 1.45` —
-        # a ball WIDER than its own shaft, so the claw was thickest at the one
-        # place a real claw is thinnest. Cross-sections up the length ran
-        # 4.58 / 4.18 / 3.80 / 4.71 / 6.32 mm2: a taper, then a balloon.
+        # Radii step DOWN continuously from base to tip, and each node's sphere
+        # matches the radius of the cones meeting there. A uniform `wire_r`
+        # with a `tip_r * 1.45` tip node gives a ball WIDER than its own shaft,
+        # making the claw thickest at the one place a real claw is thinnest:
+        # cross-sections up the length measured 4.58 / 4.18 / 3.80 / 4.71 /
+        # 6.32 mm2, a taper, then a balloon.
         #
         # The base radius is unchanged: ~1.0mm diameter is already correct trade
         # practice (docs/jewelry-design-principles.md), so this sheds metal from

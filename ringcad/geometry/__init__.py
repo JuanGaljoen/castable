@@ -1,8 +1,7 @@
-"""build123d solitaire geometry (RNG-15).
+"""build123d solitaire geometry.
 
 Decomposed module library — `shank`, `prong_setting`, `seat` — composed by
-`build_solitaire`, with STL/STEP byte exporters. Ported faithfully from the
-RNG-13 spike so OpenSCAD parity holds; casting constants come from
+`build_solitaire`, with STL/STEP byte exporters. Casting constants come from
 `ringcad.mesh_validator`.
 """
 from .accent_prong import accent_prong
