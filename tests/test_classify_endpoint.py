@@ -122,13 +122,44 @@ def test_classify_wrong_magic_bytes_returns_400(client, monkeypatch):
     assert "error" in resp.get_json()
 
 
-# ---- AC10: oversized (>8MB) -> 400, NOT 413 -------------------------------
-def test_classify_oversized_returns_400_not_413(client, monkeypatch):
+# ---- AC10: oversized -> JSON 413, never Werkzeug's HTML page -------------
+# AC10's real requirement is a JSON message, not a particular code: a bare
+# MAX_CONTENT_LENGTH answers with an HTML 413 photo.js cannot parse. Two layers:
+# the request cap rejects a huge body BEFORE it is read (a 2 GB upload used to
+# be spooled to disk and then read() into memory just to be refused), and the
+# in-handler check holds the exact 8 MB file limit under the cap's envelope.
+_MB = 1024 * 1024
+
+
+def _assert_too_large(resp):
+    assert resp.status_code == 413
+    data = resp.get_json()
+    assert data is not None, "413 must be JSON, not Werkzeug's HTML page"
+    assert data["error"] and data["detail"]
+
+
+def test_classify_file_over_8mb_returns_json_413(client, monkeypatch):
     _set_classify(monkeypatch, available=True)
-    big = JPEG_MAGIC + b"\x00" * (8 * 1024 * 1024 + 1)
-    resp = _upload(client, magic=big)
-    assert resp.status_code == 400
-    assert "error" in resp.get_json()
+    resp = _upload(client, magic=JPEG_MAGIC + b"\x00" * (8 * _MB + 1))
+    _assert_too_large(resp)
+    assert resp.get_json()["field"] == "image"
+
+
+def test_request_over_cap_is_refused_before_the_handler_runs(client, monkeypatch):
+    def must_not_run():
+        raise AssertionError("handler ran on an over-cap request")
+
+    monkeypatch.setattr("ringcad.app.classify_available", must_not_run)
+    # Disarm the in-handler check, so a 413 here can only have come from the
+    # request cap -- which refuses on Content-Length, before anything is read.
+    monkeypatch.setattr("ringcad.app._MAX_IMAGE_BYTES", 64 * _MB)
+    resp = _upload(client, magic=JPEG_MAGIC + b"\x00" * (12 * _MB))
+    _assert_too_large(resp)
+
+
+def test_request_cap_leaves_room_for_an_8mb_file(client):
+    cap = client.application.config["MAX_CONTENT_LENGTH"]
+    assert 8 * _MB < cap <= 16 * _MB
 
 
 # ---- empty file -> 400 ----------------------------------------------------
