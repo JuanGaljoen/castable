@@ -1,4 +1,4 @@
-"""Per-module in-kernel castability self-checks (RNG-16 AC4).
+"""Per-module in-kernel castability self-checks.
 
 Each `check_*(solid, spec, clamps) -> list[Violation]` probes the *actual*
 build123d geometry a module produced (not the spec fields) against the lost-wax
@@ -217,7 +217,7 @@ def check_gallery(solid, spec: RingSpec, clamps: dict) -> list[Violation]:
 
 
 def check_trilogy(solid, spec: RingSpec, clamps: dict) -> list[Violation]:
-    """Both side settings' accent floors, LOCAL frame per side (RNG-10 CP2).
+    """Both side settings' accent floors, LOCAL frame per side.
 
     The trilogy module's `_check`. Reuses `check_accent_seat`/
     `check_accent_prong` over both sides at the shared `trilogy._side_locs`
@@ -280,7 +280,7 @@ def _check_wall(wall_solid, lo_deg: float) -> list[Violation]:
 
 
 def check_side_stone(solid, spec: RingSpec, clamps: dict) -> list[Violation]:
-    """The channel cut leaves enough band behind it (RNG-19 CP3).
+    """The channel cut leaves enough band behind it.
 
     `solid` here is the channel's NEGATIVE volume, not metal — `side_stone` is
     the library's first subtractive module. So this measures the cut rather
@@ -349,11 +349,11 @@ def check_side_stone(solid, spec: RingSpec, clamps: dict) -> list[Violation]:
 
 
 def check_halo_plate(solid, spec: RingSpec, clamps: dict) -> list[Violation]:
-    """The halo plate carries its own floors (RNG-19 CP4).
+    """The halo plate carries its own floors.
 
-    Replaces `check_gallery` as the halo module's `_check`. That check worked by
-    finding rail-tube cross-sections, and CP4 removed the rail -- so it stopped
-    finding anything and returned clean on every halo, leaving the archetype
+    The halo module's `_check`, not `check_gallery`. That check works by
+    finding rail-tube cross-sections, and the plate has no rail -- so it would
+    find nothing and return clean on every halo, leaving the archetype
     with no in-kernel check at all. A gate that cannot fail is docs/adr/0006.
 
     Measures the plate as BUILT, in its own local frame (the placement maps

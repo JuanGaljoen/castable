@@ -1,14 +1,14 @@
-"""section_face() -- the shank cross-section as a build123d 2D face (RNG-25 CP2).
+"""section_face() -- the shank cross-section as a build123d 2D face.
 
 Kernel half of `ringcad.ringspec.sections`: the spec layer answers WHAT the
 section is (`SectionProfile.outer`/`inner`, fraction-of-`th` offsets from the
 band's inner radius); this module turns that into a face in the LOCAL setting
 frame `_band_section` already builds at each ring angle (local x = radial/
-thickness, local y = across-band/width -- the same frame the pre-RNG-25
-`Ellipse(th/2, w/2)` call used).
+thickness, local y = across-band/width -- the same frame the court
+`Ellipse(th/2, w/2)` call uses).
 
 **`court` (domed outer, domed inner) keeps that literal `Ellipse` call** --
-bit-identical to every ring generated before RNG-25 (the `RoundOutline`
+so court bands stay bit-identical to the plain ellipse (the `RoundOutline`
 precedent: an exact primitive that's already right stays exact, rather than
 being routed through general machinery for no gain).
 
@@ -21,14 +21,14 @@ identity is its straight edges and its crisp crown.
 
 **Only the amplitude each side carries changes between combinations** -- the
 shape family (line / half-ellipse / three-line knife) is fixed per profile
-name, and `sections.SectionProfile.weights()` (RNG-25's own anti-self-
-intersection fix) says how much of the taper that side gets. A flat side at
-weight 0 is a straight line at its own reference (`-th/2` inner, `+th/2`
-outer); a domed or knife side at weight `d` is that same shape scaled by `d`
-and re-centred so BOTH sides still meet at exactly the same point at the
-band's edge -- see `_ellipse_half`/`_knife_edges` below for the arithmetic,
-and `docs/research/shank-cross-section-profiles.md` for why a knife edge's
-straight slopes and a court's ellipse are each the right shape for their name.
+name, and `sections.SectionProfile.weights()` (which shares the taper so no
+pairing can self-intersect) says how much of the taper that side gets. A flat
+side at weight 0 is a straight line at its own reference (`-th/2` inner,
+`+th/2` outer); a domed or knife side at weight `d` is that same shape scaled
+by `d` and re-centred so BOTH sides still meet at exactly the same point at the
+band's edge -- see `_ellipse_half`/`_knife_edges` below for the arithmetic, and
+`docs/research/shank-cross-section-profiles.md` for why a knife edge's straight
+slopes and a court's ellipse are each the right shape for their name.
 """
 from __future__ import annotations
 
@@ -97,7 +97,7 @@ def _inner_edges(profile: SectionProfile, th: float, half_w: float,
 def section_face(profile: SectionProfile, th: float, w: float,
                   apex_fraction: float = 1.0):
     """The section's closed 2D face, centred on the plane origin exactly as
-    the pre-RNG-25 `Ellipse(th/2, w/2)` was -- `_band_section` (CP2) positions
+    the court `Ellipse(th/2, w/2)` is -- `_band_section` positions
     it with the same `Plane(origin=..., x_dir=..., z_dir=...)` transform for
     every profile."""
     if profile.outer_profile == "domed" and profile.inner_profile == "domed":

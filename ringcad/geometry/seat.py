@@ -17,9 +17,9 @@ def seat(spec: RingSpec, c: dict | None = None):
     """Seat collar following the stone's girdle → one build123d solid.
 
     The collar is whatever the OUTLINE says, because how a seat is made depends
-    on the girdle: a `Torus` for a round stone (unchanged from RNG-15), a swept
+    on the girdle: a `Torus` for a round stone, a swept
     ellipse for an oval, and for a cornered or pointed cut a bearing plate with
-    the stone's own negative bored out of it (RNG-33, docs/adr/0008 -- a vertex
+    the stone's own negative bored out of it (docs/adr/0008 -- a vertex
     has no radius, so a swept collar self-intersects at ANY section radius).
 
     `seat` itself stays shape-blind, which is the whole point of the seam.

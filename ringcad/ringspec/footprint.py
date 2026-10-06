@@ -1,4 +1,4 @@
-"""Footprint — the shared currency for cross-feature castability (RNG-24 CP2).
+"""Footprint — the shared currency for cross-feature castability.
 
 Each feature answers ONE question: what annular sector (an angle range about
 the ring axis, symmetric about the head at theta=0, plus a radial range) does
@@ -12,7 +12,7 @@ fact is exactly the drift that ADR guards against), so a footprint cannot be
 measured by building the real solid at validation time — castability runs
 BEFORE geometry, and build123d generation costs seconds per ring, not
 microseconds. Each formula below was instead measured ONCE, empirically,
-against the real `compose()`d geometry during RNG-24 CP2's own development
+against the real `compose()`d geometry during development
 (bounding-box corners converted to (r, theta) about the Z axis), then encoded
 as a closed-form approximation in the SAME spec-layer style every other
 `castability.py` check already uses (`_halo_overcrowding`'s `semi_minor`/
@@ -36,7 +36,7 @@ from .models import (
 from .sections import head_r as _section_head_r
 from .sections import section_for
 
-# Measured against the real compose()d golden halo/trilogy (RNG-24 CP2): the
+# Measured against the real compose()d golden halo/trilogy: the
 # naive head_r-based estimate under-reports a raised feature's true angular
 # reach by up to ~25% (its nearest bounding-box corner sits closer to the axis
 # than head_r, since gallery posts/plates are not flush with the head). This
@@ -66,8 +66,8 @@ def _head_r(spec: RingSpec) -> float:
 
 def halo_footprint(spec: RingSpec) -> Footprint | None:
     """The halo plate's sector: symmetric about the head, standing off the
-    band's surface up to roughly half the setting height (RNG-19 CP4's plate
-    sits between the band and the centre stone's crown, never as tall as the
+    band's surface up to roughly half the setting height (the plate sits
+    between the band and the centre stone's crown, never as tall as the
     full setting)."""
     if spec.halo is None:
         return None
@@ -106,12 +106,12 @@ def trilogy_footprint(spec: RingSpec) -> Footprint | None:
 
 def side_stone_start_deg(spec: RingSpec, base_deg: float) -> float:
     """How far round the shank the channel row must start to clear whatever
-    ELSE is sharing the head (RNG-24 CP2) -- `base_deg` is the row's own
+    ELSE is sharing the head -- `base_deg` is the row's own
     fixed clearance of the bare centre setting (castability.py's
     `_SIDE_STONE_A_START_DEG`), widened when a halo's plate reaches further
     round than the bare centre does. Trilogy occupies the same head region a
-    side-stone row would also need to clear, but the two are not evidenced
-    together (specs/RNG-24.md); widen for it too on the same principle rather
+    side-stone row would also need to clear, but no corpus photo shows the two
+    together; widen for it too on the same principle rather
     than leave a silent gap the day someone combines them.
     """
     start = base_deg
@@ -139,7 +139,7 @@ def side_stone_footprints(spec: RingSpec, base_start_deg: float) -> list[Footpri
     `[-end, +end]` — that single interval would wrongly swallow the head
     itself (and whatever else sits there, e.g. a halo) even though nothing is
     actually built in that middle gap. Found by measuring the golden
-    halo + side_stone combination during CP2's own development: modelled as
+    halo + side_stone combination during development: modelled as
     one interval, it reported a collision with EVERY halo regardless of
     size, since a halo centred on the head always falls inside
     `[-end, +end]`.

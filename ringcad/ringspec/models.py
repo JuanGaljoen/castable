@@ -1,12 +1,12 @@
-"""RingSpec v1 Pydantic models — the versioned, typed contract (RNG-14).
+"""RingSpec v1 Pydantic models — the versioned, typed contract.
 
 Pydantic enforces ONLY structural validity: types, prong_count in {4, 6},
 gt=0, generous physical caps, extra="forbid", and the version/archetype
 literals. Casting FLOORS (min wall 0.8mm, min tip 0.7mm) live exclusively in
 `castability.validate_castability` so a well-formed-but-uncastable spec can be
 constructed and then flagged (a vision layer can emit such specs). The element
-groups (shank/setting/stones/motifs) map onto the build123d modules proven in
-RNG-13 so RNG-15 consumes RingSpec directly.
+groups (shank/setting/stones/motifs) map onto the build123d modules, so the
+geometry layer consumes RingSpec directly.
 """
 from __future__ import annotations
 
@@ -22,9 +22,9 @@ SPEC_VERSION = "1.0"
 # lower casting floors (min wall / min tip) are enforced in castability.py.
 
 
-# RNG-19: the shank tapers in WIDTH toward the head; thickness stays
+# The shank tapers in WIDTH toward the head; thickness stays
 # near-constant so the ring keeps a consistent feel on the finger
-# (docs/jewelry-design-principles.md). One factor applied to both axes made the
+# (docs/jewelry-design-principles.md). One factor applied to both axes makes the
 # band a swollen tube at the head.
 #
 # These live here, in the schema, rather than in `geometry/_common.py`, because
@@ -38,7 +38,7 @@ SHANK_WIDTH_TAPER = 1.35
 SHANK_THICKNESS_TAPER = 1.15
 FLAT_TAPER = 1.0
 
-# --- Channel setting (RNG-19 CP3) -------------------------------------------
+# --- Channel setting ---------------------------------------------------------
 # Here for the same reason as the tapers above: `castability` derives the band's
 # wall/floor requirements from the groove, `geometry` cuts it, and the two must
 # read one definition.
@@ -59,7 +59,7 @@ def channel_groove_depth(accent_stone_height: float) -> float:
     return PAVILION_FRACTION * accent_stone_height + GIRDLE_RECESS
 
 
-# --- Halo plate (RNG-19 CP4) ------------------------------------------------
+# --- Halo plate --------------------------------------------------------------
 # The halo body is ONE continuous plate with the accent seats bored through it
 # (docs/reference/halo.png), not a ring of collar tubes. Metal outside the
 # outermost bore, giving the plate the crisp rim the sketch shows.
@@ -155,9 +155,9 @@ def halo_min_arc(
 
 
 def channel_band_width(accent_stone_diameter: float, min_wall: float) -> float:
-    """Band width a channel needs: the stone plus a wall each side. This is the
-    arithmetic that made RNG-11 ship raised beads instead — a 1.5mm accent needs
-    3.1mm of band and the corpus spec supplies 2.0mm."""
+    """Band width a channel needs: the stone plus a wall each side. This rules
+    channel out on most real bands — a 1.5mm accent needs 3.1mm of band and
+    the corpus spec supplies 2.0mm."""
     return accent_stone_diameter + 2 * min_wall
 
 
@@ -165,11 +165,11 @@ class Shank(BaseModel):
     """Band geometry. `shank_taper` is the WIDTH flare toward the head (the SCAD
     8th shaping param); thickness is governed by `SHANK_THICKNESS_TAPER`.
 
-    `outer_profile`/`inner_profile` are the cross-section family (RNG-25): two
+    `outer_profile`/`inner_profile` are the cross-section family: two
     independent axes, not one enum of trade names, because the trade itself
     treats them independently (docs/research/shank-cross-section-profiles.md).
-    Both default to `domed`, i.e. "court" -- today's `Ellipse` section -- so
-    every spec written before RNG-25 renders identically. See
+    Both default to `domed`, i.e. "court" -- the plain `Ellipse` section -- so a
+    spec that omits them gets the court band. See
     `ringcad.ringspec.sections` for what each value means geometrically.
     """
 
@@ -196,14 +196,14 @@ class Stones(BaseModel):
     """Centre-stone sizing and shape for the seat module.
 
     `stone_diameter` is the SHORT axis (the width); the long axis is
-    `stone_diameter * length_ratio`. Both shape fields are defaulted, so every
-    spec written before RNG-23 stays valid and still means a round stone.
+    `stone_diameter * length_ratio`. Both shape fields are defaulted, so a spec
+    without them is valid and means a round stone.
 
     A ratio rather than an explicit length: it is the quantity a photo actually
-    shows (feeding RNG-26), and `length_ratio == 1.0` makes round fall out of the
-    same code path instead of needing a branch. The 2.5 cap is a castability
-    guard -- an ellipse's tightest bend is `semi_minor^2 / semi_major`, so
-    elongation directly thins the metal at the tips.
+    shows (so vision can estimate it), and `length_ratio == 1.0` makes round
+    fall out of the same code path instead of needing a branch. The 2.5 cap is
+    a castability guard -- an ellipse's tightest bend is `semi_minor^2 /
+    semi_major`, so elongation directly thins the metal at the tips.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -216,7 +216,7 @@ class Stones(BaseModel):
 
     @model_validator(mode="after")
     def _ratio_within_the_cuts_band(self):
-        """Hold `length_ratio` inside its cut's own band, BOTH ways (RNG-33).
+        """Hold `length_ratio` inside its cut's own band, BOTH ways.
 
         Per-cut proportions are mandatory, not cosmetic: the conventional L:W
         is ~1.02 for cushion, 1.40 emerald, 1.60 pear, 1.95 marquise, so a
@@ -226,18 +226,17 @@ class Stones(BaseModel):
         STARTS above 1.0 are filled. A marquise at 1.0 is a circle, not a
         marquise -- there is no meaningful stone there, so this is a repair
         rather than a surprise. Cushion and oval both legitimately reach 1.0 (a
-        square cushion is 1.00; an oval at 1.0 IS a circle, which is RNG-23's
-        contract) and are left exactly alone.
+        square cushion is 1.00; an oval at 1.0 IS a circle) and are left
+        exactly alone.
 
-        **Above the band, clamp to its ceiling** (CP4). This half was missing,
-        and the asymmetry was the real identity hole -- not the one the frozen
-        spec anticipated. The spec expected REPAIR to break identity, by scaling
-        `length_ratio` down for a `stone_curvature` violation until a marquise
-        rendered as a lens; measured over 7500 in-band specs, repair moves the
-        ratio 12 times and never once out of band, because CP1's
-        `_stone_curvature` returns early on any cut `has_vertices` and so cannot
-        fire on emerald, pear or marquise at all. Nothing was guarding the INPUT
-        instead: a `cushion` at 2.38 validated, built, and was called a cushion.
+        **Above the band, clamp to its ceiling.** Without it the INPUT is
+        unguarded: a `cushion` at 2.38 validates, builds, and is called a
+        cushion. Repair is not the risk it looks like: scaling `length_ratio`
+        down for a `stone_curvature` violation cannot turn a marquise into a
+        lens, because `_stone_curvature` returns early on any cut that
+        `has_vertices` and so never fires on emerald, pear or marquise
+        (measured over 7500 in-band specs, repair moves the ratio 12 times and
+        never once out of band).
 
         Clamping silently is the deliberate choice, for symmetry with the fill
         above -- a value that is not the cut is corrected the same way at either
@@ -265,7 +264,8 @@ class Motif(BaseModel):
 
 
 class FieldConfidence(BaseModel):
-    """Per-field vision confidence (0..1). RNG-12 populates; None until then."""
+    """Per-field vision confidence (0..1), filled by the photo classifier; None
+    where vision gave no estimate."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -279,11 +279,11 @@ class FieldConfidence(BaseModel):
 
 
 class Halo(BaseModel):
-    """Accent-stone ring encircling the centre stone (RNG-9).
+    """Accent-stone ring encircling the centre stone.
 
     How many accents actually fit depends on the centre stone the halo rides,
     not on this range alone: each seat needs metal either side of it. That is
-    `_halo_web`'s job (RNG-19 CP4), not the schema's.
+    `_halo_web`'s job, not the schema's.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -295,7 +295,7 @@ class Halo(BaseModel):
 
 
 class Trilogy(BaseModel):
-    """Side-stone group flanking the centre stone (RNG-10)."""
+    """Side-stone group flanking the centre stone."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -305,11 +305,11 @@ class Trilogy(BaseModel):
 
 
 class SideStone(BaseModel):
-    """Channel-set accent row down each shoulder of the shank (RNG-11).
+    """Channel-set accent row down each shoulder of the shank.
 
     `retention` is a Literal["channel"] in v1 — pave is a future value; a
     "pave" spec is a clean schema rejection today, not a shipped-but-broken
-    option (specs/RNG-11.md Decision 5).
+    option.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -322,14 +322,13 @@ class SideStone(BaseModel):
 
 
 class RingSpec(BaseModel):
-    """The versioned contract (RNG-24): one model, features as optional groups.
+    """The versioned contract: one model, features as optional groups.
 
     `halo`/`trilogy`/`side_stone` are independently optional — a ring is a base
     (shank/setting/stones) plus whichever features are present, not a choice of
-    exactly one archetype. This is CP1 (contract + migration): the schema
-    allows any subset, but `validate_castability`'s temporary
-    `multi_feature_unvalidated` gate still rejects more than one present until
-    CP2 lands real cross-feature checks (docs/adr, specs/RNG-24.md).
+    exactly one archetype. The schema allows any subset; whether the present
+    features fit together is `validate_castability`'s job
+    (`_cross_feature_overcrowding`).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -348,11 +347,11 @@ class RingSpec(BaseModel):
     def archetype(self) -> str:
         """Derived, back-compat convenience — NOT a stored discriminator.
 
-        Returns the single active feature's name, or "solitaire" when none is
-        set. Meaningful only while at most one feature is present (CP1's own
-        gate guarantees that); CP2 gives genuine multi-feature specs their own
-        label or drops this property, since "the archetype" stops being a
-        well-defined question once more than one feature can coexist.
+        Returns the first present feature's name (halo, then trilogy, then
+        side_stone), or "solitaire" when none is set. On a multi-feature spec
+        that names only one of them, so it is a label, not a description: never
+        write it back into a spec dict, which re-validates as the legacy
+        single-archetype form and rejects the other features (docs/adr/0013).
         """
         if self.halo is not None:
             return "halo"
@@ -364,10 +363,10 @@ class RingSpec(BaseModel):
 
 
 def effective_thickness_taper(spec: RingSpec) -> float:
-    """The shank's effective THICKNESS taper for a given spec (RNG-11, RNG-24).
+    """The shank's effective THICKNESS taper for a given spec.
 
     Flat (no taper) when `side_stone` is present — a channel needs a constant
-    outer radius for its seats/rails to sit on (specs/RNG-11.md); otherwise the
+    outer radius for its seats/rails to sit on; otherwise the
     normal head taper. Single-sourced here (not duplicated in `_common.clamps`
     and every spec-layer check that needs a band radius) because `ringspec`
     cannot import `geometry` — a geometry-side copy is exactly the drift
@@ -378,14 +377,14 @@ def effective_thickness_taper(spec: RingSpec) -> float:
 
 
 # --- Back-compat constructors -------------------------------------------
-# RNG-9/10/11/14 built one class per archetype; RNG-24 retires that union, but
-# a large existing test surface (and no production code) constructs these as
-# plain factories -- `HaloSpec(shank=..., setting=..., stones=..., halo=...)`.
-# Keeping the call shape and returning a RingSpec avoids rewriting every test
-# that only ever used these as convenience constructors, while the type itself
-# is genuinely unified: `isinstance(spec, HaloSpec)` no longer means anything
-# (HaloSpec is a function now), which is the honest signal that the union is
-# gone rather than merely renamed.
+# A ring is no longer one class per archetype, but a large existing test
+# surface (and no production code) constructs these as plain factories --
+# `HaloSpec(shank=..., setting=..., stones=..., halo=...)`. Keeping the call
+# shape and returning a RingSpec avoids rewriting every test that only ever
+# used these as convenience constructors, while the type itself is genuinely
+# unified: `isinstance(spec, HaloSpec)` no longer means anything (HaloSpec is a
+# function now), which is the honest signal that the union is gone rather than
+# merely renamed.
 def SolitaireSpec(**kwargs) -> RingSpec:
     return RingSpec(**kwargs)
 
@@ -449,12 +448,12 @@ def _missing_group_error(field: str, archetype: str) -> CoreValidationError:
 def validate_spec(data: object) -> RingSpec:
     """Validate input into a `RingSpec`, raising on failure.
 
-    A legacy `archetype` tag (RNG-9..11) is translated at this edge rather
+    A legacy `archetype` tag is translated at this edge rather
     than carried into the model: it must name a known archetype, and the
     group it names must be present while every other feature group must be
     absent — preserving the exact back-compat behaviour the discriminated
     union used to enforce structurally. An archetype-less body validates
-    directly; any subset of feature groups is legal there (RNG-24).
+    directly; any subset of feature groups is legal there.
     """
     if isinstance(data, dict) and "archetype" in data:
         archetype = data["archetype"]
@@ -479,8 +478,8 @@ def spec_errors(exc: ValidationError) -> list[dict]:
 
     Each entry is {"field", "reason", "type"}. A None/empty body names ""
     ("" == top-level); every other error's field is its dotted loc path —
-    RingSpec is a plain model now, so loc never carries a leading union tag
-    to strip (RNG-24).
+    RingSpec is a plain model, so loc never carries a leading union tag to
+    strip.
     """
     out: list[dict] = []
     for err in exc.errors():

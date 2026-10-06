@@ -1,16 +1,16 @@
-"""side_stone() -- the channel-set accent row, built by SUBTRACTION (RNG-19 CP3).
+"""side_stone() -- the channel-set accent row, built by SUBTRACTION.
 
 Channel setting holds stones in a groove cut into the band between two walls,
 with bearings cut into the walls' inner faces. There are NO prongs and NO
 per-stone collar -- that is the definition of channel
 (docs/jewelry-design-principles.md #Channel).
 
-RNG-11 CP2 built the opposite: an `accent_seat` (a `Torus` collar deliberately
-left proud of the band) at each stone, retained by two `Torus` rails sitting ON
-the surface. That is correct halo geometry reused where its premise does not
-hold, and it shipped because a real channel needs `accent_d + 2*MIN_WALL` =
-3.1mm of band while real specs supply 2.0mm. `_side_stone_channel` now rejects
-those bands rather than silently building the wrong setting on them.
+Not the opposite construction: an `accent_seat` (a `Torus` collar left proud
+of the band) at each stone, retained by two `Torus` rails sitting ON the
+surface. That is halo geometry reused where its premise does not hold. It is
+tempting because a real channel needs `accent_d + 2*MIN_WALL` = 3.1mm of band
+where real specs often supply 2.0mm; `_side_stone_channel` rejects those bands
+rather than silently building the wrong setting on them.
 
 **We render metal only, so the row IS the negative of its stones.** Rather than
 model a setting, cut the band:
@@ -23,7 +23,7 @@ model a setting, cut the band:
      GIRDLE_PENETRATION into either wall: **the bearings fall out of the
      subtraction, at the research's stated depth, for free.**
 
-This is why CP3 is castable where an additive channel was not. ADR-0007's
+This is why the cut is castable where an additive channel is not. ADR-0007's
 tessellation cracking came from fusing near-tangent bodies; a cut has no
 tangency to crack along (the stone tool overlaps the trench by 0.4mm, nowhere
 near a sliver). Watertightness holds by construction: a cut cannot open a solid
@@ -54,16 +54,18 @@ def _band_outer_r(c: dict) -> float:
 
 
 def _dphi_deg(spec, c: dict) -> float:
-    """Angular pitch between adjacent accents (specs/RNG-11.md Decision 6)."""
+    """Angular pitch between adjacent accents: one stone diameter plus one gap,
+    as arc length on the band's outer surface."""
     ss = spec.side_stone
     step = ss.accent_stone_diameter + ss.accent_gap
     return math.degrees(step / _band_outer_r(c))
 
 
 def _accent_angles(spec, c: dict, sign: float) -> list[float]:
-    """Ring-angles (deg) for one shoulder's accent row (Decision 6).
+    """Ring-angles (deg) for one shoulder's accent row, marching down the
+    shoulder from just off the head.
 
-    The start angle is DERIVED, not the bare constant (RNG-24 CP2): a halo or
+    The start angle is DERIVED, not the bare constant: a halo or
     trilogy sharing the head pushes the row further round than a bare centre
     does, and the gate (`_side_stone_overcrowding`) checks against this same
     widened value -- reading the constant directly here would let geometry

@@ -1,4 +1,4 @@
-"""Flask app exposing the ring generation endpoint (RNG-2, RNG-15).
+"""Flask app exposing the ring generation endpoint.
 
 `/generate-ring` builds the solitaire in-process via build123d driven by
 RingSpec. The geometry/export functions are imported into this module's
@@ -65,7 +65,7 @@ def create_app() -> Flask:
 
     @app.errorhandler(413)
     def request_too_large(_exc):
-        # JSON, not Werkzeug's HTML page: photo.js reads `detail` (RNG-6 AC10).
+        # JSON, not Werkzeug's HTML page: photo.js shows `detail`.
         return _too_large_response()
 
     @app.get("/")
@@ -88,11 +88,10 @@ def create_app() -> Flask:
                 "Invalid request body", "expected a JSON object"
             )
 
-        # NOT "archetype" (RNG-24): once feature groups are independently
-        # optional, a structured feature spec omitting the legacy tag would
-        # otherwise be misread as a flat-7 solitaire request. `shank` is
-        # present on every structured body (legacy-tagged or not) and absent
-        # from every flat-7 body.
+        # NOT "archetype": feature groups are independently optional, so a
+        # structured feature spec omitting the legacy tag would be misread as a
+        # flat-7 solitaire request. `shank` is present on every structured body
+        # (legacy-tagged or not) and absent from every flat-7 body.
         structured = isinstance(body, dict) and (
             "archetype" in body or "shank" in body
         )
@@ -158,8 +157,9 @@ def create_app() -> Flask:
         # STEP deliberately skips the mesh checks below. They measure OUR STL
         # tessellation; a STEP file is the exact B-rep, re-meshed by whatever
         # opens it, so mesh repair has nothing to act on and our body count
-        # could refuse a file that opens fine (RNG-39 cases measure as one B-rep
-        # solid). The UI only requests STEP for a body whose STL already passed.
+        # could refuse a file that opens fine (the channel-cut cases that split
+        # the mesh measure as one B-rep solid). The UI only requests STEP for a
+        # body whose STL already passed.
         if fmt == "step":
             return Response(
                 data,
@@ -184,11 +184,11 @@ def create_app() -> Flask:
             #
             # Checked on the artifact rather than predicted from the spec. The one
             # combination that reaches this (a channel side-stone band with an
-            # elongated centre, RNG-39) fails in a scatter across length_ratio --
+            # elongated centre) fails in a scatter across length_ratio --
             # marquise breaks at 1.70 and 2.10 while building cleanly at 1.50,
             # 1.90, 2.30 and 2.50 -- so no gate rule on the ratio could be written
             # honestly. Measuring what was built cannot drift, and stops firing on
-            # its own once RNG-39 lands.
+            # its own once the channel cut is fixed.
             return _validation_response(
                 "Generation produced disconnected geometry",
                 f"the model came out as {outcome.body_count} separate pieces "

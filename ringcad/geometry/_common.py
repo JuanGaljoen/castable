@@ -1,4 +1,4 @@
-"""Shared geometry helpers for the build123d solitaire (RNG-15).
+"""Shared geometry helpers for the build123d solitaire.
 
 Faithful port of the arithmetic in `spikes/rng13/b123d_solitaire.py`. Casting
 constants are imported from `ringcad.mesh_validator` (single source of truth),
@@ -65,12 +65,12 @@ def _clamps(
         "gh": gh_c,
         "taper": taper,        # WIDTH flare toward the head
         "t_taper": t_taper,    # thickness rise toward the head (near-flat)
-        "profile": profile,        # RNG-25: shank cross-section
-        "apex_fraction": apex_fraction,  # RNG-25: knife-edge crown width
+        "profile": profile,        # shank cross-section
+        "apex_fraction": apex_fraction,  # knife-edge crown width
         # `head_r` is the band's outer radius AT THE HEAD, so it follows the
         # thickness taper. `placement()` welds every setting at `head_r - 0.4`;
         # if these two disagree the setting floats clear of the band. Routed
-        # through `sections.head_r` (RNG-25) so this and `castability.py`
+        # through `sections.head_r` so this and `castability.py`
         # read ONE formula regardless of the cross-section profile.
         "head_r": _section_head_r(inner_r, bt_c, t_taper, profile),
         "ring_z": gh_c * 0.5,
@@ -78,7 +78,7 @@ def _clamps(
     }
 
 
-# The side-stone band is FLAT by construction (specs/RNG-11.md): channel/
+# The side-stone band is FLAT by construction: channel/
 # side-stone accents are traditionally set along a straight shoulder, not up a
 # tapered shank (the taper is a solitaire feature that flares the shank to cradle
 # the centre stone). A flat band also makes the accent row's outer surface a
@@ -100,8 +100,8 @@ def clamps(spec: RingSpec) -> dict:
     flat = getattr(spec, "side_stone", None) is not None
     taper = FLAT_TAPER if flat else SHANK_TAPER
     # A flat band is flat on BOTH axes — the side-stone row needs a constant
-    # outer radius for its seats and rails to sit ON the surface (RNG-11).
-    # Single-sourced from ringspec.models (RNG-24): the spec-layer castability
+    # outer radius for its seats and rails to sit ON the surface.
+    # Single-sourced from ringspec.models: the spec-layer castability
     # checks need this same fact and cannot import this module.
     t_taper = effective_thickness_taper(spec)
     shank = getattr(spec, "shank", None)
