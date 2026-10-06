@@ -1,19 +1,13 @@
 "use strict";
 
-// RNG-6 + RNG-12: photo upload -> /classify-ring -> pre-fill the ring form as a
-// structured editor over a RingSpec. Plain script (no modules), operates by id.
-// The endpoint returns {ring_detected, detected_style, note, spec}; `spec` is a
-// full, validated RingSpec (shank/setting/stones + whichever of halo/trilogy/
-// side_stone are present + shared-field confidence). RNG-24: any subset of
-// features can be present at once, so we check every feature the spec
-// actually carries (not a single selected archetype), pre-fill every field,
-// and flag low-confidence estimates. Every field stays editable.
+// Photo upload -> /classify-ring -> pre-fill the form from the returned
+// RingSpec, flagging low-confidence and adjusted fields. Everything stays
+// editable.
 (function () {
   var MAX_EDGE = 1024;
   // Groups whose {field: value} pairs map 1:1 onto input ids of the same name.
   var SHARED_GROUPS = ["shank", "setting", "stones"];
-  // Feature-group spec keys (RNG-24). Which of these a spec carries is what
-  // the photo "detected"; app.js owns what that means for the form.
+  // Feature groups: the ones a spec carries are what the photo detected.
   var FEATURE_KEYS = ["halo", "trilogy", "side_stone"];
   // RingSpec envelope keys that are NOT a feature group object.
   var META_KEYS = { version: 1, archetype: 1, shank: 1, setting: 1,
@@ -75,8 +69,6 @@
     }
   }
 
-  // Clear any low-confidence markers left by a previous estimate run, so a
-  // re-run never leaves a stale caution on a field it's now confident about.
   function clearLowConfidence() {
     var inputs = document.querySelectorAll(".low-confidence");
     for (var i = 0; i < inputs.length; i++) {
@@ -100,8 +92,7 @@
     }
   }
 
-  // Flag a field as a low-confidence estimate: amber border + an aria-linked
-  // caution note, so screen readers announce it too. WCAG 2.1 AA.
+  // Amber border plus an aria-linked note, so screen readers announce it too.
   function flagLowConfidence(id) {
     var input = $(id);
     if (!input || input.classList.contains("low-confidence")) {
@@ -122,8 +113,6 @@
     );
   }
 
-  // Clear any adjusted-for-castability markers left by a previous estimate
-  // run (RNG-32), mirroring clearLowConfidence.
   function clearAdjusted() {
     var inputs = document.querySelectorAll(".adjusted-for-castability");
     for (var i = 0; i < inputs.length; i++) {
@@ -147,11 +136,8 @@
     }
   }
 
-  // Flag a field RNG-32's coherence repair moved to make the spec buildable:
-  // dashed indigo border + an aria-linked note distinct from low-confidence's
-  // amber one, so a user can tell "vision wasn't sure" from "we changed
-  // this so it can be cast" -- both are true estimates-need-verifying states,
-  // but they mean different things.
+  // A field the server changed to make the ring castable. Styled differently
+  // from low confidence: "vision wasn't sure" is not "we changed this".
   function flagAdjusted(id, from, to) {
     var input = $(id);
     if (!input || input.classList.contains("adjusted-for-castability")) {
@@ -183,12 +169,8 @@
     });
   }
 
-  // Pre-fill the form from a RingSpec: announce every feature the spec
-  // actually carries (RNG-24 — any subset, not one archetype) so app.js
-  // reveals those fieldsets, fill shared + group fields, then flag any
-  // low-confidence shared estimate and any field RNG-32's coherence repair
-  // adjusted to make the spec buildable. The user corrects numbers; they are
-  // never asked to assemble the ring themselves.
+  // Pre-fill the form from a RingSpec: show its features, fill every field,
+  // flag low-confidence and adjusted values.
   function applySpec(spec, adjustments) {
     clearLowConfidence();
     clearAdjusted();
@@ -208,17 +190,14 @@
       }
     });
 
-    // `setField` assigns `.value` silently, but the shape select drives whether
-    // `length_ratio` is editable, and that state is only recomputed on change.
-    // Without this a detected oval would arrive with its ratio locked, so the
-    // user could see the estimate but not correct it.
+    // Setting .value fires no change event, so trigger it: otherwise a detected
+    // oval's ratio box stays locked.
     var shapeSelect = $("shape");
     if (shapeSelect) {
       shapeSelect.dispatchEvent(new Event("change"));
     }
 
-    // Every non-meta, non-null key is a PRESENT feature's own group object —
-    // any subset can be present at once (RNG-24), not one archetype's worth.
+    // Every non-null feature key is a detected feature's group.
     Object.keys(spec).forEach(function (key) {
       if (!META_KEYS[key] && spec[key] && typeof spec[key] === "object") {
         Object.keys(spec[key]).forEach(function (k) {
@@ -235,16 +214,13 @@
     });
 
     (adjustments || []).forEach(function (adjustment) {
-      // adjustment.field is a dotted RingSpec path (e.g. "stones.stone_height");
-      // the form's input ids are the bare field name, same convention `conf`
-      // above already relies on.
+      // "stones.stone_height" -> input id "stone_height".
       var parts = (adjustment.field || "").split(".");
       var id = parts[parts.length - 1];
       flagAdjusted(id, adjustment.old_value, adjustment.new_value);
     });
 
-    // Every value above was assigned silently (no input events), so say so:
-    // app.js re-checks whether Generate has anything new to build.
+    // Values were set silently, so tell app.js to re-check the Generate button.
     document.dispatchEvent(new CustomEvent("ring:spec-applied"));
   }
 
@@ -253,10 +229,7 @@
     if (!el) {
       return;
     }
-    // Describes the PHOTO, nothing else. What the app then did with it is
-    // visible in the form itself -- the matching sections appear, already
-    // filled in -- so narrating it here only repeated the UI in internal
-    // vocabulary.
+    // Describes the photo only; the form itself shows what was filled in.
     el.textContent = "Detected: " + (data.detected_style || "ring");
     el.hidden = false;
   }
@@ -270,10 +243,7 @@
         label.hidden = false;
       }
       showDetections(data);
-      // Three places were all saying a version of the same thing: the
-      // detections line describes the photo, the standing "Estimates only"
-      // label carries the caveat, so the status line keeps ONLY what is
-      // actionable and specific to this run.
+      // Only what's specific to this run; the caveat has its own label.
       setStatus(
         adjustments.length
           ? adjustments.length +
@@ -289,17 +259,8 @@
     }
   }
 
-  // RNG-29: feedback about the photo must not outlive the photo. Both the
-  // status line and the detections line describe whatever file is in the
-  // input, so choosing a different one retires both -- otherwise a stale
-  // "Choose a JPEG or PNG photo first." reads as though the file just chosen
-  // was rejected, and "Detected: ..." keeps asserting the previous photo's
-  // style over the new one.
-  //
-  // Field markers are deliberately NOT cleared here: the estimates they
-  // caution about are still sitting in the form. Dropping the caution while
-  // its suspect value stays is worse than a stale caution. applySpec clears
-  // them on the next successful run, when the values change too.
+  // Choosing a new photo clears messages about the old one. Field markers stay:
+  // the values they warn about are still in the form.
   function clearPhotoFeedback() {
     setStatus("");
     var detections = $("photo-detections");
@@ -370,10 +331,8 @@
     var fileInput = $("ring-photo");
     if (fileInput) {
       fileInput.addEventListener("change", clearPhotoFeedback);
-      // The empty input's own "No file chosen" is hidden by CSS until a file
-      // is picked; the only no-photo message is onEstimate's. CSS cannot see
-      // whether a file input holds a file, so mirror it onto a class. Run once
-      // up front too, for a file the browser restores on back-navigation.
+      // CSS can't tell whether a file input holds a file, so mirror it onto a
+      // class (also on load, for a file restored by back-navigation).
       var syncHasFile = function () {
         fileInput.classList.toggle("has-file", fileInput.files.length > 0);
       };

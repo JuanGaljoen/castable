@@ -149,8 +149,22 @@ def test_static_assets_referenced(body):
 
 # ---- AC5/AC6/AC7 shells: result regions present ----------------------------
 def test_result_regions_present(body):
-    for region_id in ("status", "error", "download-btn", "stderr-details", "viewer"):
+    for region_id in ("status", "error", "download-btn", "viewer"):
         assert f'id="{region_id}"' in body, f"missing region id={region_id}"
+
+
+def test_no_openscad_error_handling_left(body):
+    """The OpenSCAD backend is gone, so the server never sends its errors (a
+    render failure with stderr, a timeout, a 503 for a missing binary). UI for
+    them is dead code a reader has to work out is dead."""
+    import pathlib
+
+    app_js = (
+        pathlib.Path(__file__).parent.parent / "static" / "app.js"
+    ).read_text()
+    for remnant in ("stderr", "OpenSCAD", "Render timed out", "503"):
+        assert remnant not in app_js, f"app.js still handles {remnant!r}"
+    assert 'id="stderr-details"' not in body
 
 
 # ---- AC9 structural: aria-live regions -------------------------------------

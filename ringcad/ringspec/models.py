@@ -1,12 +1,8 @@
-"""RingSpec v1 Pydantic models — the versioned, typed contract.
+"""RingSpec v1 — the versioned, typed contract between vision and geometry.
 
-Pydantic enforces ONLY structural validity: types, prong_count in {4, 6},
-gt=0, generous physical caps, extra="forbid", and the version/archetype
-literals. Casting FLOORS (min wall 0.8mm, min tip 0.7mm) live exclusively in
-`castability.validate_castability` so a well-formed-but-uncastable spec can be
-constructed and then flagged (a vision layer can emit such specs). The element
-groups (shank/setting/stones/motifs) map onto the build123d modules, so the
-geometry layer consumes RingSpec directly.
+The schema checks structure only (types, ranges, allowed values). Casting
+floors live in `castability.py`, so a well-formed but uncastable spec can be
+built and then flagged: vision can produce those.
 """
 from __future__ import annotations
 
@@ -18,36 +14,17 @@ from pydantic_core import ValidationError as CoreValidationError
 
 SPEC_VERSION = "1.0"
 
-# Generous physical caps — structural sanity only, NOT casting floors. The
-# lower casting floors (min wall / min tip) are enforced in castability.py.
-
-
-# The shank tapers in WIDTH toward the head; thickness stays
-# near-constant so the ring keeps a consistent feel on the finger
-# (docs/jewelry-design-principles.md). One factor applied to both axes makes the
-# band a swollen tube at the head.
-#
-# These live here, in the schema, rather than in `geometry/_common.py`, because
-# BOTH the builder and `castability.py` derive `head_r` from the thickness
-# taper. `ringspec` cannot import `geometry` (the dependency runs the other
-# way), so a geometry-side constant would force the check to keep its own copy —
-# exactly the drift docs/adr/0002 is about, and exactly what had already
-# happened: the builder used a module constant while the check read the
-# `shank_taper` FIELD.
+# The band widens toward the head; thickness stays near-constant so the ring
+# feels even on the finger. Defined here, not in geometry, because both the
+# builder and castability.py need them, and ringspec can't import geometry
+# (docs/adr/0002).
 SHANK_WIDTH_TAPER = 1.35
 SHANK_THICKNESS_TAPER = 1.15
 FLAT_TAPER = 1.0
 
 # --- Channel setting ---------------------------------------------------------
-# Here for the same reason as the tapers above: `castability` derives the band's
-# wall/floor requirements from the groove, `geometry` cuts it, and the two must
-# read one definition.
-#
-# A channel holds stones in a groove between two walls, with bearings cut into
-# the walls' inner faces (docs/jewelry-design-principles.md #Channel). We render
-# metal only, so the row IS the negative of its stones: the groove is cut at the
-# CLEAR span and each stone is then cut at its full diameter, which bites
-# GIRDLE_PENETRATION into either wall and leaves the bearings for free.
+# Shared by the gate and the builder. Stones sit in a groove cut into the band;
+# cutting each stone at full width bites into the walls and forms the bearings.
 GIRDLE_PENETRATION = 0.2  # how far each girdle edge tucks into its wall
 GIRDLE_RECESS = 0.2       # how far the girdle sits below the band's surface
 PAVILION_FRACTION = 0.65  # share of a stone's height below its girdle
@@ -60,117 +37,57 @@ def channel_groove_depth(accent_stone_height: float) -> float:
 
 
 # --- Halo plate --------------------------------------------------------------
-# The halo body is ONE continuous plate with the accent seats bored through it
-# (docs/reference/halo.png), not a ring of collar tubes. Metal outside the
-# outermost bore, giving the plate the crisp rim the sketch shows.
-#
-# 0.5mm is the TRADE FIGURE, not a taste call: "you will need at least 0.5mm
-# extra on each side of the stone to account for the bright cut"
-# (ganoksin.com/article/step-step-guide-single-row-pave-settings). Below MIN_WALL
-# legitimately, because this is how far the plate overhangs its outermost seat,
-# NOT a wall thickness -- the plate's actual wall is its THICKNESS, which carries
-# the structural floor.
-#
-# It has been wrong in BOTH directions. 0.8mm (MIN_WALL, applied out of caution)
-# read as a broad flat collar of dead metal; 0.25mm was then picked by eye off
-# "that looks beefy" and undershot the trade minimum by half. Looked up rather
-# than eyeballed on the third attempt.
+# Metal beyond the outermost seat. 0.5mm is the trade figure for a bright-cut
+# edge (ganoksin.com, single-row pave guide). An overhang, not a wall, so it may
+# sit below MIN_WALL.
 HALO_PLATE_RIM = 0.5
-# How far the plate reaches INSIDE the centre girdle, so the centre setting's
-# claws are embedded in it rather than grazing its edge. The claws rise through
-# the plate's own height exactly at the girdle radius, so without this the two
-# only touch -- and the halo needed a hub-and-spokes gallery of its own to hang
-# from, which read as a cross slung under it. Larger than the claw wire radius
-# (0.5) so the weld is volumetric.
+# How far the plate reaches inside the centre girdle, embedding the centre claws
+# so they carry the halo. Wider than the claw radius (0.5) for a solid weld.
 HALO_PLATE_INNER_BITE = 0.7
-# Bore radius at the bottom of a seat, as a fraction of the stone's: a seat is a
-# TAPERED bearing, narrower behind the girdle than at it.
+# A seat is a tapered bearing: its bottom radius as a fraction of the stone's.
 HALO_WELL_BACK_RATIO = 0.5
-
-
-# Shallowest seat worth boring; below this there is no bearing left to speak of.
 HALO_MIN_SEAT_DEPTH = 0.2
 
 
 def halo_seat_depth(
     accent_stone_height: float, available: float, min_wall: float
 ) -> float:
-    """How deep a seat can actually be bored.
-
-    The stone's pavilion, CLAMPED to the metal there is to bore into: a plate
-    needs `depth + min_wall`, and it only has `available` (the setting's
-    half-height) before it drops below the placement origin into the shank. A
-    3mm accent in a 3mm setting asked for a 2.75mm plate inside 1.5mm of room
-    and pushed the halo through the band — OCC then failed to bound the solid at
-    all. Shallower seats on a low setting is the physical answer: you cannot
-    bore deeper than the metal you have.
-    """
+    """Seat depth: the stone's pavilion, clamped to the metal available, so a
+    tall accent on a low setting can't push the halo through the band."""
     return max(HALO_MIN_SEAT_DEPTH,
                min(PAVILION_FRACTION * accent_stone_height, available - min_wall))
 
 
 def halo_plate_thickness(accent_stone_height: float, min_wall: float) -> float:
-    """Plate thickness: the seat's own depth plus a floor beneath it.
-
-    The seats are BLIND, and that is a structural requirement rather than a
-    style choice. The accent ring and the gallery rail share a radius, so a seat
-    bored through the plate lands straight on the rail torus, and cone-against-
-    torus intersections would not tessellate — a valid single B-rep solid whose
-    mesh had null-triangulation faces and was not watertight. Leaving MIN_WALL of
-    floor keeps every bore clear of the rail entirely.
-    """
+    """Plate thickness: the seat's own depth plus a floor beneath it."""
     return PAVILION_FRACTION * accent_stone_height + min_wall
 
 
 def halo_min_arc(
     accent_stone_diameter: float, min_wall: float, min_prong_tip: float
 ) -> float:
-    """Arc each accent needs so the METAL BETWEEN adjacent seats survives.
+    """Arc each accent needs so the metal BETWEEN adjacent seats survives.
 
-    `_halo_overcrowding` only ever checked that accents do not overlap each
-    other (`arc >= diameter`). It never checked what is left between them, so a
-    halo could pass the gate with 0.195mm webs and report castable — exactly
-    docs/adr/0006, a wrong gate being silent.
-
-    **Measured where the bore is NARROWEST, not at the girdle.** The seats are
-    tapered, so the metal between two of them is a V-shaped ridge: near zero at
-    the surface, thickening with depth. Measuring at the girdle — the bore's
-    widest point — treats that ridge's top sliver as the wall, and it forced
-    1.1mm of flat plate between every pair of stones. Real halos set the stones
-    nearly touching, with a bright-cut edge and a bead between them
-    (docs/reference/halo.png); the load-bearing section is the one lower down,
-    where the bores have tapered in to `HALO_WELL_BACK_RATIO` of their radius.
-
-    So the wall is `pitch - 2*back_r`, and requiring that to clear `min_wall`
-    gives `pitch >= accent_r + min_wall`. `min_prong_tip` is retained in the
-    signature because the bead still has to exist, but it no longer sets the
-    spacing: beads are fused ON the bored plate, overhanging the seat rims the
-    way a set bead does, rather than needing clear plate to stand on.
+    Measured where the tapered bores are narrowest, not at the girdle: the metal
+    between two seats is a V-shaped ridge, and its thin top edge is not the
+    wall. That gives `pitch >= min_wall + 2 * back_r`, and never less than the
+    stone's own diameter (stones must not overlap).
     """
     back_r = accent_stone_diameter / 2 * HALO_WELL_BACK_RATIO
-    # Never below the stone's own diameter: on a big accent the wall rule is
-    # slacker than simply not overlapping the neighbour, and `_halo_overcrowding`
-    # owns that floor -- but this must not report a limit it would itself allow.
     return max(accent_stone_diameter, min_wall + 2 * back_r)
 
 
 def channel_band_width(accent_stone_diameter: float, min_wall: float) -> float:
-    """Band width a channel needs: the stone plus a wall each side. This rules
-    channel out on most real bands — a 1.5mm accent needs 3.1mm of band and
-    the corpus spec supplies 2.0mm."""
+    """Band width a channel needs: the stone plus a wall each side."""
     return accent_stone_diameter + 2 * min_wall
 
 
 class Shank(BaseModel):
-    """Band geometry. `shank_taper` is the WIDTH flare toward the head (the SCAD
-    8th shaping param); thickness is governed by `SHANK_THICKNESS_TAPER`.
+    """Band geometry. `shank_taper` is the width flare toward the head.
 
-    `outer_profile`/`inner_profile` are the cross-section family: two
-    independent axes, not one enum of trade names, because the trade itself
-    treats them independently (docs/research/shank-cross-section-profiles.md).
-    Both default to `domed`, i.e. "court" -- the plain `Ellipse` section -- so a
-    spec that omits them gets the court band. See
-    `ringcad.ringspec.sections` for what each value means geometrically.
+    The outer and inner profiles are independent because the trade treats them
+    that way (docs/research/shank-cross-section-profiles.md). Both default to
+    `domed`, a classic court band.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -184,7 +101,7 @@ class Shank(BaseModel):
 
 
 class Setting(BaseModel):
-    """Prong/gallery group. prong_count is a strict 4-or-6 literal."""
+    """Prong count and setting height."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -193,17 +110,11 @@ class Setting(BaseModel):
 
 
 class Stones(BaseModel):
-    """Centre-stone sizing and shape for the seat module.
+    """Centre stone size and shape.
 
-    `stone_diameter` is the SHORT axis (the width); the long axis is
-    `stone_diameter * length_ratio`. Both shape fields are defaulted, so a spec
-    without them is valid and means a round stone.
-
-    A ratio rather than an explicit length: it is the quantity a photo actually
-    shows (so vision can estimate it), and `length_ratio == 1.0` makes round
-    fall out of the same code path instead of needing a branch. The 2.5 cap is
-    a castability guard -- an ellipse's tightest bend is `semi_minor^2 /
-    semi_major`, so elongation directly thins the metal at the tips.
+    `stone_diameter` is the SHORT axis; the long axis is
+    `stone_diameter * length_ratio`. A ratio, not a length, because a ratio is
+    what a photo shows. Defaults mean a round stone.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -216,34 +127,12 @@ class Stones(BaseModel):
 
     @model_validator(mode="after")
     def _ratio_within_the_cuts_band(self):
-        """Hold `length_ratio` inside its cut's own band, BOTH ways.
+        """Keep `length_ratio` inside the cut's own band.
 
-        Per-cut proportions are mandatory, not cosmetic: the conventional L:W
-        is ~1.02 for cushion, 1.40 emerald, 1.60 pear, 1.95 marquise, so a
-        single shared default of 1.0 makes three of the four wrong on sight.
-
-        **Below the band, fill with the cut's default.** Only cuts whose band
-        STARTS above 1.0 are filled. A marquise at 1.0 is a circle, not a
-        marquise -- there is no meaningful stone there, so this is a repair
-        rather than a surprise. Cushion and oval both legitimately reach 1.0 (a
-        square cushion is 1.00; an oval at 1.0 IS a circle) and are left
-        exactly alone.
-
-        **Above the band, clamp to its ceiling.** Without it the INPUT is
-        unguarded: a `cushion` at 2.38 validates, builds, and is called a
-        cushion. Repair is not the risk it looks like: scaling `length_ratio`
-        down for a `stone_curvature` violation cannot turn a marquise into a
-        lens, because `_stone_curvature` returns early on any cut that
-        `has_vertices` and so never fires on emerald, pear or marquise
-        (measured over 7500 in-band specs, repair moves the ratio 12 times and
-        never once out of band).
-
-        Clamping silently is the deliberate choice, for symmetry with the fill
-        above -- a value that is not the cut is corrected the same way at either
-        end, rather than being repaired at one end and refused at the other.
-        These are preference bands, not standards (GIA assigns no cut grade to
-        fancy shapes), so the honest framing is "that is not what this cut is
-        called", not "that stone is invalid".
+        Below it, use the cut's conventional default (a marquise at 1.0 is a
+        circle, not a marquise). Above it, clamp to the ceiling (a cushion at
+        2.38 is not a cushion). Corrected rather than rejected: these are trade
+        conventions, not standards.
         """
         from .cuts import profile_for
         profile = profile_for(self.shape)
@@ -255,7 +144,7 @@ class Stones(BaseModel):
 
 
 class Motif(BaseModel):
-    """Decorative element placeholder (empty list is valid for a solitaire)."""
+    """Decorative element placeholder."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -279,12 +168,8 @@ class FieldConfidence(BaseModel):
 
 
 class Halo(BaseModel):
-    """Accent-stone ring encircling the centre stone.
-
-    How many accents actually fit depends on the centre stone the halo rides,
-    not on this range alone: each seat needs metal either side of it. That is
-    `_halo_web`'s job, not the schema's.
-    """
+    """Accent stones around the centre stone. Whether they fit is checked by
+    the castability gate, not here."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -305,12 +190,8 @@ class Trilogy(BaseModel):
 
 
 class SideStone(BaseModel):
-    """Channel-set accent row down each shoulder of the shank.
-
-    `retention` is a Literal["channel"] in v1 — pave is a future value; a
-    "pave" spec is a clean schema rejection today, not a shipped-but-broken
-    option.
-    """
+    """Channel-set accent row down each shoulder. Only channel retention
+    exists so far; "pave" is rejected rather than built wrong."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -322,14 +203,8 @@ class SideStone(BaseModel):
 
 
 class RingSpec(BaseModel):
-    """The versioned contract: one model, features as optional groups.
-
-    `halo`/`trilogy`/`side_stone` are independently optional — a ring is a base
-    (shank/setting/stones) plus whichever features are present, not a choice of
-    exactly one archetype. The schema allows any subset; whether the present
-    features fit together is `validate_castability`'s job
-    (`_cross_feature_overcrowding`).
-    """
+    """A ring: a base (shank, setting, stones) plus any mix of optional
+    features. Whether the features fit together is the gate's job."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -345,14 +220,8 @@ class RingSpec(BaseModel):
 
     @property
     def archetype(self) -> str:
-        """Derived, back-compat convenience — NOT a stored discriminator.
-
-        Returns the first present feature's name (halo, then trilogy, then
-        side_stone), or "solitaire" when none is set. On a multi-feature spec
-        that names only one of them, so it is a label, not a description: never
-        write it back into a spec dict, which re-validates as the legacy
-        single-archetype form and rejects the other features (docs/adr/0013).
-        """
+        """The first feature present, or "solitaire". A label only: never
+        write it back into a spec (docs/adr/0013)."""
         if self.halo is not None:
             return "halo"
         if self.trilogy is not None:
@@ -363,28 +232,13 @@ class RingSpec(BaseModel):
 
 
 def effective_thickness_taper(spec: RingSpec) -> float:
-    """The shank's effective THICKNESS taper for a given spec.
-
-    Flat (no taper) when `side_stone` is present — a channel needs a constant
-    outer radius for its seats/rails to sit on; otherwise the
-    normal head taper. Single-sourced here (not duplicated in `_common.clamps`
-    and every spec-layer check that needs a band radius) because `ringspec`
-    cannot import `geometry` — a geometry-side copy is exactly the drift
-    docs/adr/0002 is about, and this is the same fact `SHANK_THICKNESS_TAPER`
-    exists here for.
-    """
+    """Thickness taper: none for a side-stone band (a channel needs a constant
+    radius), otherwise the normal head taper. Shared by gate and builder."""
     return FLAT_TAPER if spec.side_stone is not None else SHANK_THICKNESS_TAPER
 
 
 # --- Back-compat constructors -------------------------------------------
-# A ring is no longer one class per archetype, but a large existing test
-# surface (and no production code) constructs these as plain factories --
-# `HaloSpec(shank=..., setting=..., stones=..., halo=...)`. Keeping the call
-# shape and returning a RingSpec avoids rewriting every test that only ever
-# used these as convenience constructors, while the type itself is genuinely
-# unified: `isinstance(spec, HaloSpec)` no longer means anything (HaloSpec is a
-# function now), which is the honest signal that the union is gone rather than
-# merely renamed.
+# Convenience factories kept for tests; each returns a plain RingSpec.
 def SolitaireSpec(**kwargs) -> RingSpec:
     return RingSpec(**kwargs)
 
@@ -403,8 +257,7 @@ def SideStoneSpec(*, side_stone: SideStone | None = None, **kwargs) -> RingSpec:
     )
 
 
-# The legacy discriminator's known values -> which group it names (None for
-# solitaire, which names no group at all).
+# Legacy `archetype` tag -> the feature group it names.
 _LEGACY_ARCHETYPE_GROUP = {
     "solitaire": None,
     "halo": "halo",
@@ -448,12 +301,8 @@ def _missing_group_error(field: str, archetype: str) -> CoreValidationError:
 def validate_spec(data: object) -> RingSpec:
     """Validate input into a `RingSpec`, raising on failure.
 
-    A legacy `archetype` tag is translated at this edge rather
-    than carried into the model: it must name a known archetype, and the
-    group it names must be present while every other feature group must be
-    absent — preserving the exact back-compat behaviour the discriminated
-    union used to enforce structurally. An archetype-less body validates
-    directly; any subset of feature groups is legal there.
+    A legacy `archetype` tag is still accepted: its group must be present and
+    every other feature group absent. Without the tag, any mix is allowed.
     """
     if isinstance(data, dict) and "archetype" in data:
         archetype = data["archetype"]
@@ -461,9 +310,7 @@ def validate_spec(data: object) -> RingSpec:
             raise _tag_error(archetype)
         expected = _LEGACY_ARCHETYPE_GROUP[archetype]
         for group in _FEATURE_GROUPS:
-            # A dumped RingSpec (coherence.make_coherent's `working`, e.g.)
-            # always carries all three feature keys, `None` when absent — so
-            # "present" means a non-None value, not mere key membership.
+            # A dumped spec carries every key, None when absent.
             present = data.get(group) is not None
             if group == expected and not present:
                 raise _missing_group_error(group, archetype)
@@ -474,13 +321,8 @@ def validate_spec(data: object) -> RingSpec:
 
 
 def spec_errors(exc: ValidationError) -> list[dict]:
-    """Flatten a ValidationError into JSON-serializable field-level errors.
-
-    Each entry is {"field", "reason", "type"}. A None/empty body names ""
-    ("" == top-level); every other error's field is its dotted loc path —
-    RingSpec is a plain model, so loc never carries a leading union tag to
-    strip.
-    """
+    """Flatten a ValidationError into {"field", "reason", "type"} entries,
+    where field is the dotted path ("" for the top level)."""
     out: list[dict] = []
     for err in exc.errors():
         loc = err["loc"]

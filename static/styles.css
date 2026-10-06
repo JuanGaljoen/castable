@@ -420,23 +420,6 @@ button:focus-visible,
 .error-message { margin: 0; font-weight: 500; }
 .error-message::before { content: "\26A0  Error: "; font-weight: 600; }
 
-#stderr-details { margin-top: 0.6rem; color: var(--muted); }
-#stderr-details summary { cursor: pointer; color: var(--accent-2); }
-#stderr-text {
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 220px;
-  overflow: auto;
-  margin-top: 0.5rem;
-  padding: 0.55rem;
-  background: #0c0c0f;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  font-family: var(--mono);
-  font-size: 0.78rem;
-  color: var(--muted);
-}
-
 /* Mesh status: glyph + text carry state, never colour alone. */
 .mesh-status {
   margin: 0.85rem 0 0;

@@ -108,7 +108,7 @@
     },
     "Halo": {
       "additionalProperties": false,
-      "description": "Accent-stone ring encircling the centre stone.\n\nHow many accents actually fit depends on the centre stone the halo rides,\nnot on this range alone: each seat needs metal either side of it. That is\n`_halo_web`'s job, not the schema's.",
+      "description": "Accent stones around the centre stone. Whether they fit is checked by\nthe castability gate, not here.",
       "properties": {
         "halo_stone_diameter": {
           "default": 1.3,
@@ -144,7 +144,7 @@
     },
     "Motif": {
       "additionalProperties": false,
-      "description": "Decorative element placeholder (empty list is valid for a solitaire).",
+      "description": "Decorative element placeholder.",
       "properties": {
         "kind": {
           "title": "Kind",
@@ -171,7 +171,7 @@
     },
     "Setting": {
       "additionalProperties": false,
-      "description": "Prong/gallery group. prong_count is a strict 4-or-6 literal.",
+      "description": "Prong count and setting height.",
       "properties": {
         "prong_count": {
           "enum": [
@@ -197,7 +197,7 @@
     },
     "Shank": {
       "additionalProperties": false,
-      "description": "Band geometry. `shank_taper` is the WIDTH flare toward the head (the SCAD\n8th shaping param); thickness is governed by `SHANK_THICKNESS_TAPER`.\n\n`outer_profile`/`inner_profile` are the cross-section family: two\nindependent axes, not one enum of trade names, because the trade itself\ntreats them independently (docs/research/shank-cross-section-profiles.md).\nBoth default to `domed`, i.e. \"court\" -- the plain `Ellipse` section -- so a\nspec that omits them gets the court band. See\n`ringcad.ringspec.sections` for what each value means geometrically.",
+      "description": "Band geometry. `shank_taper` is the width flare toward the head.\n\nThe outer and inner profiles are independent because the trade treats them\nthat way (docs/research/shank-cross-section-profiles.md). Both default to\n`domed`, a classic court band.",
       "properties": {
         "inner_diameter": {
           "exclusiveMinimum": 0,
@@ -254,7 +254,7 @@
     },
     "SideStone": {
       "additionalProperties": false,
-      "description": "Channel-set accent row down each shoulder of the shank.\n\n`retention` is a Literal[\"channel\"] in v1 \u2014 pave is a future value; a\n\"pave\" spec is a clean schema rejection today, not a shipped-but-broken\noption.",
+      "description": "Channel-set accent row down each shoulder. Only channel retention\nexists so far; \"pave\" is rejected rather than built wrong.",
       "properties": {
         "accent_stone_diameter": {
           "default": 1.5,
@@ -296,7 +296,7 @@
     },
     "Stones": {
       "additionalProperties": false,
-      "description": "Centre-stone sizing and shape for the seat module.\n\n`stone_diameter` is the SHORT axis (the width); the long axis is\n`stone_diameter * length_ratio`. Both shape fields are defaulted, so a spec\nwithout them is valid and means a round stone.\n\nA ratio rather than an explicit length: it is the quantity a photo actually\nshows (so vision can estimate it), and `length_ratio == 1.0` makes round\nfall out of the same code path instead of needing a branch. The 2.5 cap is\na castability guard -- an ellipse's tightest bend is `semi_minor^2 /\nsemi_major`, so elongation directly thins the metal at the tips.",
+      "description": "Centre stone size and shape.\n\n`stone_diameter` is the SHORT axis; the long axis is\n`stone_diameter * length_ratio`. A ratio, not a length, because a ratio is\nwhat a photo shows. Defaults mean a round stone.",
       "properties": {
         "stone_diameter": {
           "exclusiveMinimum": 0,
@@ -369,7 +369,7 @@
     }
   },
   "additionalProperties": false,
-  "description": "The versioned contract: one model, features as optional groups.\n\n`halo`/`trilogy`/`side_stone` are independently optional \u2014 a ring is a base\n(shank/setting/stones) plus whichever features are present, not a choice of\nexactly one archetype. The schema allows any subset; whether the present\nfeatures fit together is `validate_castability`'s job\n(`_cross_feature_overcrowding`).",
+  "description": "A ring: a base (shank, setting, stones) plus any mix of optional\nfeatures. Whether the features fit together is the gate's job.",
   "properties": {
     "version": {
       "const": "1.0",

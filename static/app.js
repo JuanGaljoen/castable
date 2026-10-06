@@ -1,6 +1,4 @@
-// RNG-3 — Ring parameter form controller (vanilla JS, no libraries).
-// Gathers the 7 params, POSTs to /generate-ring, wires the result UI.
-// Module-scoped blob/objectUrl are retained for RNG-4 (viewer) reuse.
+// Ring form controller: form -> RingSpec JSON -> POST /generate-ring -> result.
 "use strict";
 
 const NUMBER_KEYS = [
@@ -12,18 +10,8 @@ const NUMBER_KEYS = [
   "setting_height",
 ];
 
-// Composable features (RNG-24): any subset, not a choice of one archetype.
-// Keyed by feature name; `group` is the spec key, `fieldset` the revealed
-// <fieldset> id, `numberKeys`/`intKeys`/`stringKeys` the group's inputs
-// (numbers via Number, ints via parseInt, strings read verbatim — e.g. a
-// <select> value). A registry, not an if-chain, so a new feature is one
-// entry (RNG-10 CP3, widened RNG-24).
-//
-// Nothing in the form OFFERS a feature. The photo is the only thing that
-// puts one on the ring: upload, and whatever it detected appears, filled in.
-// A feature can be removed (vision is not always right), but there is no
-// "add" — this is a tool for reproducing a ring you photographed, not a
-// configurator for assembling one from parts.
+// Optional ring features, any mix. A registry, so a new feature is one entry.
+// Features come only from the photo; the form can remove one but never add one.
 const FEATURES = {
   halo: {
     group: "halo",
@@ -48,13 +36,11 @@ const FEATURES = {
   },
 };
 
-// Every feature-group field id (for required-toggling and error clearing).
 const FEATURE_FIELD_KEYS = Object.values(FEATURES).flatMap(
   (cfg) => cfg.numberKeys.concat(cfg.intKeys, cfg.stringKeys)
 );
 
-// The fieldset's own visibility IS the state — no parallel flag to drift
-// out of step with what the user can actually see and edit.
+// Visibility is the state, so there's no separate flag to drift.
 function isFeatureActive(name) {
   const fieldset = document.getElementById(FEATURES[name].fieldset);
   return !!(fieldset && !fieldset.hidden);
@@ -70,32 +56,25 @@ const statusEl = document.getElementById("status");
 const announceEl = document.getElementById("generate-announce");
 const generateHintEl = document.getElementById("generate-hint");
 
-// The request body of the last SUCCESSFUL generate. Generate stays disabled
-// while the form would post exactly this again: rebuilding identical geometry
-// costs up to a minute and shows nothing new. Comparing the request, not
-// counting keystrokes, means editing a value back disables it again. A failed
-// run never records, so Generate stays available to retry.
+// Last successful request. Generate is disabled while the form would send the
+// same thing again (a rebuild takes up to a minute and shows nothing new).
 let lastGeneratedBody = null;
 let generating = false;
 const errorEl = document.getElementById("error");
 const errorMessageEl = document.getElementById("error-message");
-const stderrDetails = document.getElementById("stderr-details");
-const stderrText = document.getElementById("stderr-text");
 const downloadBtn = document.getElementById("download-btn");
 const downloadMenuEl = document.querySelector(".download-menu");
 const downloadOptionsEl = document.getElementById("download-options");
 const meshStatusEl = document.getElementById("mesh-status");
 
-// Retained across generations; the viewer (RNG-4) will read these.
+// The last generated STL, for Download.
 let currentBlob = null;
 let currentObjectUrl = null;
-// The in-flight STEP build (RNG-48), so a new Generate can cancel it.
+// The in-flight STEP build, so a new Generate can cancel it.
 let stepController = null;
 
-// Structured RingSpec JSON (RNG-9 CP4, widened RNG-24): shared shank/setting/
-// stones plus a group for EVERY active feature — any subset, not one
-// archetype's worth. A plain centre stone sends the shared groups alone; the
-// schema forbids extra keys, so an absent feature's group is never attached.
+// Form -> RingSpec JSON: shank, setting, stones, plus one group per active
+// feature.
 function gatherStructuredBody() {
   const body = {
     shank: {
@@ -132,15 +111,8 @@ function gatherStructuredBody() {
   return body;
 }
 
-// Centre-stone shape (RNG-23, widened to six cuts in RNG-33). `stone_diameter`
-// is the WIDTH; the long axis is width * length_ratio. A round stone is always
-// ratio 1.0 whatever the ratio box happens to hold, so a stale value can never
-// elongate a round stone.
-//
-// An OVAL at ratio 1.0 is sent as round, because it IS a circle and recording it
-// as oval would be a claim the geometry then has to special-case. That rule is
-// about oval, not about 1.0: a square cushion is genuinely 1.00 and still has
-// rounded corners and bowed sides, so it stays a cushion.
+// Stone shape. Round always sends ratio 1.0; an oval at 1.0 is a circle, so it
+// is sent as round.
 function stoneShapeFields() {
   const shape = document.getElementById("shape").value;
   const ratio = Number(document.getElementById("length_ratio").value);
@@ -153,10 +125,8 @@ function stoneShapeFields() {
   return { shape: shape, length_ratio: ratio };
 }
 
-// Each cut carries its own ratio band as data attributes on its <option>, served
-// from `ringcad.ringspec.cuts.cut_catalogue()` so the numbers are not retyped
-// here (docs/adr/0002). A round stone has no ratio to set, so the box is
-// disabled rather than left live with no effect.
+// Each cut's ratio band comes from the server on its <option> (docs/adr/0002).
+// Round has no ratio, so the box is disabled.
 function selectedCut() {
   const select = document.getElementById("shape");
   return select.options[select.selectedIndex];
@@ -191,12 +161,8 @@ function gatherRequestBody() {
   return gatherStructuredBody();
 }
 
-// Show/hide one feature's fieldset and match its required-ness. A hidden
-// group is never required, so it never blocks native validation.
-//
-// Removing HIDES rather than clears: the values stay, so re-adding a feature
-// gives back whatever you (or the photo) had put there, instead of silently
-// discarding edits on a misclick.
+// Show or hide a feature. Hidden fields aren't required, and their values are
+// kept rather than cleared.
 function setFeature(name, active) {
   const cfg = FEATURES[name];
   if (!cfg) return;
@@ -213,22 +179,13 @@ function setFeature(name, active) {
   }
 }
 
-// Removing is the only feature control the form offers, and it exists for
-// one reason: vision is not always right. It read pave shoulders on a photo
-// that had them, but it can equally read something that isn't there, and
-// without this the user would be stuck generating a ring they can see is
-// wrong. There is deliberately no matching "add" — features come from the
-// photo, not from a parts picker.
+// Remove exists because vision can be wrong. There is deliberately no "add".
 function removeFeature(name) {
   setFeature(name, false);
 }
 
-// A channel is cut INTO the band, so it needs the stone plus a MIN_WALL wall
-// each side (RNG-19 CP3, docs/parameter-ranges.md). The form's 2.2mm default
-// cannot hold any legal accent, so checking Side-stone with stock values
-// would post a spec the casting gate rejects. Widen the band to fit instead of
-// letting the default path 400 — the user can still narrow it and get the
-// server's violation, which names the field and the required width.
+// A channel needs the stone plus a wall each side, and the default 2.2mm band
+// is too narrow, so widen it to fit. The server still rejects anything smaller.
 const CHANNEL_MIN_WALL = 0.8;
 
 function fitBandToChannel() {
@@ -278,8 +235,6 @@ function clearResult() {
 
   errorEl.hidden = true;
   errorMessageEl.textContent = "";
-  stderrDetails.hidden = true;
-  stderrText.textContent = "";
 
   if (stepController) stepController.abort();
   closeDownloadMenu(false);
@@ -297,8 +252,7 @@ function clearMeshStatus() {
 }
 
 function renderMeshStatus(valid, repaired, detail) {
-  // A clean mesh is the normal case (watertight by construction, RNG-17), so
-  // an always-green badge carries no information. Speak only when it's off.
+  // A clean mesh is the norm, so only show a status when something is off.
   if (valid && !repaired) {
     clearMeshStatus();
     return;
@@ -335,15 +289,10 @@ function flagField(fieldKey) {
   return el;
 }
 
-function renderError(message, fieldKey, stderr) {
+function renderError(message, fieldKey) {
   statusEl.textContent = "";
   errorMessageEl.textContent = message;
   errorEl.hidden = false;
-
-  if (stderr) {
-    stderrText.textContent = stderr;
-    stderrDetails.hidden = false;
-  }
 
   const flagged = flagField(fieldKey);
   if (flagged) {
@@ -355,41 +304,12 @@ function renderError(message, fieldKey, stderr) {
 
 function showError(httpStatus, data) {
   // data may be null/undefined when the response was not JSON.
-  if (httpStatus === 503) {
-    renderError(
-      "The geometry generator is unavailable right now. Please try again later.",
-      null,
-      null
-    );
+  if (data && typeof data === "object" && (data.error || data.detail || data.field)) {
+    const detail = data.detail || data.error || "Please check your input values.";
+    renderError(detail, data.field || null);
     return;
   }
-
-  if (data && typeof data === "object") {
-    const error = data.error;
-    if (error === "OpenSCAD render failed") {
-      renderError(
-        "The model could not be generated. See the OpenSCAD output for details.",
-        null,
-        data.openscad_stderr || ""
-      );
-      return;
-    }
-    if (error === "Render timed out") {
-      renderError(
-        "Generating this ring took too long and was stopped. Try smaller or simpler values.",
-        null,
-        null
-      );
-      return;
-    }
-    if (error || data.detail || data.field) {
-      const detail = data.detail || error || "Please check your input values.";
-      renderError(detail, data.field || null, null);
-      return;
-    }
-  }
-
-  renderError(`Something went wrong (status ${httpStatus}).`, null, null);
+  renderError(`Something went wrong (status ${httpStatus}).`, null);
 }
 
 async function parseJsonSafe(res) {
@@ -436,14 +356,14 @@ async function generate(event) {
     }
   } catch (err) {
     console.error("Network error contacting /generate-ring", err);
-    renderError("Could not reach the server, try again.", null, null);
+    renderError("Could not reach the server, try again.", null);
   } finally {
     setLoading(false);
     syncGenerateEnabled();
   }
 }
 
-// ---- Download format menu (RNG-48) ----------------------------------------
+// ---- Download format menu --------------------------------------------------
 // WAI-ARIA menu button: Enter/Space/ArrowDown open on the first item,
 // ArrowUp on the last; arrows/Home/End move; Escape closes back to the
 // trigger; Tab or a click elsewhere just closes.
@@ -485,8 +405,8 @@ function setStepBusy(busy) {
   else downloadBtn.removeAttribute("aria-busy");
 }
 
-// STEP is rebuilt on demand from the request that drew the preview -- never
-// the live form, which may have moved on since (the RNG-30 staleness family).
+// STEP is rebuilt from the request that drew the preview, not the live form,
+// which may have changed since.
 async function downloadStep() {
   if (stepController || lastGeneratedBody === null) return;
   stepController = new AbortController();
@@ -512,7 +432,7 @@ async function downloadStep() {
     if (err.name === "AbortError") return;   // a new Generate replaced the ring
     console.error("Network error building STEP", err);
     announceEl.textContent = "";
-    renderError("Could not build the STEP file, try again.", null, null);
+    renderError("Could not build the STEP file, try again.", null);
   } finally {
     stepController = null;
     setStepBusy(false);
@@ -577,9 +497,7 @@ for (const button of document.querySelectorAll(".remove-feature")) {
   });
 }
 
-// photo.js drives the same machinery rather than reaching into the form
-// itself: it says WHICH features the photo showed, and this decides what
-// that means for the DOM (same custom-event convention as ring:generated).
+// photo.js says which features the photo showed; this applies them.
 document.addEventListener("ring:set-features", (event) => {
   const detected = (event.detail && event.detail.features) || [];
   for (const name of Object.keys(FEATURES)) {
@@ -595,12 +513,8 @@ const shapeSelect = document.getElementById("shape");
 shapeSelect.addEventListener("change", applyShapeState);
 applyShapeState();
 
-// RNG-29: an error about a field must not outlive that field's value. The
-// banner and these markers are both retired by clearResult() on the next
-// submit, so what was left was the narrow window in between: the field stayed
-// red while the user typed the very correction the message asked for. Only the
-// marker goes -- the banner carries the instruction being followed ("must be
-// at least 0.8mm") and must survive the keystrokes that satisfy it.
+// Editing a flagged field clears its red marker. The error message stays,
+// since it holds the instruction being followed.
 for (const key of NUMBER_KEYS.concat(["prong_count"], FEATURE_FIELD_KEYS)) {
   const el = document.getElementById(key);
   if (!el) continue;
