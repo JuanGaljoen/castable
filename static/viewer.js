@@ -1,6 +1,5 @@
-// RNG-4 — Three.js STL viewer (vanilla ES module; vendored three r0.169.0).
-// Listens for the `ring:generated` event app.js fires on a successful
-// generation, loads the STL blob, and shows an interactive, orbitable preview.
+// Three.js STL viewer (vendored three r0.169.0). Renders the STL from each
+// `ring:generated` event that app.js fires.
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { STLLoader } from "three/addons/loaders/STLLoader.js";
@@ -101,9 +100,8 @@ function disposeCurrent() {
   mesh = null;
 }
 
-// RNG-1 builds the ring with the setting axis along +X. Three.js treats +Y as
-// up, so rotate +90deg about Z to stand the setting up (+X -> +Y). (-90deg put
-// the setting at -Y, i.e. hanging below the band.)
+// The ring is built with the setting along +X; Three.js treats +Y as up, so
+// rotate +90deg about Z to stand it upright.
 function orientUpright(target) {
   target.rotation.z = Math.PI / 2;
 }

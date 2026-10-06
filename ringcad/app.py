@@ -1,8 +1,7 @@
-"""Flask app exposing the ring generation endpoint.
+"""Flask app: generate a ring from a RingSpec, classify a ring photo.
 
-`/generate-ring` builds the solitaire in-process via build123d driven by
-RingSpec. The geometry/export functions are imported into this module's
-namespace so tests can patch them at `ringcad.app.*` (where they are looked up).
+Geometry functions are imported into this namespace so tests can patch them at
+`ringcad.app.*`.
 """
 from __future__ import annotations
 
@@ -50,17 +49,14 @@ def _sniff_media_type(b: bytes):
 
 
 def create_app() -> Flask:
-    # Load a local .env (if present) so ANTHROPIC_API_KEY set there reaches the
-    # process. Does not override vars already exported -- an explicit export wins.
+    # Reads ANTHROPIC_API_KEY from .env; an exported variable still wins.
     load_dotenv()
     app = Flask(
         __name__,
         template_folder="../templates",
         static_folder="../static",
     )
-    # Without a cap Werkzeug accepts any body, spooling it to disk before the
-    # handler's size check can refuse it. With one, an oversized request is
-    # refused from Content-Length before it is read.
+    # Refuse oversized uploads from Content-Length, before the body is read.
     app.config["MAX_CONTENT_LENGTH"] = _MAX_REQUEST_BYTES
 
     @app.errorhandler(413)
@@ -70,10 +66,8 @@ def create_app() -> Flask:
 
     @app.get("/")
     def index():
-        # The cut bands are SERVED, not retyped in the template or in JS: the
-        # shape options carry each cut's own ratio band as data attributes so
-        # the form can default and bound the ratio box without a second copy
-        # of numbers RingSpec already owns (docs/adr/0002).
+        # Cut ratio bands come from RingSpec, so the form never keeps its own
+        # copy of the numbers (docs/adr/0002).
         return render_template("index.html", cuts=cut_catalogue())
 
     @app.get("/health")
@@ -88,10 +82,8 @@ def create_app() -> Flask:
                 "Invalid request body", "expected a JSON object"
             )
 
-        # NOT "archetype": feature groups are independently optional, so a
-        # structured feature spec omitting the legacy tag would be misread as a
-        # flat-7 solitaire request. `shank` is present on every structured body
-        # (legacy-tagged or not) and absent from every flat-7 body.
+        # Keyed on `shank`, not the optional legacy `archetype` tag: every
+        # structured body has it, no flat-7 body does.
         structured = isinstance(body, dict) and (
             "archetype" in body or "shank" in body
         )
@@ -135,9 +127,8 @@ def create_app() -> Flask:
                 "format",
             )
 
-        # The body has passed the schema AND the casting gate, so a kernel
-        # exception here is our failure, not the client's: 500, with the OCCT
-        # text kept in the log rather than shown to the user.
+        # The spec passed every check, so a kernel failure is ours: 500, with
+        # the exception logged rather than sent to the client.
         try:
             solid = compose(spec) if structured else build_solitaire(spec)
             data = to_step_bytes(solid) if fmt == "step" else None
@@ -154,12 +145,8 @@ def create_app() -> Flask:
                 500,
             )
 
-        # STEP deliberately skips the mesh checks below. They measure OUR STL
-        # tessellation; a STEP file is the exact B-rep, re-meshed by whatever
-        # opens it, so mesh repair has nothing to act on and our body count
-        # could refuse a file that opens fine (the channel-cut cases that split
-        # the mesh measure as one B-rep solid). The UI only requests STEP for a
-        # body whose STL already passed.
+        # STEP skips the mesh checks: they measure our STL triangles, and a STEP
+        # file is the exact surface model, re-meshed by whatever opens it.
         if fmt == "step":
             return Response(
                 data,
@@ -172,23 +159,9 @@ def create_app() -> Flask:
         raw = to_stl_bytes(solid)
         outcome = validate_and_repair(raw)
         if outcome.body_count > 1:
-            # Disconnected geometry is not "an invalid mesh you may still want":
-            # it is not one object, so it cannot be cast and cannot be repaired
-            # (`validate_and_repair` already calls this case not auto-repairable).
-            # Returning it with X-Mesh-Valid:false would hand back an STL that
-            # looks downloadable and fails in the slicer.
-            #
-            # Deliberately narrower than "not castable": a thin wall or an open
-            # edge still ships, preserving the documented behaviour that download
-            # works regardless of validation status. Only a mesh in PIECES 400s.
-            #
-            # Checked on the artifact rather than predicted from the spec. The one
-            # combination that reaches this (a channel side-stone band with an
-            # elongated centre) fails in a scatter across length_ratio --
-            # marquise breaks at 1.70 and 2.10 while building cleanly at 1.50,
-            # 1.90, 2.30 and 2.50 -- so no gate rule on the ratio could be written
-            # honestly. Measuring what was built cannot drift, and stops firing on
-            # its own once the channel cut is fixed.
+            # A ring in pieces can't be cast or repaired, so refuse it. Other
+            # mesh faults still ship, flagged in X-Mesh-Valid. Checked on the
+            # built mesh because the failing specs can't be predicted.
             return _validation_response(
                 "Generation produced disconnected geometry",
                 f"the model came out as {outcome.body_count} separate pieces "

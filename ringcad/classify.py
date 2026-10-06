@@ -1,8 +1,6 @@
-"""Claude vision ring classifier.
+"""Claude vision: ring photo -> estimates -> a castable RingSpec.
 
-Wraps a single Anthropic vision call behind `classify_ring`, which NEVER raises:
-any SDK/parse/timeout failure is logged and surfaced as a result with ok=False.
-The API key is read via env only; it never reaches a result body or a log line.
+`classify_ring` never raises; any failure is logged and returned as ok=False.
 """
 from __future__ import annotations
 
@@ -31,8 +29,7 @@ from ringcad.ringspec import (
 
 logger = logging.getLogger(__name__)
 
-# Casting-aware clamp bounds for the five estimable dimensions. inner_diameter
-# (finger size) is deliberately absent -- it is never guessed from a photo.
+# Bounds for the estimable dimensions. Finger size is never estimated.
 CLAMP_BOUNDS = {
     "band_width": (1.6, 6.0),
     "band_thickness": (0.8, 4.0),
@@ -41,30 +38,16 @@ CLAMP_BOUNDS = {
     "setting_height": (3.0, 8.0),
 }
 
-# Shared-dim defaults for fields the photo did not (or must not) estimate. They
-# match the form defaults / docs/parameter-ranges.md so an assembled spec is
-# always complete and castable. inner_diameter (finger size) is NEVER guessed
-# from a photo -- it stays at this default with confidence None.
+# A photo has no scale, so finger size is never guessed: it stays at this
+# default and the user sets it.
 DEFAULT_INNER_DIAMETER = 16.5  # ~US6
 
-# Every stepped dimension input in templates/index.html uses step="0.1" (counts
-# use step="1", already satisfied since they're int by construction). Values
-# must land on that grid: the browser's native number-input validation silently
-# blocks Generate whenever an estimate -- or a coherence-repaired value -- isn't
-# an exact multiple of 0.1.
+# Values must match the form inputs' step, or the browser silently blocks
+# Generate.
 DIMENSION_STEP = 0.1
-# `length_ratio` is a RATIO, not a millimetre, and it needs a finer grid than
-# one. At step 0.1 the per-cut conventional defaults (ringspec/cuts.py) do not
-# survive the round trip: cushion's 1.02 lands on 1.00 and marquise's
-# 1.95 on 2.00 -- which is exactly the "one shared default makes three of four
-# wrong on sight" failure the per-cut bands exist to prevent, reintroduced by a
-# rounding rule rather than by a wrong number. The form input carries
-# step="0.01" to match; the invariant that every float leaf is rounded to ITS
-# OWN form step is what keeps the browser from silently blocking Generate.
+# Ratios need a finer grid: at 0.1, cushion's 1.02 would become 1.00.
 RATIO_STEP = 0.01
 _FIELD_STEPS = {"length_ratio": RATIO_STEP}
-# Groups that can carry stepped dimension fields; confidence/motifs/version/
-# archetype are left alone by _round_to_step.
 _DIMENSION_GROUPS = ("shank", "setting", "stones", "halo", "trilogy", "side_stone")
 
 _SHARED_DEFAULTS = {
@@ -76,44 +59,28 @@ _SHARED_DEFAULTS = {
     "prong_count": 6,
 }
 
-# Which features the module library can build, and each one's group key +
-# Pydantic group model (source of truth for the group field bounds). The group
-# fields are read off the model, so a new feature needs no per-field clamp table
-# here. A ring is a base plus whichever of these are PRESENT, any subset, not a
-# choice of one archetype.
+# Buildable features -> (spec group key, model). Field bounds are read off the
+# model, so a new feature needs no clamp table here.
 _FEATURE_GROUPS = {
     "halo": ("halo", Halo),
     "trilogy": ("trilogy", Trilogy),
     "side_stone": ("side_stone", SideStone),
 }
 SUPPORTED_FEATURES = ("halo", "trilogy", "side_stone")
-# Back-compat alias: `SUPPORTED_ARCHETYPES` named the four archetype-union
-# choices, one of which was "solitaire" (no group at all). probes/
-# fidelity_probe.py reads this name to validate its manifest's `archetype`
-# column; keep the value so that stays meaningful without importing the
-# retired concept back in.
+# Still read by probes/fidelity_probe.py.
 SUPPORTED_ARCHETYPES = ("solitaire",) + SUPPORTED_FEATURES
 
-# Read off the schema rather than restated, so the clamp cannot drift from the
-# contract (the same rule `_field_bounds` follows for the archetype groups).
+# Read off the schema so they can't drift from it (docs/adr/0002).
 _MAX_LENGTH_RATIO = next(
     (m.le for m in Stones.model_fields["length_ratio"].metadata
      if getattr(m, "le", None) is not None),
     2.5,
 )
 
-# The buildable cuts, read off the RingSpec Literal rather than restated, for
-# the same reason as `_MAX_LENGTH_RATIO` above: a second hand-written list is a
-# second thing to forget when cut #7 lands (docs/adr/0002). `_stone_shape`
-# degrades anything not in here to round, so a stale copy would silently throw
-# away a cut the geometry can already build: vision would name the cut
-# correctly and the spec would still say round.
 _BUILDABLE_SHAPES = frozenset(
     get_args(Stones.model_fields["shape"].annotation)
 )
 
-# Same rule, same reason, for the shank cross-section: read off the
-# RingSpec Literals rather than a second hand-written list.
 _BUILDABLE_OUTER_PROFILES = frozenset(
     get_args(Shank.model_fields["outer_profile"].annotation)
 )
@@ -188,12 +155,8 @@ _USER = (
 
 
 class RingConfidence(BaseModel):
-    """Per-field vision confidence in [0,1] for the shared dimensions. Bounds
-    are omitted from the schema (structured-output constraint stripping) and
-    clamped in code. EVERY field is required (no defaults): strict structured
-    output treats a defaulted field as optional, and many optional fields blow
-    up server-side compilation (docs/adr/0004). 0.0 means "no confidence".
-    inner_diameter is absent -- never guessed."""
+    """Per-field confidence in [0,1]; 0 means not estimated. Every field is
+    required (docs/adr/0004)."""
 
     band_width: float
     band_thickness: float
@@ -204,21 +167,12 @@ class RingConfidence(BaseModel):
 
 
 class RingClassification(BaseModel):
-    """Structured output schema for messages.parse. `style` is the free-text
-    detected style; `features` is EVERY supported feature actually
-    present -- any subset of {halo, trilogy, side_stone}, not a choice of
-    one -- and only a listed feature's group dims are read; the rest are
-    ignored. No inner_diameter field (never guessed).
+    """The structured output Claude fills in.
 
-    EVERY field is REQUIRED (no defaults). Strict structured output treats a
-    field with a default as optional, and a schema with many optional fields
-    incurs exponential compilation cost -- the real Messages API then hangs and
-    times out (docs/adr/0004; the API's "17 params with type arrays or anyOf"
-    400 is the same root cause surfacing as a hard reject). The model instead
-    fills every dimension field and uses 0 for one it cannot estimate or that
-    does not apply to any listed feature; parsing treats 0 as "not estimated"
-    and falls back to the shared/group default. See tests/test_classify_schema
-    for the guard."""
+    Every field is required, with 0 meaning "not estimated": optional fields
+    make the real API hang or reject the schema (docs/adr/0004). There is
+    deliberately no finger-size field.
+    """
 
     ring_detected: bool
     style: str
@@ -230,15 +184,10 @@ class RingClassification(BaseModel):
     stone_diameter: float
     stone_height: float
     setting_height: float
-    # Shank cross-section. Plain `str`, like `stone_shape` below and
-    # for the same ADR-0004 reason: a Literal or optional would add a union
-    # param. Degraded in code by `_shank_profile`.
+    # Plain str, not Literal (docs/adr/0004); validated in code.
     outer_profile: str
     inner_profile: str
-    # Centre-stone shape. Plain `str`/`float`, not a Literal or an
-    # optional: either would add a union param, and ADR-0004 keeps this schema
-    # flat and required. The value is validated in code, where an unsupported cut
-    # degrades to "round" instead of failing the whole classification.
+    # Plain str, not Literal (docs/adr/0004); an unknown cut becomes round.
     stone_shape: str
     stone_length_ratio: float
     # Halo group
@@ -261,10 +210,7 @@ class RingClassification(BaseModel):
 
 @dataclass(frozen=True)
 class ClassifyResult:
-    """`features` is the validated feature SET actually present --
-    any subset of `SUPPORTED_FEATURES`, filtered from vision's raw list (an
-    empty list means a plain centre stone, no extra feature). Not one
-    archetype choice."""
+    """What vision saw. `features` is any subset of SUPPORTED_FEATURES."""
 
     ok: bool
     ring_detected: bool
@@ -282,34 +228,16 @@ class ClassifyResult:
     inner_profile: str = "domed"
 
     def to_spec(self) -> dict | None:
-        """Assemble a coherent, castable RingSpec (feature groups actually
-        present + confidence), or None when no ring was detected. See
-        `_coherent_spec` for the fallback chain; use `to_json` when the
-        adjustments made along the way are also needed."""
+        """A castable RingSpec, or None when no ring was detected."""
         return self._coherent_spec()[0]
 
     def _coherent_spec(self) -> tuple[dict | None, list[Adjustment]]:
-        """Assemble a spec, then repair it against its own casting-gate
-        violations rather than trusting vision's per-field
-        estimates to already cohere -- each field is individually clamped to
-        its own range in `_assemble`, but nothing there checks a field
-        against its siblings (a stone taller than its own head is
-        schema-valid on both fields alone).
+        """Build a spec and repair it against the casting gate, since fields
+        that are each valid can still be impossible together.
 
-        Fallback chain, each link a strictly safer bet than the last:
-        detected feature set (repaired) -> no features from the same shared
-        estimates (repaired) -> pure-default, no features, which is
-        guaranteed castable (tests/test_ringspec_coherence.py's
-        test_defaults_are_castable_after_coherence). A schema-invalid
-        assembly (e.g. extreme snapped counts) skips straight to the next link
-        rather than repairing garbage; a spec the casting gate rejects is
-        repaired first, and falls through only if repair cannot fix it.
-
-        `cross_feature_overcrowding` has no dedicated repair --
-        there is no single obvious field to move when two features simply
-        don't fit together -- so a genuinely overcrowded combination falls
-        straight through to the next, safer link, the same as any other
-        unrepairable violation."""
+        Falls back step by step: detected features -> no features -> pure
+        defaults, which are always castable (docs/adr/0009).
+        """
         if not self.ring_detected:
             return None, []
         for features, group_estimates in (
@@ -344,13 +272,8 @@ class ClassifyResult:
 
     def _assemble(self, features: list[str], groups: dict,
                   estimates: dict | None = None) -> dict:
-        """`estimates` defaults to `self.estimates`; the pure-default last
-        resort in `_coherent_spec` passes `{}` explicitly to get the
-        guaranteed-castable defaults (and a round stone -- shape is skipped
-        along with it, since a bad shape reading is exactly the kind of
-        thing that resort exists to shed). `groups` is `{group_key: {field:
-        value}}` for whichever features are present -- any subset,
-        not one archetype's worth."""
+        """Assemble a spec dict. Passing `estimates={}` gives pure defaults with
+        a round stone, the last-resort fallback."""
         est = self.estimates if estimates is None else estimates
         spec = {
             "version": "1.0",
@@ -383,8 +306,7 @@ class ClassifyResult:
             if name not in _FEATURE_GROUPS:
                 continue
             group_key = _FEATURE_GROUPS[name][0]
-            # Always emit the group key -- an empty dict lets the schema fill
-            # every group default (each group field is optional-with-default).
+            # An empty dict lets the schema fill in group defaults.
             spec[group_key] = dict(groups.get(group_key, {}))
         return spec
 
@@ -395,26 +317,14 @@ class ClassifyResult:
             "detected_style": self.style,
             "note": self.note,
             "spec": spec,
-            # Fields the repair moved to make the spec castable, so the
-            # frontend can flag them alongside the low-confidence markers --
-            # "estimates only, verify" extends to "and this one was adjusted
-            # for buildability".
+            # Fields the repair changed, so the form can flag them.
             "adjustments": [a.model_dump() for a in adjustments],
         }
 
 
 def _settle_on_step_grid(coherent: dict) -> dict | None:
-    """Land `coherent` on the form's 0.1 step grid without breaking
-    castability, or return None if none of the three tries manage it.
-
-    Nearest is right almost always. "ceil"/"floor" are a direct castability
-    re-check, not another repair pass -- deliberately, since a repair margin
-    that ties exactly on a half-step (see _round_to_step) makes
-    round-then-re-repair oscillate forever between the same two values,
-    where a static "try the other neighbour" terminates in one step. None
-    means the caller should fall back further rather than return an
-    uncastable spec -- the same "coherence cannot be reached" case
-    `_coherent_spec`'s fallback chain already exists for."""
+    """Round onto the form's step grid without breaking castability: try
+    nearest, then up, then down. None if none of them stays castable."""
     for direction in ("nearest", "ceil", "floor"):
         stepped = _round_to_step(coherent, direction)
         if is_castable(validate_spec(stepped)):
@@ -426,25 +336,14 @@ _STEP_ROUNDERS = {"nearest": round, "ceil": math.ceil, "floor": math.floor}
 
 
 def _to_step(value: float, step: float, step_round) -> float:
-    """Snap `value` onto the `step` grid, then clean up the binary-float noise
-    that multiplying back by a non-representable step reintroduces."""
+    """Snap `value` onto the `step` grid, without float noise (1.9000000001)."""
     return round(step_round(value / step) * step,
                  max(0, -math.floor(math.log10(step) + 1e-9)))
 
 
 def _round_to_step(spec: dict, direction: str = "nearest") -> dict:
-    """Round every float dimension in `spec` to DIMENSION_STEP.
-
-    A generic type-driven walk, not a per-field allowlist: every float leaf
-    in a dimension group IS a stepped form field, and every int leaf is
-    already step=1 aligned by construction (_snap_prong / _group_estimates's
-    int() cast), so there is nothing to special-case. confidence/motifs/
-    version/archetype are untouched -- they don't back a stepped input.
-
-    `direction="nearest"` (the default) is right almost always; see
-    `_settle_on_step_grid` for why "ceil"/"floor" exist.
-
-    Returns a new dict; does not mutate `spec`."""
+    """Round every float in the dimension groups to its form step. Returns a
+    new dict."""
     step_round = _STEP_ROUNDERS[direction]
     out = dict(spec)
     for group_key in _DIMENSION_GROUPS:
@@ -452,10 +351,6 @@ def _round_to_step(spec: dict, direction: str = "nearest") -> dict:
         if not isinstance(group, dict):
             continue
         out[group_key] = {
-            # round() twice: once to the step count (an integer), once more
-            # on the result to clean up the binary-float noise that
-            # `n * 0.1` reintroduces (1.9 -> 1.9000000000000001) even when
-            # n is exact -- 0.1 has no exact binary representation.
             k: _to_step(v, _FIELD_STEPS.get(k, DIMENSION_STEP), step_round)
             if isinstance(v, float) else v
             for k, v in group.items()
@@ -464,11 +359,8 @@ def _round_to_step(spec: dict, direction: str = "nearest") -> dict:
 
 
 def _shank_profile(outer: str, inner: str) -> dict:
-    """Normalise the vision layer's shank profile into RingSpec's shank
-    fields. Each axis degrades independently to `domed` (court, the schema
-    default) rather than failing the whole classification -- the
-    same never-500 rule `_stone_shape` follows, simpler here because there is
-    no ratio to clamp, only two independent categorical choices."""
+    """Vision's band profile -> spec fields. Anything unknown becomes `domed`
+    rather than failing the whole classification."""
     outer_name = (outer or "").strip().lower()
     inner_name = (inner or "").strip().lower()
     return {
@@ -482,31 +374,12 @@ def _shank_profile(outer: str, inner: str) -> dict:
 
 
 def _stone_shape(shape: str, ratio: float) -> dict:
-    """Normalise the vision layer's stone shape into RingSpec's stones fields.
+    """Vision's stone cut and ratio -> spec fields.
 
-    Degrades rather than fails: a cut we cannot build (princess, trillion,
-    heart) becomes a round stone of the same size instead of a spec that fails
-    validation. That keeps the never-500 rule and leaves the field editable,
-    which the "estimates only" framing already promises. With six buildable
-    cuts, the degrade path is for genuine strangers, not most of the catalogue.
-
-    The ratio answers two DIFFERENT questions, and conflating them is what makes
-    a marquise render as a lens:
-
-      * **"I could not estimate it"** -- the 0 sentinel (docs/adr/0004 requires
-        every schema field, so 0 means absent). That takes the cut's
-        CONVENTIONAL default, because a marquise nobody measured is still a
-        marquise and 1.0 would hand back a circle wearing the name.
-      * **"I estimated it, and it is outside what this cut can be"** -- that
-        takes the nearest value the cut CAN be. Vision looked and said "very
-        elongated"; snapping to the textbook default would throw that reading
-        away, where the band edge keeps it.
-
-    A ratio of 1.0 IS a circle for an OVAL, so an oval that thin is recorded as
-    round -- calling it oval would be a claim the geometry then has to
-    special-case. That rule is about oval, not about 1.0: a square
-    cushion is genuinely 1.00 and still has rounded corners and outward-bowed
-    sides, so it stays a cushion.
+    An unbuildable cut (princess, heart, ...) becomes round rather than failing.
+    A ratio of 0 (not estimated) takes the cut's usual default; an out-of-range
+    ratio is clamped to the nearest value the cut allows. An oval at 1.0 is a
+    circle, so it's recorded as round.
     """
     name = (shape or "").strip().lower()
     try:
@@ -540,8 +413,7 @@ def _snap_prong(n: int) -> int:
 
 
 def _field_bounds(model_cls, name: str) -> tuple[float | None, float | None]:
-    """Read (ge, le) from a Pydantic field's constraint metadata -- the single
-    source of truth for a group field's range."""
+    """(ge, le) from a Pydantic field's constraints."""
     lo = hi = None
     for meta in model_cls.model_fields[name].metadata:
         if hasattr(meta, "ge"):
@@ -560,12 +432,8 @@ def _clamp_bounds(lo, hi, value: float) -> float:
 
 
 def _group_estimates(features: list[str], data: "RingClassification") -> dict:
-    """Clamp each PRESENT feature's group dims to its RingSpec field bounds;
-    int-typed counts are rounded and snapped to int. Fields the model left
-    null are omitted so the schema default applies. Returns `{group_key:
-    {field: value}}` for every feature actually present -- a feature
-    NOT in `features` contributes nothing, even if vision left a stray
-    nonzero value on one of its dimension fields."""
+    """Clamp each detected feature's dimensions to the schema bounds. Fields
+    left at 0 are omitted so the schema default applies."""
     out: dict = {}
     for name in features:
         if name not in _FEATURE_GROUPS:
@@ -574,8 +442,7 @@ def _group_estimates(features: list[str], data: "RingClassification") -> dict:
         group_out: dict = {}
         for fname, fld in model_cls.model_fields.items():
             raw = getattr(data, fname, 0.0)
-            # 0.0 is the "not estimated" sentinel (dims are strictly positive).
-            if not raw or raw <= 0:
+            if not raw or raw <= 0:  # 0 = not estimated
                 continue
             lo, hi = _field_bounds(model_cls, fname)
             if fld.annotation is int:
@@ -587,9 +454,7 @@ def _group_estimates(features: list[str], data: "RingClassification") -> dict:
 
 
 def _confidence(data: "RingConfidence | None") -> dict:
-    """Flatten a RingConfidence into a {field: value in [0,1]} dict, dropping
-    unset entries (0.0 sentinel). inner_diameter is never present (never
-    estimated)."""
+    """RingConfidence -> {field: value in [0,1]}, dropping unset entries."""
     if data is None:
         return {}
     out: dict = {}
@@ -601,10 +466,7 @@ def _confidence(data: "RingConfidence | None") -> dict:
 
 
 def _valid_features(raw: list[str]) -> list[str]:
-    """Filter vision's raw `features` list to the known buildable set,
-    deduplicated, order preserved. Degrades rather than fails -- an unknown
-    token is silently dropped instead of rejecting the whole classification,
-    the same never-500 rule `_stone_shape`/`_shank_profile` follow."""
+    """Keep only known features, deduplicated; unknown ones are dropped."""
     out: list[str] = []
     for name in raw:
         key = (name or "").strip().lower()
@@ -614,17 +476,7 @@ def _valid_features(raw: list[str]) -> list[str]:
 
 
 def _note(model_note: str) -> str:
-    """The note is about the ESTIMATES, not about what the app did with them.
-
-    Announcing a forced substitution ("detected a cathedral pave halo --
-    building the nearest supported style") was worth saying only when a ring
-    could be just one archetype and information was thrown away. The app now
-    builds what it detects, so that sentence would announce a non-event. It
-    also read badly: matching feature NAMES against free text put internal
-    vocabulary ("also building side stone") beside a description that said
-    "pave band shoulders". Describing the photo is `style`'s job; this is only
-    ever the estimates caveat.
-    """
+    """The caveat shown with the estimates."""
     return model_note or DEFAULT_NOTE
 
 
@@ -686,8 +538,7 @@ def classify_ring(image_bytes: bytes, media_type: str) -> ClassifyResult:
         estimates: dict[str, float] = {
             key: _clamp(key, getattr(data, key))
             for key in CLAMP_BOUNDS
-            # 0.0 is the "not estimated" sentinel (dims are strictly positive).
-            if getattr(data, key) and getattr(data, key) > 0
+            if getattr(data, key) and getattr(data, key) > 0  # 0 = not estimated
         }
         estimates["prong_count"] = _snap_prong(data.prong_count)
         features = _valid_features(data.features)
