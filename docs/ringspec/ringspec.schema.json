@@ -2,7 +2,7 @@
   "$defs": {
     "FieldConfidence": {
       "additionalProperties": false,
-      "description": "Per-field vision confidence (0..1). RNG-12 populates; None until then.",
+      "description": "Per-field vision confidence (0..1), filled by the photo classifier; None\nwhere vision gave no estimate.",
       "properties": {
         "inner_diameter": {
           "anyOf": [
@@ -108,7 +108,7 @@
     },
     "Halo": {
       "additionalProperties": false,
-      "description": "Accent-stone ring encircling the centre stone (RNG-9).\n\nHow many accents actually fit depends on the centre stone the halo rides,\nnot on this range alone: each seat needs metal either side of it. That is\n`_halo_web`'s job (RNG-19 CP4), not the schema's.",
+      "description": "Accent-stone ring encircling the centre stone.\n\nHow many accents actually fit depends on the centre stone the halo rides,\nnot on this range alone: each seat needs metal either side of it. That is\n`_halo_web`'s job, not the schema's.",
       "properties": {
         "halo_stone_diameter": {
           "default": 1.3,
@@ -197,7 +197,7 @@
     },
     "Shank": {
       "additionalProperties": false,
-      "description": "Band geometry. `shank_taper` is the WIDTH flare toward the head (the SCAD\n8th shaping param); thickness is governed by `SHANK_THICKNESS_TAPER`.\n\n`outer_profile`/`inner_profile` are the cross-section family (RNG-25): two\nindependent axes, not one enum of trade names, because the trade itself\ntreats them independently (docs/research/shank-cross-section-profiles.md).\nBoth default to `domed`, i.e. \"court\" -- today's `Ellipse` section -- so\nevery spec written before RNG-25 renders identically. See\n`ringcad.ringspec.sections` for what each value means geometrically.",
+      "description": "Band geometry. `shank_taper` is the WIDTH flare toward the head (the SCAD\n8th shaping param); thickness is governed by `SHANK_THICKNESS_TAPER`.\n\n`outer_profile`/`inner_profile` are the cross-section family: two\nindependent axes, not one enum of trade names, because the trade itself\ntreats them independently (docs/research/shank-cross-section-profiles.md).\nBoth default to `domed`, i.e. \"court\" -- the plain `Ellipse` section -- so a\nspec that omits them gets the court band. See\n`ringcad.ringspec.sections` for what each value means geometrically.",
       "properties": {
         "inner_diameter": {
           "exclusiveMinimum": 0,
@@ -254,7 +254,7 @@
     },
     "SideStone": {
       "additionalProperties": false,
-      "description": "Channel-set accent row down each shoulder of the shank (RNG-11).\n\n`retention` is a Literal[\"channel\"] in v1 \u2014 pave is a future value; a\n\"pave\" spec is a clean schema rejection today, not a shipped-but-broken\noption (specs/RNG-11.md Decision 5).",
+      "description": "Channel-set accent row down each shoulder of the shank.\n\n`retention` is a Literal[\"channel\"] in v1 \u2014 pave is a future value; a\n\"pave\" spec is a clean schema rejection today, not a shipped-but-broken\noption.",
       "properties": {
         "accent_stone_diameter": {
           "default": 1.5,
@@ -296,7 +296,7 @@
     },
     "Stones": {
       "additionalProperties": false,
-      "description": "Centre-stone sizing and shape for the seat module.\n\n`stone_diameter` is the SHORT axis (the width); the long axis is\n`stone_diameter * length_ratio`. Both shape fields are defaulted, so every\nspec written before RNG-23 stays valid and still means a round stone.\n\nA ratio rather than an explicit length: it is the quantity a photo actually\nshows (feeding RNG-26), and `length_ratio == 1.0` makes round fall out of the\nsame code path instead of needing a branch. The 2.5 cap is a castability\nguard -- an ellipse's tightest bend is `semi_minor^2 / semi_major`, so\nelongation directly thins the metal at the tips.",
+      "description": "Centre-stone sizing and shape for the seat module.\n\n`stone_diameter` is the SHORT axis (the width); the long axis is\n`stone_diameter * length_ratio`. Both shape fields are defaulted, so a spec\nwithout them is valid and means a round stone.\n\nA ratio rather than an explicit length: it is the quantity a photo actually\nshows (so vision can estimate it), and `length_ratio == 1.0` makes round\nfall out of the same code path instead of needing a branch. The 2.5 cap is\na castability guard -- an ellipse's tightest bend is `semi_minor^2 /\nsemi_major`, so elongation directly thins the metal at the tips.",
       "properties": {
         "stone_diameter": {
           "exclusiveMinimum": 0,
@@ -340,7 +340,7 @@
     },
     "Trilogy": {
       "additionalProperties": false,
-      "description": "Side-stone group flanking the centre stone (RNG-10).",
+      "description": "Side-stone group flanking the centre stone.",
       "properties": {
         "side_stone_diameter": {
           "default": 2.5,
@@ -369,7 +369,7 @@
     }
   },
   "additionalProperties": false,
-  "description": "The versioned contract (RNG-24): one model, features as optional groups.\n\n`halo`/`trilogy`/`side_stone` are independently optional \u2014 a ring is a base\n(shank/setting/stones) plus whichever features are present, not a choice of\nexactly one archetype. This is CP1 (contract + migration): the schema\nallows any subset, but `validate_castability`'s temporary\n`multi_feature_unvalidated` gate still rejects more than one present until\nCP2 lands real cross-feature checks (docs/adr, specs/RNG-24.md).",
+  "description": "The versioned contract: one model, features as optional groups.\n\n`halo`/`trilogy`/`side_stone` are independently optional \u2014 a ring is a base\n(shank/setting/stones) plus whichever features are present, not a choice of\nexactly one archetype. The schema allows any subset; whether the present\nfeatures fit together is `validate_castability`'s job\n(`_cross_feature_overcrowding`).",
   "properties": {
     "version": {
       "const": "1.0",
