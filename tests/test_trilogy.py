@@ -15,7 +15,7 @@ import pytest
 from ringcad.geometry import compose
 from ringcad.geometry._castability import check_accent_prong, check_accent_seat
 from ringcad.geometry._common import clamps
-from ringcad.geometry.module import ARCHETYPES, MODULES
+from ringcad.geometry.assembly import ARCHETYPES, MODULES
 from ringcad.geometry.trilogy import _side_locs, trilogy
 from ringcad.ringspec import Setting, Shank, Stones, Trilogy, TrilogySpec, from_params
 

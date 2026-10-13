@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from ringcad.ringspec import RingSpec
 
-from .module import compose
+from .assembly import compose
 
 
 def build_solitaire(spec: RingSpec):

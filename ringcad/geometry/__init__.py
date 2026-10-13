@@ -10,7 +10,7 @@ from .bezel import bezel
 from .export import to_step_bytes, to_stl_bytes
 from .gallery import gallery
 from .halo import halo
-from .module import (
+from .assembly import (
     ARCHETYPES,
     MODULES,
     ComposeError,

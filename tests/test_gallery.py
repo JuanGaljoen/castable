@@ -19,7 +19,7 @@ import pytest
 from build123d import Location, Plane, Pos, Rot
 
 from ringcad.geometry.gallery import RAIL_MINOR, gallery
-from ringcad.geometry.module import ARCHETYPES, MODULES
+from ringcad.geometry.assembly import ARCHETYPES, MODULES
 from ringcad.mesh_validator import MIN_WALL_MM
 
 # (ring_r, rail_top_z, hub_r): the golden halo-derived config plus off-halo

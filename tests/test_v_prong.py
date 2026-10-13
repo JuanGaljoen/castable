@@ -47,7 +47,7 @@ from ringcad.geometry import prong_setting
 from ringcad.geometry._common import HEAD_INSET, clamps
 from ringcad.geometry.prong_setting import TIP_LEAN
 from ringcad.mesh_validator import MIN_PRONG_TIP_MM
-from ringcad.geometry.module import compose
+from ringcad.geometry.assembly import compose
 from ringcad.ringspec import validate_spec
 from ringcad.ringspec.cuts import ProngType, profile_for
 

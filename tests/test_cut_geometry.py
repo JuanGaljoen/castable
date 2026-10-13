@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import pytest
 
-from ringcad.geometry.module import compose
+from ringcad.geometry.assembly import compose
 from ringcad.ringspec import validate_spec
 from ringcad.ringspec.castability import validate_castability
 from ringcad.ringspec.cuts import profile_for

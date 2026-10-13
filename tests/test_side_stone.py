@@ -14,7 +14,7 @@ import pytest
 
 from ringcad.geometry import compose
 from ringcad.geometry._common import MIN_WALL, clamps
-from ringcad.geometry.module import ARCHETYPES, MODULES
+from ringcad.geometry.assembly import ARCHETYPES, MODULES
 from ringcad.geometry.side_stone import _accent_angles, _trench_span
 from ringcad.ringspec import Setting, Shank, SideStone, SideStoneSpec, Stones, from_params
 from ringcad.ringspec.models import channel_groove_depth
