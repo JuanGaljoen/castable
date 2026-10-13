@@ -16,7 +16,7 @@ running the real numbers during CP2's own development (see footprint.py):
 from __future__ import annotations
 
 from ringcad.geometry.export import to_stl_bytes
-from ringcad.geometry.module import compose
+from ringcad.geometry.assembly import compose
 from ringcad.mesh_validator import validate_and_repair
 from ringcad.ringspec import (
     Halo, RingSpec, Setting, Shank, SideStone, Stones, Trilogy,

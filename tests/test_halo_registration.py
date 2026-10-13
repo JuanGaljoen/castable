@@ -14,7 +14,7 @@ from __future__ import annotations
 from ringcad.geometry import compose
 from ringcad.geometry._common import clamps
 from ringcad.geometry.halo import halo
-from ringcad.geometry.module import ARCHETYPES, MODULES
+from ringcad.geometry.assembly import ARCHETYPES, MODULES
 from ringcad.ringspec import Halo, HaloSpec, Setting, Shank, Stones, from_params
 
 CANONICAL_PARAMS = {

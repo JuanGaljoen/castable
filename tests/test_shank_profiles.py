@@ -11,7 +11,7 @@ from __future__ import annotations
 import pytest
 
 from ringcad.geometry.export import to_stl_bytes
-from ringcad.geometry.module import compose
+from ringcad.geometry.assembly import compose
 from ringcad.ringspec import from_params
 
 CANONICAL_PARAMS = {

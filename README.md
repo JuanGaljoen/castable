@@ -93,7 +93,7 @@ pip install -r requirements.txt
 # Dev server (http://127.0.0.1:5000)
 flask --app ringcad.app run
 # or:
-python app.py
+python wsgi.py
 ```
 
 Open <http://127.0.0.1:5000>, enter the parameters (or choose a photo and click

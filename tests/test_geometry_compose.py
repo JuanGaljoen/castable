@@ -1,6 +1,6 @@
 """RNG-16 AC2 + AC5 — compose() over the module library (RED).
 
-RED until `ringcad.geometry.module` lands `compose`, the `MODULES` /
+Covers `compose` in `ringcad.geometry.assembly`, the `MODULES` /
 `ARCHETYPES` registries and the named compose errors. Pins:
 
 - AC2: `compose(spec)` reproduces the pre-existing `build_solitaire` geometry
@@ -28,7 +28,7 @@ from ringcad.geometry import (
     compose,
     to_stl_bytes,
 )
-from ringcad.geometry.module import SimpleModule
+from ringcad.geometry.assembly import SimpleModule
 from ringcad.mesh_validator import validate_and_repair, validate_mesh
 from ringcad.ringspec import from_params
 

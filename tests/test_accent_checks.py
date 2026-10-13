@@ -20,7 +20,7 @@ from build123d import Align, Box, Cylinder, Location, Pos, Rot
 from ringcad.geometry._castability import check_accent_prong, check_accent_seat
 from ringcad.geometry.accent_prong import accent_prong
 from ringcad.geometry.accent_seat import accent_seat
-from ringcad.geometry.module import ARCHETYPES, MODULES
+from ringcad.geometry.assembly import ARCHETYPES, MODULES
 
 DIAMETERS = (0.9, 1.3, 2.5)
 HEIGHTS = (0.8, 1.2, 3.0)

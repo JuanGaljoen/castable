@@ -94,7 +94,7 @@ def test_to_step_bytes_is_iso_10303(spec):
 
 # === RNG-16 AC1: module registry conforms to the Module protocol =============
 # Local imports so the RNG-15 tests above stay green; these RED until RNG-16's
-# `ringcad.geometry.module` (Module protocol + MODULES registry) lands.
+# `ringcad.geometry.assembly` (Module protocol + MODULES registry) lands.
 EXPECTED_MODULE_NAMES = {"shank", "seat", "prong_setting", "bezel"}
 
 

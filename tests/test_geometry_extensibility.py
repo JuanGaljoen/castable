@@ -1,12 +1,12 @@
 """RNG-16 AC6 — a new archetype needs no edit to existing module files (RED).
 
-RED until `ringcad.geometry.module` lands `SimpleModule`, `MODULES`,
-`ARCHETYPES` and `compose`. This test proves the open/closed property of the
+Uses `SimpleModule`, `MODULES`, `ARCHETYPES` and `compose` from
+`ringcad.geometry.assembly`. This test proves the open/closed property of the
 module library: a brand-new archetype can be assembled by registering a
 `SimpleModule` and an ARCHETYPES entry at runtime, WITHOUT importing or editing
 any existing module file (shank.py / seat.py / prong_setting.py / bezel.py).
 
-Imports are deliberately confined to `ringcad.geometry.module` and
+Imports are deliberately confined to `ringcad.geometry.assembly` and
 `ringcad.geometry._common` (plus the spec factory) — if a new archetype needed
 to touch an existing module file, this test could not be written this way.
 """
@@ -15,7 +15,7 @@ from contextlib import contextmanager
 import pytest
 
 from ringcad.geometry._common import band, clamps
-from ringcad.geometry.module import (
+from ringcad.geometry.assembly import (
     ARCHETYPES,
     MODULES,
     SimpleModule,
