@@ -1,6 +1,6 @@
 """Shared geometry helpers for the build123d solitaire.
 
-Faithful port of the arithmetic in `spikes/rng13/b123d_solitaire.py`. Casting
+Casting
 constants are imported from `ringcad.mesh_validator` (single source of truth),
 not re-declared. Clamps, the band cross-section, and the claw primitives live
 here so the shank / prong_setting / seat modules share one copy.

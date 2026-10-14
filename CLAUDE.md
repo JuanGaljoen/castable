@@ -29,7 +29,8 @@ roadmap widens archetype coverage toward "any ring."
 > subprocess CLI) was removed in RNG-15 — `/generate-ring` now generates the
 > solitaire in-process via build123d driven by RingSpec. The geometry lives in
 > `ringcad/geometry/` (`shank`/`prong_setting`/`seat` + `build_solitaire` + STL/STEP
-> export). The RNG-13 spike code under `spikes/rng13/` is retained for reference.
+> export). The RNG-13 spike code (`spikes/rng13/`) was deleted once the cutover
+> landed; it lives in git history.
 
 ## Architecture (Path C: photo → castable model)
 
