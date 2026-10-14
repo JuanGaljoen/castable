@@ -11,9 +11,6 @@ env/
 .env.*
 
 # Generated artifacts
-output/*.stl
-output/*.off
-output/*.png
 *.log
 
 # Probe output (RNG-22): geometry regenerated on demand, not source of truth

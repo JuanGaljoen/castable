@@ -1,14 +1,11 @@
-"""RNG-15 AC3 — decomposed build123d geometry modules (RED).
+"""Decomposed build123d geometry modules.
 
-RED until `ringcad.geometry` exists. Pins the public surface the implementer
-promotes from the RNG-13 spike (`spikes/rng13/b123d_solitaire.py`) into the
-package: a `build_solitaire(spec)` composer that fuses three positive-volume
-module solids — `shank()`, `prong_setting()`, `seat()` — driven by a RingSpec,
-plus `to_stl_bytes` / `to_step_bytes` exporters.
+Pins the public surface of `ringcad.geometry`: a `build_solitaire(spec)` composer
+that fuses three positive-volume module solids — `shank()`, `prong_setting()`,
+`seat()` — driven by a RingSpec, plus `to_stl_bytes` / `to_step_bytes` exporters.
 
-Covers AC3 (decomposed, not monolithic) and AC4 (clean STL + STEP export).
-The volume target (389.56 mm^3 ±5%) is the spike's measured build123d output
-for the canonical params; the implementer must land within that band.
+The volume target (389.56 mm^3 ±5%) is the measured build123d output for the
+canonical params, recorded when the solitaire was first ported to build123d.
 """
 from io import BytesIO
 
