@@ -518,6 +518,37 @@ button:focus-visible,
   color: var(--faint);
 }
 
+/* Shown over the viewer while a ring generates. The previous model stays
+   visible underneath, dimmed, so the user keeps their bearings. */
+.viewer-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  background: rgba(10, 10, 12, 0.55);
+  color: #ededf0;   /* always-dark stage, both themes */
+  font-size: 0.92rem;
+  cursor: progress;
+}
+.viewer-loading[hidden] { display: none; }
+/* The "Generate a ring…" prompt would read through the overlay. */
+.viewer-panel[aria-busy="true"] .viewer-placeholder { color: transparent; }
+.viewer-spinner {
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 3px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: download-spin 0.8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .viewer-loading .viewer-spinner { animation: none; border-right-color: currentColor; opacity: 0.6; }
+}
+
 /* Header row: title + castability chip on the left, toolbar on the right. */
 .viewer-header {
   display: flex;
