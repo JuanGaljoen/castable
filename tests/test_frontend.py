@@ -15,6 +15,7 @@ verified in the browser QA phase, NOT here. We only assert the static shell
 Element ids/names are the authoritative contract from .claude/logs/active_plan.md
 and spec.md "## Autonomous Assumptions".
 """
+import pathlib
 import re
 
 import pytest
@@ -727,4 +728,46 @@ def test_clean_mesh_shows_no_status():
     fn = re.search(r"function renderMeshStatus\([^)]*\)\s*\{.*?\n\}", js, re.S).group(0)
     assert re.search(r"if \(valid && !repaired\)\s*\{\s*clearMeshStatus\(\);\s*return;", fn), (
         "renderMeshStatus must stay silent for a clean mesh"
+    )
+
+
+# ---- Viewer loading spinner -------------------------------------------------
+# A generate takes seconds to a minute, and the viewer is where the user is
+# looking, so it shows the wait. The sidebar status line already announces
+# "Generating…" to assistive tech; the spinner is visual only, so it must not
+# announce twice.
+STATIC = pathlib.Path(__file__).parent.parent / "static"
+
+
+def test_viewer_has_hidden_loading_overlay(body):
+    viewer = re.search(
+        r'<section\b[^>]*id="viewer".*?</section>', body, re.IGNORECASE | re.DOTALL
+    )
+    assert viewer, "no #viewer section"
+    overlay = re.search(r'<div\b[^>]*id="viewer-loading"[^>]*>', viewer.group(0))
+    assert overlay, "#viewer must contain a <div id=viewer-loading>"
+    tag = overlay.group(0)
+    assert re.search(r"\bhidden\b", tag), "#viewer-loading must start hidden"
+    assert 'aria-hidden="true"' in tag, (
+        "#viewer-loading is decorative; the status line already announces"
+    )
+
+
+def test_set_loading_drives_the_viewer_overlay():
+    app_js = (STATIC / "app.js").read_text()
+    fn = re.search(r"function setLoading\(isLoading\) \{.*?\n\}", app_js, re.DOTALL)
+    assert fn, "setLoading not found"
+    assert "viewerLoadingEl.hidden = !isLoading" in fn.group(0)
+    assert 'setAttribute("aria-busy"' in fn.group(0), (
+        "the viewer region should report aria-busy while generating"
+    )
+
+
+def test_viewer_spinner_respects_reduced_motion():
+    css = (STATIC / "styles.css").read_text()
+    reduced = re.findall(
+        r"@media \(prefers-reduced-motion: reduce\) \{(.*?)\n\}", css, re.DOTALL
+    )
+    assert any(".viewer-loading" in block for block in reduced), (
+        "the viewer spinner must stop animating under prefers-reduced-motion"
     )

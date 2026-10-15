@@ -53,6 +53,8 @@ function activeFeatures() {
 const form = document.getElementById("ring-form");
 const generateBtn = document.getElementById("generate-btn");
 const statusEl = document.getElementById("status");
+const viewerEl = document.getElementById("viewer");
+const viewerLoadingEl = document.getElementById("viewer-loading");
 const announceEl = document.getElementById("generate-announce");
 const generateHintEl = document.getElementById("generate-hint");
 
@@ -212,6 +214,9 @@ function setLoading(isLoading) {
   generating = isLoading;
   generateBtn.disabled = isLoading;
   if (isLoading) generateHintEl.hidden = true;
+  viewerLoadingEl.hidden = !isLoading;
+  if (isLoading) viewerEl.setAttribute("aria-busy", "true");
+  else viewerEl.removeAttribute("aria-busy");
   if (isLoading) {
     statusEl.textContent = "Generating… this can take up to a minute.";
   }
