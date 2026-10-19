@@ -160,3 +160,26 @@ adjusts. Decision (Juan, during CP2 QA): the spec **should** be castable
 eventually, but warning the user is acceptable for now. Follow-up: make
 `to_spec()` castability-aware (e.g. snap prong_count 6->4, then bump stone
 diameter, until `is_castable`, with a note) so upload->generate works first try.
+
+## Outcome
+
+**Shipped.** An uploaded photo populates a full, schema-valid RingSpec (archetype +
+groups + per-field confidence) and the form is a structured editor over it.
+- Backend: `classify.py` `RingClassification` gains an `archetype` enum +
+  `RingConfidence`; `ClassifyResult.to_spec()` assembles a `validate_spec`-checked
+  spec (shared dims over defaults, `inner_diameter` never estimated, group dims
+  clamped to the RingSpec field bounds read off the models, confidence clamped to
+  [0,1], solitaire fallback on `ValidationError`); `to_json()` / `/classify-ring`
+  return `{ring_detected, detected_style, note, spec}`.
+- Frontend: `photo.js` selects the detected archetype and pre-fills every field,
+  flagging shared fields with confidence < 0.5 (amber marker + aria note).
+
+Built as two commits on one branch (backend, frontend), not per-checkpoint PRs.
+
+**What surprised us.** Nothing at the time, which was the problem: every classify
+test stubbed the client, so the structured-output schema had never been compiled by
+the real API. RNG-21 found it the first time a real key was used (docs/adr/0004).
+Later, RNG-24 replaced the single archetype with a feature set and RNG-32 added
+`adjustments` to the response.
+
+**ADRs it left.** None of its own.

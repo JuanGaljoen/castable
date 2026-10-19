@@ -258,3 +258,26 @@ is RNG-19's explicit scope.
   registry gains one entry).
 - Related ADRs: `docs/adr/0002` (retire proxies superseded by real geometry),
   `docs/adr/0003` (classify a field as placement vs. wall before a proxy).
+
+## Outcome
+
+**Shipped.** A symmetric channel-set accent row down each shoulder: `accent_seat`
+beads at `_accent_angles`/`_accent_loc` placements, retained by two continuous
+channel-wall rails (partial `Torus` arcs), welded THROUGH the shank (no `gallery`, no
+`accent_prong`: the RNG-9 CP3 pave/side-stone connectivity mode).
+- CP1 (contract): `SideStoneSpec` union member + `_side_stone_overcrowding`.
+  `retention` is `Literal["channel"]`; pave deferred on purpose (Decision 5), with the
+  widening noted as additive.
+- CP2 (composition): `ringcad/geometry/side_stone.py`, `check_side_stone`,
+  `MODULES`/`ARCHETYPES["side_stone"]`.
+- CP3 (wire-up): side-stone `<option>` + `#side-stone-fields` (incl. the `retention`
+  `<select>`), and a `stringKeys` addition to the `static/app.js` archetype registry
+  for the retention select.
+
+**What happened next.** RNG-19 CP3 found the collars-and-rails construction was halo
+geometry used where its premise does not hold (channel setting has no per-stone
+collar by definition) and replaced it with a groove cut into the band
+(docs/adr/0008). `_accent_loc` no longer exists; placements are `_accent_angles` +
+`_stone_cut`. The deferred pave widening is RNG-44.
+
+**ADRs it left.** None of its own.

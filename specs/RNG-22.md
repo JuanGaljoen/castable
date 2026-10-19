@@ -192,3 +192,53 @@ suite (it tests the harness; it is not the harness).
 
 Automated visual-similarity scoring (human judgement is the point). Running in CI.
 Fixing RNG-28 (WebP) — the trilogy photo is converted instead.
+
+## Outcome
+
+**Background: the roadmap checkpoint that motivated it (2026-07-20).** With the vision
+layer live, real photos were run end to end through `/classify-ring` ->
+`/generate-ring` by an ad hoc prototype (`spikes/rng22/probe_vision.py`). Findings:
+- **Castability was not the problem.** 3/3 real ring photos generated as raw
+  watertight manifolds, `X-Mesh-Repaired: false`. RNG-20 (vision spec castable by
+  construction) was deleted on that evidence.
+- **Fidelity was the problem, and it was a vocabulary gap, not an archetype gap.** Two
+  of three photos had *oval* centre stones and we built round ones: `Stones` had only
+  `stone_diameter`/`stone_height`, so every ring was a round brilliant (-> RNG-23).
+- **The archetype union lost information the classifier already had.** A halo photo
+  read as "halo ... with pave-set accents along the shoulders"; the union forced one
+  choice and the shoulders vanished (-> RNG-24).
+- **Vision recalled genre averages rather than measuring** ("dimensions estimated from
+  standard proportions for this style"). Absolute mm are unknowable from a photo;
+  *ratios* are visible and were discarded (-> RNG-26).
+- **"Looks bad" was two problems:** geometric fidelity (RNG-23/25/19) and presentation
+  (flat grey material, validation-grade tessellation -> RNG-27).
+
+**Shipped.** `python probes/fidelity_probe.py` runs a committed corpus of real ring
+photos through the *real* endpoints (magic-byte sniff, spec assembly, casting gate and
+mesh check all in the path) and reports per photo; geometry lands in `probes/output/`
+(gitignored).
+- **Pure core, thin I/O shell.** `load_manifest` + `evaluate` hold the corpus semantics
+  and the whole failure bar and need no key, network or photo, so they are tested
+  offline (`tests/test_fidelity_probe.py`, `tests/test_fidelity_verdict.py`), while the
+  harness stays a standalone script pytest never collects. A pytest marker would have
+  needed registering (there is no pytest config) and could still be run by accident;
+  a script cannot.
+- **The failure bar is generation, deliberately.** An archetype mismatch is reported
+  prominently but stays **amber**; a declared manifest entry with no photo is a
+  reported **gap**, not a failure. Adding a photo is a manifest entry plus a file.
+
+**What surprised us.** It cost ~2 cents and found three product defects on its first
+run (RNG-31, RNG-32, RNG-33) plus two bugs in itself, none visible to the then
+3426-test suite. Timings: 15-56s per photo, of which the API call is ~4s; the rest is
+B-rep generation. STLs are 6-48MB at validation-grade tessellation. And **a deleted
+ticket came back**: the fourth photo produced a stone taller than its own head, so
+RNG-20's premise had been under-sampled, not wrong (-> RNG-32; docs/adr/0015).
+
+**ADRs it left.** docs/adr/0015 (give the sample size when retiring work on
+evidence), written later from this ticket's finding.
+
+**Filed from this ticket (2026-08-01).** RNG-31 (vision intermittently reports no ring
+for a clear photo, 1 failure in 4 runs), RNG-32 (vision estimates fields
+independently, producing specs the gate rejects), RNG-33 (stone cuts beyond round +
+oval: vision said "cushion cut" and had to write `round`), RNG-34 (the side-stone
+corpus gap).

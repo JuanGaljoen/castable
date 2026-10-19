@@ -175,3 +175,40 @@ link is asserted castable by test, so the chain cannot end on an uncastable spec
 3. **The side_stone default fix may belong in the defaults, not the repairer.** Repairing every
    side-stone spec up to 3.1mm hides a bad default. Decide during CP1 whether
    `_SHARED_DEFAULTS` should carry an archetype-aware band width instead.
+
+## Outcome
+
+**Shipped.** A vision-assembled spec could be schema-valid and individually defensible
+on every field yet physically impossible together (a 5.2mm stone in a 3.0mm head);
+`to_spec()` used to hand that straight to the casting gate. It no longer does.
+- **Repair is driven by the gate's own `Violation`s**, not a restated table of
+  containment pairs. `make_coherent(spec, confidence)` assembles -> validates ->
+  repairs whichever field each `Violation` names, to the value it names ->
+  re-validates, bounded at 6 passes. All 11 gate codes at the time had a repair. Two
+  codes have a genuinely ambiguous victim (`stone_exceeds_head`, `min_prong_tip`);
+  per-field vision confidence (previously used only for the UI marker) picks which
+  sibling moves, defaulting to a fixed victim on a tie.
+- **Fallback chain, not a single repair attempt:** detected archetype repaired ->
+  solitaire from the same shared estimates repaired -> pure-default solitaire (proven
+  castable for all four archetypes by test).
+- **`to_json()` returns `adjustments`**, and `static/photo.js` marks any field the
+  repair moved with a dashed-indigo border and its own note, distinct from the amber
+  low-confidence marker (WCAG 2.1 AA 1.4.1, not colour alone). Browser-QA'd against a
+  live dev server: upload -> marker renders -> Generate -> castable mesh.
+- **RNG-22 probe: 5/5 corpus photos generate**, up from 3/5, including the ticket's
+  own counterexample (`halo-round.png`). The other two fixed here had been silently
+  broken by RNG-19 tightening the gate.
+
+**What surprised us.**
+- Verify's fuzz testing found a case the repair loop alone cannot converge on: two
+  gate rules pulling the same field in opposite directions, individually satisfiable,
+  jointly impossible. That is why the fallback chain, not the repair function, is what
+  guarantees a castable result.
+- A regression test written for this ticket, in this session, passed and was wrong.
+  It claimed to reproduce that infeasible case by constructing a `ClassifyResult`
+  directly, but `_assemble` normalises stone shape on *every* attempt, so the scenario
+  never occurred; the first attempt converged for an unrelated reason. Caught by
+  tracing the passing test by hand, not by any assertion failing.
+
+**ADRs it left.** docs/adr/0009 (repair from the gate's own violations), docs/adr/0010
+(a passing test can be silent too).

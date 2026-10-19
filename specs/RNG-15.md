@@ -142,3 +142,20 @@ Decide at build time.
   raw 12 non-manifold edges before the repair gate.
 - Pin the `min_prong_tip` castability proxy (`pi*stone_diameter/prong_count*0.25`)
   against the real build123d prong geometry — the one approximate number from RNG-14.
+
+## Outcome
+
+**Shipped.** build123d became the shipping kernel and OpenSCAD was cut over and
+removed: `scad/solitaire.scad`, `ringcad/render.py` and the subprocess CLI are gone,
+and `/generate-ring` generates the solitaire in-process via build123d driven by
+RingSpec. The geometry lives in `ringcad/geometry/` (`shank`/`prong_setting`/`seat` +
+`build_solitaire` + STL/STEP export). The RNG-13 spike (build123d proof-of-parity,
+verdict **GO**) had its code at `spikes/rng13/`; it was deleted once the cutover
+landed and lives in git history.
+
+**The pivot it completed.** Two OpenSCAD-era tickets were deleted rather than built,
+both superseded by the RingSpec (RNG-14) + module-library (RNG-16) foundation:
+RNG-7 (cathedral shoulders, OpenSCAD-specific; the idea returns as RNG-43) and
+RNG-8 (a style registry over OpenSCAD).
+
+**ADRs it left.** None.

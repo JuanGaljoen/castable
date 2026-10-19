@@ -256,3 +256,46 @@ the repo's checkpoint rule.
 3. **`coherence.make_coherent` repairs field-by-field from `Violation`s.** A cross-feature
    violation names a feature, not a scalar field — the repair loop may have no obvious victim
    to move. CP3 problem, but it is the one most likely to need a design change mid-flight.
+
+## Outcome
+
+**Shipped: the archetype union is retired.** A ring is a base
+(`shank`/`setting`/`stones`) plus whichever of `halo`/`trilogy`/`side_stone` are
+present, any subset. Verified end to end on the real path: an upload of
+`probes/corpus/halo-round.png` detects `['halo', 'side_stone']` and generates a
+single raw watertight manifold, no repair.
+- **CP1 contract.** One `RingSpec`, optional feature groups. A legacy `archetype` tag
+  is translated at the `validate_spec` edge, so every existing spec, the flat-7 path
+  and the corpus keep working. `spec_errors` lost its union-tag handling; six
+  `isinstance(spec, XSpec)` guards became presence checks, which is what they always
+  meant.
+- **CP2 cross-feature castability.** `compose` builds from the feature set;
+  `ringspec/footprint.py` is the shared currency: each feature reports the annular
+  sector it occupies, and one generic pairwise check replaces a table of per-pair
+  rules that would grow quadratically. `_SIDE_STONE_A_START_DEG` stopped being a
+  constant and became *derived* (a halo sharing the head pushes the accent row
+  further round), and the gate and the builder read the same derived value.
+- **CP3 vision + UI.** `classify.py` emits a feature SET, not one nearest archetype.
+  The form offers no way to add a feature at all.
+
+**What surprised us.**
+1. **A back-compat shim outlived its own premise.** CP1 re-attached a single
+   `archetype` label to the dumped spec, documented as "meaningful only while at most
+   one feature is present", deferred to CP3. CP3 made multi-feature specs real and the
+   shim rode into it unchanged: on a halo+side_stone spec the label was `"halo"`,
+   re-validating took the legacy exclusive path, and it rejected the spec for also
+   carrying `side_stone`. A 500 on the first real upload, behind 3900 green tests,
+   because every fixture had at most one feature (docs/adr/0013).
+2. **The picker was never the ticket.** The UI was built twice (checkboxes, then an
+   "Add a feature" disclosure) and thrown away twice, while the backend half, the
+   part that actually stops a photo losing its shoulders, was never in question. The
+   end goal is reproducing a photographed ring, so the form is a correction surface;
+   a parts catalogue is a different product. This became the configurator rule in
+   CLAUDE.md.
+
+**ADRs it left.** docs/adr/0013 (a back-compat shim outlives its own premise).
+
+**Filed from this ticket (2026-09-12).** RNG-44 (pave retention for shoulder
+accents): `SideStone.retention` is `Literal["channel"]`, so a photo showing pave-set
+shoulders gets a groove cut into the band instead. Vision reads the corpus photo's
+shoulders as pave, correctly, twice; the contract is short by one value.
