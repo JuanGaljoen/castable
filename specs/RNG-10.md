@@ -266,3 +266,26 @@ trilogy fields (CP3); docs/schema (done, CP1); tests throughout.
 - Related ADRs: `docs/adr/0002` (retire proxies superseded by real geometry),
   `docs/adr/0003` (classify a field as placement vs. wall before writing a
   proxy for it — the lesson this ticket generalized from 0002).
+
+## Outcome
+
+**Shipped.** Two symmetric side settings (`accent_seat` + 4 `accent_prong` each) on a
+gallery-post pedestal (the gallery's hub alone: a single flanking stone has no ring
+for a rail), placed by `placement(c)` rotated by the derived angular offset.
+- CP1 (contract): `TrilogySpec` union member + `_trilogy_overcrowding`.
+- CP2 (composition): `ringcad/geometry/trilogy.py`, `check_trilogy`,
+  `MODULES`/`ARCHETYPES["trilogy"]`.
+- CP3 (wire-up): trilogy `<option>` + `#trilogy-fields` in the form, and an
+  archetype registry in `static/app.js` (a registry, not an if-chain, since trilogy
+  was the second non-solitaire archetype).
+
+RNG-24 later retired the union member and the `<option>`: trilogy is now an
+optional feature group.
+
+**What surprised us.** Design named a planned `_trilogy_spacing` check,
+`side_stone_gap >= MIN_WALL_MM`, shaped exactly like the halo proxy ADR-0002 had
+retired one ticket earlier. Working the geometry in Forge caught it: the post sizes
+its wall from a fixed construction margin, so the gap field is placement, not wall.
+
+**ADRs it left.** docs/adr/0003 (classify a field as placement vs. wall before
+writing a model-level proxy for it).

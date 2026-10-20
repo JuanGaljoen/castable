@@ -195,3 +195,51 @@ back to the court default on an unrecognised value; `/generate-ring` accepts the
   ADR-0002 and of ADR-0006's "validation gates need it more urgently than builders".
 - Castable **by construction** beating a gate rule: the apex needed no violation code because the
   unsafe value was made inexpressible.
+
+## Outcome
+
+**Shipped: six trade profiles across every archetype.** The band was exactly one
+shape, a hardcoded `Ellipse(th/2, w/2)`; it is now `Shank.outer_profile`
+(domed/flat/knife_edge) x `inner_profile` (domed/flat). `domed`+`domed` is `court`,
+the old literal ellipse, kept bit-identical (confirmed by SHA-256 hash against the
+previous tree for the golden solitaire, halo, trilogy AND side-stone). Verified
+against the real dev server: all six combinations generate through `/generate-ring`
+as raw watertight manifolds needing no repair. Full suite: 3923 passed.
+
+**What surprised us.**
+- **The ticket's own four-name list was wrong, and research caught it before any code
+  was written.** "Comfort fit" is not an outer shape: it is purely a domed INNER
+  surface, paired with every outer shape independently (Stuller stocks "Half Round
+  Comfort Fit" and "Comfort-Fit Heavy Knife Edge" as separate SKUs), hence two fields
+  rather than a five-name enum. "Graduated" is not a band shape: the trade uses it for
+  accent-stone sizing along a band; a narrowing band is "tapered", which is
+  `Shank.shank_taper` and already shipped. That scope item was dropped.
+- **A trade reference sheet (`docs/reference/band-profiles.png`) corrected the schema
+  again, after research had.** It confirmed every profile built, and drew a THIRD
+  axis (side walls: court vs. flat-sided court, flat vs. soft square) the two-axis
+  schema cannot express. Filed as RNG-42 rather than folded in.
+- **A self-intersection bug, found by tracing the math by hand before any geometry
+  was built.** The first taper formula receded each non-flat surface by a fixed 0.5
+  regardless of its partner, correct only when BOTH sides are non-flat.
+  `knife_edge` + `domed` (the one pairing with no reference-sheet cell to catch it by
+  eye) produced negative thickness near the band's edge. Fixed by sharing the taper
+  amplitude across however many surfaces are non-flat (`SectionProfile.weights()`),
+  proven to keep thickness non-negative everywhere. Verify mutation-tested the guard
+  test against the original bug (checked out the pre-fix commit).
+- **`_min_wall`'s own floor was already violated, correctly, by every ring ever
+  shipped.** It checks the `band_thickness` field; the court section tapers to zero
+  at the band's edges by design. The criterion "min wall holds across the full
+  parameter space" was rewritten at Design to name the centreline.
+- **`head_r`** (the band's outer radius at the head, where every setting welds in)
+  became one function, `sections.head_r`, called by both `castability.py` and
+  `geometry/_common.py`, closing the ADR-0002 drift class for this field before it
+  could recur.
+
+**ADRs it left.** docs/adr/0011 (a floor on the field is not a floor on the
+artifact), docs/adr/0012 (the knife-edge apex needed no gate rule: it is sized so a
+too-thin value is not constructible; no new `Violation` code, no new `make_coherent`
+repair path). Sourcing in `docs/research/shank-cross-section-profiles.md`.
+
+**Filed from this ticket.** RNG-42 (band side-wall treatment) and RNG-43 (cathedral
+shoulders, split out at Understand because it is setting attachment, the `gallery`
+connectivity standard, not a band cross-section).

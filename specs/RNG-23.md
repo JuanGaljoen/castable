@@ -172,3 +172,43 @@ measuring the short axis.
 - Non-round accent/side stones.
 - Emerald / cushion / pear / marquise — the cornered and pointed families need a different prong
   primitive (V-prongs) and are a follow-up on this seam.
+
+## Outcome
+
+**Shipped: round + oval end to end.** An uploaded oval photo produces an oval castable
+model, and shape is an editable field on every ring style.
+- **The seam is `ringcad/geometry/outline.py`.** `StoneOutline` answers `wire()`,
+  `prong_angles()`, `frame_at()`, `half_width()`, `min_curvature_radius()`,
+  `expanded()`, `angles_by_arc()`, `tube()`. Consumers split two ways:
+  **curve-walkers** (`seat`, `bezel`, `prong_setting`, `halo`) take the path and
+  frames; **width-consumers** (`trilogy`, the overcrowding checks) take a half-width
+  only. `c["stone_r"]` survives only for scale-derived values. (RNG-33 later routed
+  every cut beyond round/oval through one shared `ProfileOutline`, so a new cut became
+  a profile entry rather than a class.)
+- **Contract:** `Stones.shape` (`round`|`oval`) + `length_ratio` (1.0-2.5), both
+  defaulted, so pre-existing specs were untouched. `stone_diameter` is the **short**
+  axis. A ratio (not a length) because a ratio is what a photo shows.
+- **Conventions:** prongs sit so the tips fall midway between claws
+  (`θ = tip + (k+0.5)·2π/n`, the 10-2-4-8 oval layout at n=4); halo accents are spaced
+  by **arc length**, since equal angles bunch them at the tips; round keeps its
+  literal `Torus` call so circular seats are bit-identical.
+- **New castability rule:** `stone_curvature`: a tube swept along a curve tighter than
+  its own section radius passes through itself, so `(stone_diameter/2)/length_ratio`
+  must clear the 0.45mm seat collar.
+
+**What surprised us.** Three bugs passed a fully green 3413-test suite and were caught
+by a real photo and a screenshot, including the *default* ring style silently
+discarding the chosen shape (solitaire took the legacy flat-7 request path, which has
+no `stones` group; fixed by sending solitaire as a structured spec). Each was a test
+written against the author's assumptions rather than against what a user gets. Run
+the real path before calling shape/vision work done (docs/adr/0016).
+
+**ADRs it left.** docs/adr/0005 (a fuse that silently drops bodies still reports
+watertight, zero non-manifold edges and every floor met: assert volume, not just
+watertightness); docs/adr/0006 (when a scalar becomes a shape, audit every consumer;
+three separate gates were still measuring the short axis). Its lesson later became
+docs/adr/0016.
+
+**Filed from this ticket.** RNG-30 (the 3D preview keeps stale geometry after the form
+changes, which misled this ticket's QA twice) and RNG-29 (the photo error message does
+not clear when a file is chosen), both found in its browser QA.

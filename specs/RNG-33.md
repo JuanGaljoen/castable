@@ -499,3 +499,41 @@ Confined to the channel cut: the same oval at 2.5 builds cleanly on solitaire, h
 - Promoting corner fraction and cushion exponent to editable spec fields.
 - Migrating round/oval off the swept collar onto the bored seat (one construction).
 - `bezel` and `check_gallery` short-axis fixes — both latent, neither user-reachable.
+
+## Outcome
+
+**Shipped.** Cushion, emerald, pear and marquise join round and oval. Vision had *said*
+"cushion cut" on RNG-22's first run and had to write `round`; this cashed in the
+RNG-23 `StoneOutline` seam (every new cut goes through the shared `ProfileOutline`).
+
+**What surprised us: two numbers we invented turned out to be published, and two
+research passes disagreed about that.** The first pass concluded "no published figure
+exists anywhere" for the whole `docs/research/` list; a second pass, run because that
+conclusion was disputed, found figures for the emerald corner (US10448713B1 + AGS,
+giving 0.14W where we had 0.15W) and for pear wing shape (straight is a *named
+defect*; correct wings are gently convex). The rest (pear belly, marquise tip angle,
+tip radius, V-prong wrap) really are unpublished, and the second pass checked the
+Stuller and Rio Grande findings catalogues to say so. The lesson is about the shape of
+the claim, not the numbers: "we searched and found nothing" and "nothing exists" are
+different statements. When recording a failed lookup, record where you looked; the
+second pass found the emerald figure in one search (docs/adr/0014).
+
+**ADRs it left.** docs/adr/0014, written later from the research-pass finding.
+
+**Filed from this ticket.**
+- **RNG-39 (archetype sweep, 2026-08-21):** the side-stone channel cut leaves
+  degenerate geometry with an elongated centre stone. Pre-existing: an `oval` at
+  `length_ratio` 2.5 on a channel band gives 2982 mesh bodies / 2712 non-manifold
+  edges on the pre-RNG-33 tree, and the gate calls it castable; a `pear` at 1.60
+  leaves a zero-thickness double shell (bodies of -4.5236 and +4.5255mm3) at the groove
+  tool's outer boundary. Non-monotonic in stone reach, so the fix belongs in
+  `side_stone.py`, not in a gate rule.
+- **RNG-40 (CP3, 2026-08-23):** `expanded()` is not a true parallel curve, so offsets
+  are short at sharp tips. At a marquise point the seat wall's true clearance is
+  0.426mm at `length_ratio` 1.95 and 0.388 at 2.30 against a nominal 0.51 and a 0.46mm
+  claw node sphere, so the sphere grazed the wall and OCCT resolved a zero-volume
+  lamina (2 mesh bodies, 184 non-manifold edges). CP3 worked around it by raising
+  `GIRDLE_EMBED` 0.06 -> 0.15, which is not a fix: pear is safe by passing fully
+  THROUGH the wall (0.159mm) while marquise is safe by clearing it.
+- **RNG-41 (research pass, 2026-08-24):** pear needs five prongs (4 claw + 1 V-tip) and
+  `prong_count` is `Literal[4, 6]`. Marquise's 6 (2 V + 4 claw) matches CP3 exactly.

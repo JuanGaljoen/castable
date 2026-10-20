@@ -373,3 +373,55 @@ in CP1/CP2 is visible in the viewer as it stands today.
       fine". The halo rounds are the evidence for ADR-0008 — the suite was green
       through every defect, and each was found by comparing a render to a
       reference sketch.*
+
+## Outcome
+
+**Shipped: four checkpoints, and the generated rings stopped reading as parametric
+primitives.**
+- **CP1 proportions.** The shank flared 70% at the head in *both* width and
+  thickness; it now tapers in width (`SHANK_WIDTH_TAPER` 1.35) with thickness
+  near-constant (1.15). Trilogy side stones were each rotated a full 51° so their
+  tables faced sideways off the finger: span 32.8mm -> 27.2mm.
+- **CP2 claw finishing.** Claws were constant-width wire ending in a ball *wider than
+  the claw itself*; now a continuous taper to a domed tip (docs/adr/0007).
+- **CP3 channel setting.** Was raised `Torus` collars, i.e. halo geometry where its
+  premise does not hold, since channel setting has **no per-stone collar by
+  definition**. Now a groove cut into the band.
+- **CP4 halo plate.** Was N collar tubes 0.7-0.8mm around 1.2mm stones, pinned at the
+  casting floor so no tuning could slim them. Now one continuous plate with the seats
+  bored into it, hanging off the centre claws, with **no gallery at all**.
+
+**Four latent defects fixed, none visible to the suite:** the castability check and
+the builder disagreed about the shank taper (ADR-0002 drift, so setting the field
+moved the check but not the model); `_halo_overcrowding` only checked that accents do
+not *overlap*, so a halo passed with **0.195mm** between seats; `check_gallery` was
+the halo's in-kernel check and worked by finding rail faces, so once the rail went it
+passed everything; and `compose` subtracted cuts iteratively, raising
+`Null TopoDS_Shape` on a 13-accent halo (one `cut(*tools)` fixes it: ADR-0001's
+single-general-fuse lesson, applied to subtraction).
+
+**What surprised us.** All four defects (including a halo passing the casting gate
+with a quarter of the minimum metal between stones) sat behind a fully green
+3488-test suite. None was found by a test. Every one was found by **comparing a
+render against a trade reference sketch**, which is why `docs/reference/` exists
+(it started with `halo.png` alone). Two process notes:
+1. *Numbers set by eye get written up as principles.* The halo web rule was relaxed
+   after a visual complaint; researching it confirmed the change but found the
+   stated reason was wrong AND that a second number, the plate rim, had been
+   eyeballed to half the trade figure. Look the number up; do not argue it
+   (docs/adr/0014).
+2. *Verify the dev server is younger than the edit.* It runs with reload off, so
+   "I see no change" was twice a stale process, not a bad build (docs/adr/0016).
+
+At the time this landed, RNG-27 (presentation) was judged the cheapest large win
+left, and "get a reference sketch for whichever archetype you touch" became the
+working rule.
+
+**ADRs it left.** docs/adr/0007 (a valid B-rep can still tessellate into a cracked
+mesh), docs/adr/0008 (model the negative, not the setting). Its process notes
+became docs/adr/0014 and docs/adr/0016.
+
+**Filed from this ticket (2026-08-06).** RNG-35 (trilogy side stones too far from
+the centre: CP1 fixed the TILT half and deliberately left the SPACING half), RNG-36
+(the 2mm minimum band width at the shank's narrowest point, flagged unenforced in
+the research), RNG-37 (reference sketches for solitaire, trilogy and side-stone).
