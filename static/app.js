@@ -57,6 +57,8 @@ const viewerEl = document.getElementById("viewer");
 const viewerLoadingEl = document.getElementById("viewer-loading");
 const announceEl = document.getElementById("generate-announce");
 const generateHintEl = document.getElementById("generate-hint");
+const viewerCanvasEl = document.getElementById("viewer-canvas");
+const viewerStaleEl = document.getElementById("viewer-stale");
 
 // Last successful request. Generate is disabled while the form would send the
 // same thing again (a rebuild takes up to a minute and shows nothing new).
@@ -208,6 +210,11 @@ function syncGenerateEnabled() {
     JSON.stringify(gatherRequestBody()) === lastGeneratedBody;
   generateBtn.disabled = unchanged;
   generateHintEl.hidden = !unchanged;
+  // The model on screen no longer matches the form. Dimmed rather than
+  // cleared, so the user can still compare against what they changed.
+  const stale = lastGeneratedBody !== null && !unchanged;
+  viewerStaleEl.hidden = !stale;
+  viewerCanvasEl.classList.toggle("is-stale", stale);
 }
 
 function setLoading(isLoading) {
