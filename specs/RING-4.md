@@ -39,3 +39,21 @@ and a successful generate clears it.
 
 - [x] CP1: stale cue wired through `syncGenerateEnabled`, source tests +
       browser QA (mutation-tested).
+
+## Outcome
+
+Shipped as one checkpoint: `#viewer-stale` beside the heading plus
+`#viewer-canvas.is-stale`, both set in `syncGenerateEnabled`.
+
+- **Opacity was the wrong dim.** The first cut faded the canvas with
+  `opacity: 0.4`. Source tests and the browser script both passed, but the
+  light-theme screenshot showed the page bleeding through: the stage went grey,
+  the ring read brighter, and the note lost contrast. Only looking at the
+  render caught it. `filter: brightness(0.45)` darkens the canvas's own stage
+  in either theme.
+- **Browser QA** (outside the repo, per the zero-install pattern): 10 checks
+  covering field edits, edit-back, a forced 400, a real photo prefill
+  (`halo-oval.jpg`), 1440x900 no-scroll and mobile. Mutation-tested: 4 of 10
+  fail on the pre-fix `app.js`.
+- **Filed:** RING-45, Chrome's native "No file chosen" tooltip on the photo
+  input, spotted during review. Pre-existing and unrelated to staleness.
