@@ -506,7 +506,23 @@ button:focus-visible,
   background: radial-gradient(90% 80% at 50% 35%, #161620, #0c0c0f 72%);
 }
 
-#viewer-canvas { display: block; touch-action: none; }
+#viewer-canvas { display: block; touch-action: none; transition: filter 0.2s; }
+/* The form has moved on from the model on screen. Darkened, not faded:
+   opacity would let a light page through and wash the stage out grey. */
+#viewer-canvas.is-stale { filter: brightness(0.45); }
+/* The loading overlay already dims; don't stack a second dim under it. */
+.viewer-panel[aria-busy="true"] #viewer-canvas.is-stale { filter: none; }
+@media (prefers-reduced-motion: reduce) {
+  #viewer-canvas { transition: none; }
+}
+
+.viewer-stale {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+.viewer-stale::before { content: "\25CC  "; }
 
 .viewer-placeholder {
   display: flex;
@@ -772,6 +788,7 @@ button:focus-visible,
   .viewer-toolbar,
   .viewer-title .mesh-status { pointer-events: auto; }
   .viewer-panel h2 { color: #ededf0; }   /* always-dark stage, both themes */
+  .viewer-stale { color: #9b9ba6; }
   #viewer-canvas,
   .viewer-placeholder {
     height: 100%;
